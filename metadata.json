@@ -1,0 +1,6 @@
+{
+  "name": "ClipForge Video Editor",
+  "description": "Full-featured browser-based video editor inspired by CapCut with multi-track timeline, real-time effects, audio tools, keyframes, and AI creation tools.",
+  "requestFramePermissions": ["camera", "microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
