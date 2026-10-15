@@ -8,6 +8,7 @@ export interface RenderOptions {
   canvasWidth?: number;
   canvasHeight?: number;
   isExporting?: boolean;
+  isPlaying?: boolean;
 }
 
 // Media element cache to prevent reloading during playback
@@ -18,14 +19,32 @@ export function getVideoElement(clipId: string, url: string): HTMLVideoElement {
   let el = videoElementsCache.get(clipId);
   if (!el || el.src !== url) {
     el = document.createElement('video');
-    el.crossOrigin = 'anonymous';
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      el.crossOrigin = 'anonymous';
+    }
     el.src = url;
-    el.muted = true;
     el.playsInline = true;
     el.preload = 'auto';
+    el.onloadeddata = () => {
+      window.dispatchEvent(new CustomEvent('clipforge:redraw'));
+    };
+    el.oncanplay = () => {
+      window.dispatchEvent(new CustomEvent('clipforge:redraw'));
+    };
+    el.onseeked = () => {
+      window.dispatchEvent(new CustomEvent('clipforge:redraw'));
+    };
     videoElementsCache.set(clipId, el);
   }
   return el;
+}
+
+export function pauseAllVideos(): void {
+  videoElementsCache.forEach((el) => {
+    if (!el.paused) {
+      el.pause();
+    }
+  });
 }
 
 export function getImageElement(clipId: string, url: string): HTMLImageElement {
@@ -121,6 +140,7 @@ export function renderFrame(
   // Active clips in visual tracks, sorted by layer order:
   // Tracks array bottom to top: video (base), stickers, text (top)
   const visualTracks = [...project.tracks].reverse().filter((t) => !t.hidden && t.type !== 'audio');
+  const activeVideoClipIds = new Set<string>();
 
   for (const track of visualTracks) {
     for (const clip of track.clips) {
@@ -128,10 +148,22 @@ export function renderFrame(
       const clipEnd = clip.start + clip.duration;
 
       if (currentTime >= clipStart && currentTime < clipEnd) {
+        if (clip.type === 'video' && clip.mediaUrl) {
+          activeVideoClipIds.add(clip.id);
+        }
         renderClip(ctx, clip, track, currentTime, cw, ch, options);
       }
     }
   }
+
+  // Ensure any cached video elements outside the current playhead are paused
+  videoElementsCache.forEach((el, id) => {
+    if (!activeVideoClipIds.has(id)) {
+      if (!el.paused) {
+        el.pause();
+      }
+    }
+  });
 
   // Render Safe-Area Guides & Grid (if enabled in UI preview)
   if (options.showSafeGuides && !options.isExporting) {
@@ -268,7 +300,7 @@ function renderClip(
   if (clip.type === 'color') {
     drawColorClip(ctx, clip, canvasW, canvasH, currentTime);
   } else if (clip.type === 'video' && clip.mediaUrl) {
-    drawVideoClip(ctx, clip, currentTime, canvasW, canvasH);
+    drawVideoClip(ctx, clip, currentTime, canvasW, canvasH, options.isPlaying, track);
   } else if (clip.type === 'image' && clip.mediaUrl) {
     drawImageClip(ctx, clip, canvasW, canvasH);
   } else if (clip.type === 'text' && clip.textProps) {
@@ -348,14 +380,38 @@ function drawVideoClip(
   clip: Clip,
   currentTime: number,
   canvasW: number,
-  canvasH: number
+  canvasH: number,
+  isPlaying?: boolean,
+  track?: Track
 ) {
   const videoEl = getVideoElement(clip.id, clip.mediaUrl!);
-  const targetTime = (currentTime - clip.start) * clip.speed + clip.sourceStart;
+  const targetTime = clip.freezeFrame
+    ? clip.sourceStart
+    : Math.max(0, (currentTime - clip.start) * clip.speed + clip.sourceStart);
 
-  // Sync video element time if deviation is larger than 0.1s
-  if (Math.abs(videoEl.currentTime - targetTime) > 0.15) {
-    videoEl.currentTime = targetTime;
+  // Sync Video Audio volume and Mute directly on the video element for native, perfectly synchronized AV playback
+  const isMuted = Boolean(track?.muted || clip.audioProps?.mute);
+  const trackVol = track?.volume ?? 1;
+  const clipVol = clip.audioProps?.volume ?? 1;
+  videoEl.muted = isMuted;
+  videoEl.volume = isMuted ? 0 : Math.min(Math.max(trackVol * clipVol, 0), 1);
+
+  if (isPlaying && !clip.freezeFrame) {
+    videoEl.playbackRate = clip.speed || 1;
+    // Only seek if video drifted by more than 0.25s or is paused/unstarted
+    if (videoEl.paused || Math.abs(videoEl.currentTime - targetTime) > 0.25) {
+      videoEl.currentTime = targetTime;
+    }
+    if (videoEl.paused) {
+      videoEl.play().catch(() => {});
+    }
+  } else {
+    if (!videoEl.paused) {
+      videoEl.pause();
+    }
+    if (Math.abs(videoEl.currentTime - targetTime) > 0.05) {
+      videoEl.currentTime = targetTime;
+    }
   }
 
   const vw = videoEl.videoWidth || canvasW;
@@ -370,7 +426,12 @@ function drawVideoClip(
   }
 
   try {
-    ctx.drawImage(videoEl, -drawW / 2, -drawH / 2, drawW, drawH);
+    if (videoEl.readyState >= 1) {
+      ctx.drawImage(videoEl, -drawW / 2, -drawH / 2, drawW, drawH);
+    } else {
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(-drawW / 2, -drawH / 2, drawW, drawH);
+    }
   } catch {
     // If not ready yet, draw placeholder
     ctx.fillStyle = '#1e293b';

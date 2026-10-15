@@ -49,6 +49,8 @@ export const LeftPanel: React.FC = () => {
     updateClip,
     selectedClipIds,
     getSelectedClip,
+    selectClip,
+    seek,
     setProject,
     addMarker,
   } = useEditorStore();
@@ -91,15 +93,36 @@ export const LeftPanel: React.FC = () => {
       );
       if (!targetTrack) targetTrack = project.tracks[0];
 
+      let actualDuration = isImage ? 4 : 8;
+      if (isVideo || isAudio) {
+        try {
+          const mediaEl = document.createElement(isVideo ? 'video' : 'audio');
+          mediaEl.src = url;
+          await new Promise<void>((resolve) => {
+            mediaEl.onloadedmetadata = () => {
+              if (mediaEl.duration && !isNaN(mediaEl.duration) && isFinite(mediaEl.duration)) {
+                actualDuration = Math.round(mediaEl.duration * 10) / 10;
+              }
+              resolve();
+            };
+            mediaEl.onerror = () => resolve();
+            setTimeout(() => resolve(), 2000);
+          });
+        } catch {}
+      }
+
+      // If this is the first clip on the track, start at 00:00 and align playhead
+      const clipStart = targetTrack.clips.length === 0 ? 0 : currentTime;
+
       const newClip: Clip = {
         id: 'clip_' + Date.now() + '_' + i,
         trackId: targetTrack.id,
         type: isVideo ? 'video' : isAudio ? 'audio' : 'image',
         name: file.name,
-        start: currentTime,
-        duration: isImage ? 4 : 8,
+        start: clipStart,
+        duration: actualDuration,
         sourceStart: 0,
-        sourceDuration: isImage ? 4 : 8,
+        sourceDuration: actualDuration,
         mediaUrl: url,
         x: 0,
         y: 0,
@@ -120,6 +143,11 @@ export const LeftPanel: React.FC = () => {
       };
 
       addClipToTrack(targetTrack.id, newClip);
+      selectClip(newClip.id);
+      if (clipStart === 0) {
+        seek(0);
+      }
+      window.dispatchEvent(new CustomEvent('clipforge:redraw'));
     }
 
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -798,7 +826,7 @@ export const LeftPanel: React.FC = () => {
       </nav>
 
       {/* Tab Drawer Content */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#141620]">
+      <div className="flex-1 flex flex-col h-full overflow-hidden min-h-0 bg-[#141620]">
         {/* Drawer Header */}
         <div className="h-10 px-4 border-b border-[#222638] flex items-center justify-between shrink-0 bg-[#12141c]">
           <h2 className="text-xs font-bold uppercase tracking-wider text-slate-300">
@@ -812,7 +840,7 @@ export const LeftPanel: React.FC = () => {
         </div>
 
         {/* Content Viewport */}
-        <div className="flex-1 overflow-y-auto p-3 space-y-4">
+        <div className="flex-1 overflow-y-auto p-3 space-y-4 min-h-0">
           {/* TAB: MEDIA */}
           {activeLeftTab === 'media' && (
             <div className="space-y-4">

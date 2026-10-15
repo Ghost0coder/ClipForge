@@ -35,8 +35,6 @@ export const CenterPreview: React.FC = () => {
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const animFrameRef = useRef<number | null>(null);
-  const lastTimeRef = useRef<number>(performance.now());
 
   const [previewZoom, setPreviewZoom] = useState<'fit' | '50%' | '100%' | '200%'>('fit');
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -51,51 +49,102 @@ export const CenterPreview: React.FC = () => {
   const selectedClip = getSelectedClip();
   const ratioConfig = ASPECT_RATIOS[project.aspectRatio];
 
-  // Continuous animation frame loop during playback
+  // Continuous animation frame loop during playback (reads fresh store state, never stalls)
   useEffect(() => {
-    const loop = (now: number) => {
-      if (isPlaying) {
-        const delta = (now - lastTimeRef.current) / 1000;
-        lastTimeRef.current = now;
+    if (!isPlaying) return;
 
-        const nextTime = currentTime + delta;
-        if (nextTime >= project.duration) {
-          seek(project.duration);
-          useEditorStore.getState().pause();
-        } else {
-          seek(nextTime);
-        }
-      } else {
-        lastTimeRef.current = now;
+    let animId: number;
+    let lastTime = performance.now();
+
+    const loop = (now: number) => {
+      const delta = Math.max(0, (now - lastTime) / 1000);
+      lastTime = now;
+
+      const store = useEditorStore.getState();
+      if (!store.isPlaying) return;
+
+      const nextTime = store.currentTime + delta;
+      if (nextTime >= store.project.duration) {
+        store.seek(store.project.duration);
+        store.pause();
+        return;
       }
 
-      // Draw active frame to canvas
+      store.seek(nextTime);
+
+      // Draw active frame to canvas during playback
       if (canvasRef.current) {
         const ctx = canvasRef.current.getContext('2d');
         if (ctx) {
-          renderFrame(ctx, project, currentTime, {
-            canvasWidth: ratioConfig.width,
-            canvasHeight: ratioConfig.height,
-            selectedClipId: selectedClip?.id,
-            showSafeGuides,
-            showGrid,
+          const state = useEditorStore.getState();
+          const rConfig = ASPECT_RATIOS[state.project.aspectRatio];
+          renderFrame(ctx, state.project, nextTime, {
+            canvasWidth: rConfig.width,
+            canvasHeight: rConfig.height,
+            selectedClipId: state.selectedClipIds[0] || null,
+            showSafeGuides: state.showSafeGuides,
+            showGrid: state.showGrid,
             isExporting: false,
+            isPlaying: true,
           });
         }
       }
 
-      animFrameRef.current = requestAnimationFrame(loop);
+      animId = requestAnimationFrame(loop);
     };
 
-    lastTimeRef.current = performance.now();
-    animFrameRef.current = requestAnimationFrame(loop);
+    lastTime = performance.now();
+    animId = requestAnimationFrame(loop);
 
     return () => {
-      if (animFrameRef.current) {
-        cancelAnimationFrame(animFrameRef.current);
+      if (animId) {
+        cancelAnimationFrame(animId);
       }
     };
-  }, [isPlaying, currentTime, project, ratioConfig, selectedClip, showSafeGuides, showGrid, seek]);
+  }, [isPlaying]);
+
+  // Canvas drawing effect when paused/scrubbing or when project properties change
+  useEffect(() => {
+    if (isPlaying) return; // Handled at 60fps in requestAnimationFrame loop during active playback
+    if (canvasRef.current) {
+      const ctx = canvasRef.current.getContext('2d');
+      if (ctx) {
+        renderFrame(ctx, project, currentTime, {
+          canvasWidth: ratioConfig.width,
+          canvasHeight: ratioConfig.height,
+          selectedClipId: selectedClip?.id,
+          showSafeGuides,
+          showGrid,
+          isExporting: false,
+          isPlaying: false,
+        });
+      }
+    }
+  }, [project, currentTime, ratioConfig, selectedClip, showSafeGuides, showGrid, isPlaying]);
+
+  // Listen to media ready / seek events to redraw when uploaded video loads
+  useEffect(() => {
+    const handleRedraw = () => {
+      if (!useEditorStore.getState().isPlaying && canvasRef.current) {
+        const ctx = canvasRef.current.getContext('2d');
+        if (ctx) {
+          const state = useEditorStore.getState();
+          const rConfig = ASPECT_RATIOS[state.project.aspectRatio];
+          renderFrame(ctx, state.project, state.currentTime, {
+            canvasWidth: rConfig.width,
+            canvasHeight: rConfig.height,
+            selectedClipId: state.selectedClipIds[0] || null,
+            showSafeGuides: state.showSafeGuides,
+            showGrid: state.showGrid,
+            isExporting: false,
+            isPlaying: false,
+          });
+        }
+      }
+    };
+    window.addEventListener('clipforge:redraw', handleRedraw);
+    return () => window.removeEventListener('clipforge:redraw', handleRedraw);
+  }, []);
 
   // Format timecode (00:00:00.00)
   const formatTimecode = (seconds: number) => {

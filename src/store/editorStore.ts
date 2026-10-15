@@ -3,6 +3,7 @@ import { Project, Track, Clip, AspectRatio, Marker, TrackType, Keyframe } from '
 import { createDefaultProject } from '../utils/sampleData';
 import { saveProjectToDB, getProjectFromDB } from '../utils/storage';
 import { audioEngine } from '../utils/audioEngine';
+import { pauseAllVideos } from '../utils/previewRenderer';
 
 export type ClipUpdates = Partial<Omit<Clip, 'textProps' | 'audioProps' | 'adjustments'>> & {
   textProps?: Partial<import('../types/editor').TextClipProperties>;
@@ -136,7 +137,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
 
     currentTime: 0,
     isPlaying: false,
-    selectedClipIds: ['clip_text_1'],
+    selectedClipIds: [],
 
     zoom: 45,
     snapping: true,
@@ -197,6 +198,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     pause: () => {
       set({ isPlaying: false });
       audioEngine.stopAll();
+      pauseAllVideos();
     },
 
     togglePlay: () => {
@@ -391,39 +393,73 @@ export const useEditorStore = create<EditorState>((set, get) => {
     },
 
     splitClipAtPlayhead: (clipId) => {
-      pushHistory();
       const { project, currentTime, selectedClipIds } = get();
-      const targetId = clipId || selectedClipIds[0];
+      let targetId = clipId || selectedClipIds[0];
+
+      // If no clip explicitly selected, find the first clip under the playhead
+      if (!targetId) {
+        for (const track of project.tracks) {
+          if (track.hidden || track.locked) continue;
+          const found = track.clips.find(
+            (c) => currentTime >= c.start && currentTime <= c.start + c.duration
+          );
+          if (found) {
+            targetId = found.id;
+            break;
+          }
+        }
+      }
       if (!targetId) return;
+
+      // Find the target clip
+      let foundClip: Clip | null = null;
+      for (const track of project.tracks) {
+        const c = track.clips.find((clip) => clip.id === targetId);
+        if (c) {
+          foundClip = c;
+          break;
+        }
+      }
+      if (!foundClip || foundClip.duration < 0.2) return;
+
+      // If playhead is inside clip bounds, split at playhead; otherwise split at the midpoint of the selected clip
+      let splitTime = currentTime;
+      if (splitTime <= foundClip.start + 0.05 || splitTime >= foundClip.start + foundClip.duration - 0.05) {
+        splitTime = foundClip.start + foundClip.duration / 2;
+      }
+
+      pushHistory();
+
+      let createdClipId = '';
 
       const updatedTracks = project.tracks.map((track) => {
         const clipIdx = track.clips.findIndex((c) => c.id === targetId);
         if (clipIdx === -1) return track;
 
         const clip = track.clips[clipIdx];
-        if (currentTime <= clip.start || currentTime >= clip.start + clip.duration) {
-          return track; // Playhead not inside clip
-        }
-
-        const firstDuration = currentTime - clip.start;
+        const firstDuration = splitTime - clip.start;
         const secondDuration = clip.duration - firstDuration;
 
         const clip1: Clip = {
           ...clip,
           duration: firstDuration,
+          keyframes: (clip.keyframes || []).filter((k) => k.time < firstDuration),
         };
 
+        createdClipId = `clip_${Date.now()}_split`;
         const clip2: Clip = {
           ...clip,
-          id: `clip_${Date.now()}_split`,
-          start: currentTime,
+          id: createdClipId,
+          start: splitTime,
           duration: secondDuration,
           sourceStart: clip.sourceStart + firstDuration * clip.speed,
-          keyframes: clip.keyframes.map((k) => ({
-            ...k,
-            id: `kf_${Date.now()}_${Math.random()}`,
-            time: Math.max(0, k.time - firstDuration),
-          })),
+          keyframes: (clip.keyframes || [])
+            .filter((k) => k.time >= firstDuration)
+            .map((k) => ({
+              ...k,
+              id: `kf_${Date.now()}_${Math.random()}`,
+              time: Math.max(0, k.time - firstDuration),
+            })),
         };
 
         const newClips = [...track.clips];
@@ -434,26 +470,32 @@ export const useEditorStore = create<EditorState>((set, get) => {
       const updatedProject = {
         ...project,
         tracks: updatedTracks,
+        duration: recalculateDuration({ ...project, tracks: updatedTracks }),
         updatedAt: Date.now(),
       };
-      set({ project: updatedProject });
+      set({ project: updatedProject, selectedClipIds: createdClipId ? [createdClipId] : [] });
       saveProjectToDB(updatedProject);
+      window.dispatchEvent(new CustomEvent('clipforge:redraw'));
     },
 
     deleteClip: (clipId, ripple = false) => {
+      const { project, selectedClipIds } = get();
+      const targetId = clipId || selectedClipIds[0];
+      if (!targetId) return;
+
       pushHistory();
-      const { project } = get();
+
       let deletedClipDuration = 0;
       let deletedClipStart = 0;
 
       const updatedTracks = project.tracks.map((track) => {
-        const clip = track.clips.find((c) => c.id === clipId);
+        const clip = track.clips.find((c) => c.id === targetId);
         if (!clip) return track;
 
         deletedClipDuration = clip.duration;
         deletedClipStart = clip.start;
 
-        const remaining = track.clips.filter((c) => c.id !== clipId);
+        const remaining = track.clips.filter((c) => c.id !== targetId);
         if (ripple) {
           return {
             ...track,
@@ -475,22 +517,32 @@ export const useEditorStore = create<EditorState>((set, get) => {
       };
       set({ project: updatedProject, selectedClipIds: [] });
       saveProjectToDB(updatedProject);
+      window.dispatchEvent(new CustomEvent('clipforge:redraw'));
     },
 
     duplicateClip: (clipId) => {
+      const { project, selectedClipIds } = get();
+      const targetId = clipId || selectedClipIds[0];
+      if (!targetId) return;
+
       pushHistory();
-      const { project } = get();
+
+      let duplicatedClipId = '';
 
       const updatedTracks = project.tracks.map((track) => {
-        const clip = track.clips.find((c) => c.id === clipId);
+        const clip = track.clips.find((c) => c.id === targetId);
         if (!clip) return track;
 
+        duplicatedClipId = `clip_${Date.now()}_dup`;
         const newClip: Clip = {
           ...clip,
-          id: `clip_${Date.now()}_dup`,
+          id: duplicatedClipId,
           name: `${clip.name} (Copy)`,
-          start: clip.start + clip.duration + 0.1,
-          keyframes: clip.keyframes.map((k) => ({ ...k, id: `kf_${Date.now()}_${Math.random()}` })),
+          start: clip.start + clip.duration,
+          keyframes: (clip.keyframes || []).map((k) => ({
+            ...k,
+            id: `kf_${Date.now()}_${Math.random()}`,
+          })),
         };
 
         return { ...track, clips: [...track.clips, newClip] };
@@ -502,8 +554,9 @@ export const useEditorStore = create<EditorState>((set, get) => {
         duration: recalculateDuration({ ...project, tracks: updatedTracks }),
         updatedAt: Date.now(),
       };
-      set({ project: updatedProject });
+      set({ project: updatedProject, selectedClipIds: duplicatedClipId ? [duplicatedClipId] : [] });
       saveProjectToDB(updatedProject);
+      window.dispatchEvent(new CustomEvent('clipforge:redraw'));
     },
 
     moveClip: (clipId, targetTrackId, newStart) => {
@@ -570,19 +623,43 @@ export const useEditorStore = create<EditorState>((set, get) => {
     },
 
     freezeFrame: (clipId) => {
+      const { project, currentTime, selectedClipIds } = get();
+      const targetId = clipId || selectedClipIds[0];
+      if (!targetId) return;
+
       pushHistory();
-      const { project } = get();
+
       const updatedTracks = project.tracks.map((track) => {
-        const clipIdx = track.clips.findIndex((c) => c.id === clipId);
+        const clipIdx = track.clips.findIndex((c) => c.id === targetId);
         if (clipIdx !== -1) {
           const current = track.clips[clipIdx];
           const updatedClips = [...track.clips];
-          updatedClips[clipIdx] = { ...current, freezeFrame: !current.freezeFrame };
+          const isCurrentlyFrozen = !current.freezeFrame;
+          // When freezing, freeze at the playhead position into the clip
+          const freezeTime = (currentTime >= current.start && currentTime <= current.start + current.duration)
+            ? (currentTime - current.start) * current.speed + current.sourceStart
+            : current.sourceStart;
+          updatedClips[clipIdx] = {
+            ...current,
+            freezeFrame: isCurrentlyFrozen,
+            sourceStart: isCurrentlyFrozen ? freezeTime : current.sourceStart,
+            name: isCurrentlyFrozen
+              ? (current.name.includes('(Frozen)') ? current.name : `${current.name} (Frozen)`)
+              : current.name.replace(' (Frozen)', ''),
+          };
           return { ...track, clips: updatedClips };
         }
         return track;
       });
-      set({ project: { ...project, tracks: updatedTracks } });
+
+      const updatedProject = {
+        ...project,
+        tracks: updatedTracks,
+        updatedAt: Date.now(),
+      };
+      set({ project: updatedProject });
+      saveProjectToDB(updatedProject);
+      window.dispatchEvent(new CustomEvent('clipforge:redraw'));
     },
 
     reverseClip: (clipId) => {
@@ -689,6 +766,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
         redoStack: newRedoStack,
       });
       saveProjectToDB(previous);
+      window.dispatchEvent(new CustomEvent('clipforge:redraw'));
     },
 
     redo: () => {
@@ -705,6 +783,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
         redoStack: newRedoStack,
       });
       saveProjectToDB(next);
+      window.dispatchEvent(new CustomEvent('clipforge:redraw'));
     },
 
     pushHistory,

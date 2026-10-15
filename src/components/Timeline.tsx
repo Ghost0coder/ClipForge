@@ -59,6 +59,7 @@ export const Timeline: React.FC = () => {
 
   const rulerRef = useRef<HTMLDivElement>(null);
   const timelineTracksRef = useRef<HTMLDivElement>(null);
+  const trackHeadersRef = useRef<HTMLDivElement>(null);
 
   // Dragging states
   const [isScrubbing, setIsScrubbing] = useState(false);
@@ -71,7 +72,7 @@ export const Timeline: React.FC = () => {
     origTrackId: '',
   });
 
-  const totalWidth = Math.max(project.duration * zoom + 300, 1200);
+  const totalWidth = Math.max(project.duration * zoom + 500, 1400);
 
   // Time format helper
   const formatRulerTime = (seconds: number) => {
@@ -118,8 +119,10 @@ export const Timeline: React.FC = () => {
         const deltaSec = deltaPx / zoom;
         let newStart = Math.max(0, dragClipStartPos.current.origStart + deltaSec);
 
-        // Snap to playhead or other clip boundaries
-        if (snapping) {
+        // Snap to start 00:00 or playhead
+        if (newStart < 0.2) {
+          newStart = 0;
+        } else if (snapping) {
           if (Math.abs(newStart - currentTime) < 0.2) {
             newStart = currentTime;
           }
@@ -157,6 +160,11 @@ export const Timeline: React.FC = () => {
       if (e.key === 's' || e.key === 'S') {
         e.preventDefault();
         splitClipAtPlayhead();
+      } else if (e.key === 'f' || e.key === 'F') {
+        if (selectedClipIds.length > 0) {
+          e.preventDefault();
+          freezeFrame(selectedClipIds[0]);
+        }
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
         if (selectedClipIds.length > 0) {
           e.preventDefault();
@@ -176,7 +184,7 @@ export const Timeline: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedClipIds, splitClipAtPlayhead, deleteClip, duplicateClip, copySelected, pasteClips]);
+  }, [selectedClipIds, splitClipAtPlayhead, freezeFrame, deleteClip, duplicateClip, copySelected, pasteClips]);
 
   const getTrackIcon = (type: TrackType) => {
     switch (type) {
@@ -254,22 +262,22 @@ export const Timeline: React.FC = () => {
           <button
             onClick={() => selectedClipIds.length > 0 && freezeFrame(selectedClipIds[0])}
             disabled={selectedClipIds.length === 0}
-            className="flex items-center gap-1 px-2 py-1 rounded bg-[#1a1d29] hover:bg-[#232738] text-xs text-slate-300 border border-[#272b3c] disabled:opacity-40 transition-colors"
-            title="Freeze Frame"
+            className="flex items-center gap-1 px-2 py-1 rounded bg-[#1a1d29] hover:bg-[#232738] text-xs text-slate-300 border border-[#272b3c] disabled:opacity-40 transition-colors cursor-pointer"
+            title="Freeze Frame (F)"
           >
             <Snowflake className="w-3.5 h-3.5 text-sky-400" />
-            <span className="hidden md:inline">Freeze</span>
+            <span className="hidden sm:inline">Freeze</span>
           </button>
 
           {/* Ripple Delete */}
           <button
             onClick={() => selectedClipIds.length > 0 && deleteClip(selectedClipIds[0], true)}
             disabled={selectedClipIds.length === 0}
-            className="flex items-center gap-1 px-2 py-1 rounded bg-[#1a1d29] hover:bg-rose-950 hover:border-rose-500 text-xs text-slate-300 border border-[#272b3c] disabled:opacity-40 transition-colors"
-            title="Ripple Delete (closes gap)"
+            className="flex items-center gap-1 px-2 py-1 rounded bg-[#1a1d29] hover:bg-rose-950 hover:border-rose-500 text-xs text-slate-300 border border-[#272b3c] disabled:opacity-40 transition-colors cursor-pointer"
+            title="Ripple Delete (closes gap) [Shift+Del]"
           >
             <ArrowLeftRight className="w-3.5 h-3.5 text-rose-400" />
-            <span className="hidden lg:inline">Ripple Del</span>
+            <span className="hidden sm:inline">Ripple Del</span>
           </button>
 
           {/* Auto-Cut Silence */}
@@ -334,7 +342,7 @@ export const Timeline: React.FC = () => {
           {/* Zoom Slider */}
           <div className="flex items-center gap-1 pl-2 border-l border-[#272b3c]">
             <button
-              onClick={() => setZoom(zoom - 10)}
+              onClick={() => setZoom(Math.max(10, zoom - 15))}
               className="p-1 hover:text-white text-slate-400"
               title="Zoom Out"
             >
@@ -342,14 +350,15 @@ export const Timeline: React.FC = () => {
             </button>
             <input
               type="range"
-              min="15"
-              max="150"
+              min="10"
+              max="200"
+              step="5"
               value={zoom}
               onChange={(e) => setZoom(parseInt(e.target.value))}
-              className="w-16 cursor-pointer"
+              className="w-20 cursor-pointer"
             />
             <button
-              onClick={() => setZoom(zoom + 10)}
+              onClick={() => setZoom(Math.min(200, zoom + 15))}
               className="p-1 hover:text-white text-slate-400"
               title="Zoom In"
             >
@@ -360,17 +369,25 @@ export const Timeline: React.FC = () => {
       </div>
 
       {/* Multi-Track Body: Left Headers + Right Timeline Canvas */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden min-h-0">
         {/* Left Track Headers Column */}
-        <div className="w-48 md:w-56 border-r border-[#222638] bg-[#12141c] flex flex-col shrink-0 z-20 overflow-y-auto">
+        <div
+          ref={trackHeadersRef}
+          onScroll={(e) => {
+            if (timelineTracksRef.current) {
+              timelineTracksRef.current.scrollTop = e.currentTarget.scrollTop;
+            }
+          }}
+          className="w-48 md:w-56 border-r border-[#222638] bg-[#12141c] flex flex-col shrink-0 z-20 overflow-y-auto min-h-0"
+        >
           {/* Header spacer matching ruler height */}
-          <div className="h-7 border-b border-[#222638] bg-[#0e1017] px-3 flex items-center justify-between text-[11px] text-slate-500 font-bold">
+          <div className="h-7 border-b border-[#222638] bg-[#0e1017] px-3 flex items-center justify-between text-[11px] text-slate-500 font-bold shrink-0 sticky top-0 z-10">
             <span>TRACKS</span>
             <span className="font-mono text-[10px]">{project.tracks.length}</span>
           </div>
 
           {/* Track Header Rows */}
-          <div className="flex-1 space-y-1 p-1">
+          <div className="flex-1 space-y-1 py-1 px-1.5">
             {project.tracks.map((track) => (
               <div
                 key={track.id}
@@ -428,7 +445,20 @@ export const Timeline: React.FC = () => {
         {/* Right Timeline Canvas (Ruler + Tracks Lanes) */}
         <div
           ref={timelineTracksRef}
-          className="flex-1 overflow-x-auto overflow-y-auto relative bg-[#0b0c10]"
+          onScroll={(e) => {
+            if (trackHeadersRef.current) {
+              trackHeadersRef.current.scrollTop = e.currentTarget.scrollTop;
+            }
+          }}
+          onWheel={(e) => {
+            if (e.ctrlKey || e.metaKey) {
+              e.preventDefault();
+              setZoom(Math.max(10, Math.min(200, zoom - e.deltaY * 0.2)));
+            } else if (timelineTracksRef.current && Math.abs(e.deltaY) > Math.abs(e.deltaX) && !e.shiftKey) {
+              timelineTracksRef.current.scrollLeft += e.deltaY;
+            }
+          }}
+          className="flex-1 overflow-x-auto overflow-y-auto relative bg-[#0b0c10] min-h-0"
         >
           <div style={{ width: `${totalWidth}px` }} className="relative min-h-full">
             {/* Timeline Ruler */}
@@ -438,7 +468,7 @@ export const Timeline: React.FC = () => {
               className="h-7 border-b border-[#222638] bg-[#12141c] sticky top-0 cursor-pointer relative z-10"
             >
               {/* Ruler ticks every 1 second */}
-              {Array.from({ length: Math.ceil(project.duration) + 10 }).map((_, sec) => {
+              {Array.from({ length: Math.ceil(project.duration) + 15 }).map((_, sec) => {
                 const posX = sec * zoom;
                 return (
                   <div key={sec} style={{ left: `${posX}px` }} className="absolute top-0 h-full">
@@ -475,22 +505,26 @@ export const Timeline: React.FC = () => {
               className="absolute top-0 bottom-0 w-[2px] bg-cyan-400 z-30 pointer-events-none shadow-[0_0_8px_rgba(6,182,212,0.8)]"
             >
               {/* Playhead Needle Head */}
-              <div className="w-3.5 h-3.5 bg-cyan-400 rotate-45 -ml-1.5 -mt-1 shadow-lg pointer-events-auto cursor-ew-resize" />
+              <div
+                onMouseDown={handleRulerMouseDown}
+                style={{ marginLeft: currentTime * zoom < 6 ? '0px' : '-6px' }}
+                className="w-3.5 h-3.5 bg-cyan-400 rotate-45 -mt-1 shadow-lg pointer-events-auto cursor-ew-resize"
+              />
             </div>
 
-            {/* Track Lanes */}
-            <div className="space-y-1 p-1">
+            {/* Track Lanes - flush left 00:00 alignment without clipping */}
+            <div className="space-y-1 py-1 pl-0 pr-4">
               {project.tracks.map((track) => (
                 <div
                   key={track.id}
-                  className={`h-14 rounded-lg relative bg-[#12141c]/50 border border-[#1e2233] transition-colors ${
+                  className={`h-14 relative bg-[#12141c]/50 border-y border-r border-[#1e2233] border-l-0 rounded-r-lg transition-colors ${
                     track.locked ? 'opacity-60 pointer-events-none' : ''
                   }`}
                 >
                   {/* Clips on this track */}
                   {track.clips.map((clip) => {
                     const isSelected = selectedClipIds.includes(clip.id);
-                    const leftPx = clip.start * zoom;
+                    const leftPx = Math.max(0, clip.start) * zoom;
                     const widthPx = Math.max(clip.duration * zoom, 24);
 
                     return (
@@ -504,6 +538,7 @@ export const Timeline: React.FC = () => {
                           if (e.target !== e.currentTarget && (e.target as HTMLElement).dataset.handle) {
                             return; // Don't trigger move on handle click
                           }
+                          useEditorStore.getState().pushHistory();
                           setDraggingClipId(clip.id);
                           dragClipStartPos.current = {
                             clipId: clip.id,
@@ -525,6 +560,7 @@ export const Timeline: React.FC = () => {
                           data-handle="left"
                           onMouseDown={(e) => {
                             e.stopPropagation();
+                            useEditorStore.getState().pushHistory();
                             setTrimmingClip({
                               id: clip.id,
                               side: 'left',
@@ -543,6 +579,11 @@ export const Timeline: React.FC = () => {
                             {clip.type === 'sticker' && clip.stickerEmoji ? `${clip.stickerEmoji} ` : ''}
                             {clip.name}
                           </span>
+                          {clip.freezeFrame && (
+                            <span className="text-[9px] bg-sky-950/90 text-sky-300 px-1 py-0.5 rounded border border-sky-400/50 shrink-0">
+                              ❄️
+                            </span>
+                          )}
                         </div>
 
                         {/* Audio Waveform visualization for Audio Clips */}
@@ -573,6 +614,7 @@ export const Timeline: React.FC = () => {
                           data-handle="right"
                           onMouseDown={(e) => {
                             e.stopPropagation();
+                            useEditorStore.getState().pushHistory();
                             setTrimmingClip({
                               id: clip.id,
                               side: 'right',

@@ -17,6 +17,8 @@ export default function App() {
     rightInspectorCollapsed,
     toggleLeftPanel,
     toggleRightInspector,
+    undo,
+    redo,
   } = useEditorStore();
 
   // On initial mount, attempt to recover last active project from IndexedDB
@@ -26,8 +28,25 @@ export default function App() {
         const lastId = await getLastActiveProjectId();
         if (lastId) {
           const saved = await getProjectFromDB(lastId);
+          // Only restore if user had actual non-demo project
           if (saved) {
-            setProject(saved);
+            const hasOldDemoClips = saved.tracks.some((t) =>
+              t.clips.some((c) =>
+                c.id.startsWith('clip_demo') ||
+                c.id === 'clip_video_1' ||
+                c.id === 'clip_video_2' ||
+                c.id === 'clip_audio_1' ||
+                c.id === 'clip_text_1' ||
+                c.id === 'clip_sticker_1' ||
+                c.name.toLowerCase().includes('demo') ||
+                c.name.toLowerCase().includes('cyberpunk') ||
+                c.name.toLowerCase().includes('tokyo') ||
+                c.name.toLowerCase().includes('synthwave')
+              )
+            );
+            if (!hasOldDemoClips && saved.tracks.some((t) => t.clips.length > 0)) {
+              setProject(saved);
+            }
           }
         }
       } catch (err) {
@@ -46,8 +65,36 @@ export default function App() {
     return () => clearInterval(timer);
   }, [project]);
 
+  // Global Undo / Redo keyboard shortcuts
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement as HTMLElement | null;
+      if (
+        activeEl &&
+        (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable)
+      ) {
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')) {
+        e.preventDefault();
+        if (e.shiftKey) {
+          redo();
+        } else {
+          undo();
+        }
+      } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || e.key === 'Y')) {
+        e.preventDefault();
+        redo();
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [undo, redo]);
+
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#0b0c10] text-[#e2e4ec]">
+    <div className="flex flex-col h-[100vh] h-screen max-h-[100vh] w-screen overflow-hidden bg-[#0b0c10] text-[#e2e4ec]">
       {/* Top Bar */}
       <TopBar />
 

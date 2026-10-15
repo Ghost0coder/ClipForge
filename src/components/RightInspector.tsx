@@ -38,7 +38,7 @@ export const RightInspector: React.FC = () => {
 
   if (!clip) {
     return (
-      <aside className="w-72 md:w-80 border-l border-[#222638] bg-[#12141c] p-6 flex flex-col items-center justify-center text-center text-slate-500 select-none shrink-0">
+      <aside className="w-72 md:w-80 border-l border-[#222638] bg-[#12141c] p-6 flex flex-col items-center justify-center text-center text-slate-500 select-none shrink-0 h-full overflow-hidden">
         <Sliders className="w-8 h-8 text-slate-600 mb-2" />
         <h3 className="text-sm font-semibold text-slate-400">No Clip Selected</h3>
         <p className="text-xs text-slate-600 mt-1 max-w-[200px]">
@@ -144,7 +144,7 @@ export const RightInspector: React.FC = () => {
       </div>
 
       {/* Tab Panels Body */}
-      <div className="flex-1 overflow-y-auto p-3.5 space-y-4">
+      <div className="flex-1 overflow-y-auto p-3.5 space-y-4 min-h-0">
         {/* TRANSFORM TAB */}
         {activeTab === 'transform' && isVisual && (
           <div className="space-y-3.5 text-xs">

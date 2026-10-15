@@ -130,7 +130,7 @@ class AudioEngine {
       if (track.muted || track.hidden) return;
 
       track.clips.forEach((clip) => {
-        const isAudioType = clip.type === 'audio' || (clip.type === 'video' && clip.mediaUrl);
+        const isAudioType = clip.type === 'audio';
         if (!isAudioType) return;
 
         const clipStart = clip.start;
@@ -163,10 +163,15 @@ class AudioEngine {
         this.mediaElements.set(clip.id, audioEl);
       }
       try {
-        audioEl.currentTime = offset;
         audioEl.volume = Math.min(Math.max(clipVolume, 0), 1);
         audioEl.playbackRate = clip.speed || 1;
-        audioEl.play().catch(() => {});
+        // Only seek if audio has drifted significantly (> 0.25s) or is unstarted/paused
+        if (audioEl.paused || Math.abs(audioEl.currentTime - offset) > 0.25) {
+          audioEl.currentTime = offset;
+        }
+        if (audioEl.paused) {
+          audioEl.play().catch(() => {});
+        }
       } catch (err) {
         console.warn('Audio play error:', err);
       }
@@ -205,7 +210,7 @@ class AudioEngine {
       this.activeSources.delete(clipId);
     }
     const audioEl = this.mediaElements.get(clipId);
-    if (audioEl) {
+    if (audioEl && !audioEl.paused) {
       audioEl.pause();
     }
   }
@@ -213,7 +218,11 @@ class AudioEngine {
   public stopAll() {
     this.activeSources.forEach((active) => active.cleanup());
     this.activeSources.clear();
-    this.mediaElements.forEach((el) => el.pause());
+    this.mediaElements.forEach((el) => {
+      if (!el.paused) {
+        el.pause();
+      }
+    });
   }
 
   // Voiceover Recording using navigator.mediaDevices
