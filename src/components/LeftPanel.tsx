@@ -22,6 +22,8 @@ import {
   Download,
   Flame,
   Check,
+  Film,
+  Loader2,
 } from 'lucide-react';
 import { useEditorStore } from '../store/editorStore';
 import {
@@ -38,6 +40,8 @@ import {
 import { audioEngine } from '../utils/audioEngine';
 import { storeMediaBlob } from '../utils/storage';
 import { Clip } from '../types/editor';
+import { toastError, toastSuccess, toastInfo } from '../store/toastStore';
+import { generateSampleVideoBlob } from '../utils/sampleVideo';
 
 export const LeftPanel: React.FC = () => {
   const {
@@ -74,56 +78,136 @@ export const LeftPanel: React.FC = () => {
 
   const selectedClip = getSelectedClip();
 
+  // Sample Video Loading State
+  const [isLoadingSample, setIsLoadingSample] = useState(false);
+
   // Handle local media file upload (video, image, audio)
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
+    console.log('[ClipForge:Upload] Upload files received, count:', files.length);
+
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      const mediaId = 'media_' + Date.now() + '_' + i;
-      const url = await storeMediaBlob(mediaId, file, file.name);
+      console.log('[ClipForge:Upload] Processing file:', { name: file.name, type: file.type, size: file.size });
 
-      const isVideo = file.type.startsWith('video');
-      const isAudio = file.type.startsWith('audio');
-      const isImage = file.type.startsWith('image');
+      try {
+        const mediaId = 'media_' + Date.now() + '_' + i;
+        const url = await storeMediaBlob(mediaId, file, file.name);
+        console.log('[ClipForge:Upload] Saved file to IndexedDB with mediaId:', mediaId);
 
-      let targetTrack = project.tracks.find((t) =>
-        isVideo || isImage ? t.type === 'video' : t.type === 'audio'
-      );
+        const isVideo = file.type.startsWith('video');
+        const isAudio = file.type.startsWith('audio');
+        const isImage = file.type.startsWith('image');
+
+        let targetTrack = project.tracks.find((t) =>
+          isVideo || isImage ? t.type === 'video' : t.type === 'audio'
+        );
+        if (!targetTrack) targetTrack = project.tracks[0];
+
+        let actualDuration = isImage ? 4 : 8;
+        if (isVideo || isAudio) {
+          try {
+            const mediaEl = document.createElement(isVideo ? 'video' : 'audio');
+            mediaEl.src = url;
+            await new Promise<void>((resolve) => {
+              mediaEl.onloadedmetadata = () => {
+                if (mediaEl.duration && !isNaN(mediaEl.duration) && isFinite(mediaEl.duration)) {
+                  actualDuration = Math.round(mediaEl.duration * 10) / 10;
+                  console.log('[ClipForge:Upload] Extracted media duration:', actualDuration, 'seconds');
+                }
+                resolve();
+              };
+              mediaEl.onerror = () => {
+                console.warn('[ClipForge:Upload] Media element load error event for file:', file.name);
+                resolve();
+              };
+              setTimeout(() => resolve(), 3000);
+            });
+          } catch (metaErr) {
+            console.warn('[ClipForge:Upload] Metadata parse warning:', metaErr);
+          }
+        }
+
+        // If this is the first clip on the track, start at 00:00 and align playhead
+        const clipStart = targetTrack.clips.length === 0 ? 0 : currentTime;
+
+        const newClip: Clip = {
+          id: 'clip_' + Date.now() + '_' + i,
+          trackId: targetTrack.id,
+          type: isVideo ? 'video' : isAudio ? 'audio' : 'image',
+          name: file.name,
+          start: clipStart,
+          duration: actualDuration,
+          sourceStart: 0,
+          sourceDuration: actualDuration,
+          mediaUrl: url,
+          mediaId: mediaId,
+          x: 0,
+          y: 0,
+          scale: 1,
+          rotation: 0,
+          opacity: 1,
+          flipH: false,
+          flipV: false,
+          blendMode: 'normal',
+          speed: 1,
+          filterIntensity: 0,
+          adjustments: {
+            brightness: 0, contrast: 0, saturation: 0, exposure: 0,
+            highlights: 0, shadows: 0, temperature: 0, tint: 0,
+            vignette: 0, sharpen: 0, grain: 0,
+          },
+          keyframes: [],
+        };
+
+        addClipToTrack(targetTrack.id, newClip);
+        selectClip(newClip.id);
+        if (clipStart === 0) {
+          seek(0);
+        }
+        console.log('[ClipForge:Upload] Successfully added uploaded clip to timeline:', {
+          clipId: newClip.id,
+          name: newClip.name,
+          trackId: targetTrack.id,
+          duration: newClip.duration,
+        });
+        toastSuccess(`Added "${file.name}" to timeline`, 'Upload Complete');
+        window.dispatchEvent(new CustomEvent('clipforge:redraw'));
+      } catch (uploadErr: any) {
+        console.error('[ClipForge:Upload] Failed to process uploaded file:', file.name, uploadErr);
+        toastError(`Failed to process "${file.name}": ${uploadErr?.message || 'Unsupported format'}`, 'Upload Failed');
+      }
+    }
+
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  // Handle Load Sample Video (built-in test clip)
+  const handleLoadSampleVideo = async () => {
+    setIsLoadingSample(true);
+    console.log('[ClipForge:Upload] "Load sample video" button clicked');
+    try {
+      const sample = await generateSampleVideoBlob();
+      const mediaId = 'sample_video_' + Date.now();
+      await storeMediaBlob(mediaId, sample.blob, 'Sample Test Clip (1080p).webm');
+
+      let targetTrack = project.tracks.find((t) => t.type === 'video');
       if (!targetTrack) targetTrack = project.tracks[0];
 
-      let actualDuration = isImage ? 4 : 8;
-      if (isVideo || isAudio) {
-        try {
-          const mediaEl = document.createElement(isVideo ? 'video' : 'audio');
-          mediaEl.src = url;
-          await new Promise<void>((resolve) => {
-            mediaEl.onloadedmetadata = () => {
-              if (mediaEl.duration && !isNaN(mediaEl.duration) && isFinite(mediaEl.duration)) {
-                actualDuration = Math.round(mediaEl.duration * 10) / 10;
-              }
-              resolve();
-            };
-            mediaEl.onerror = () => resolve();
-            setTimeout(() => resolve(), 2000);
-          });
-        } catch {}
-      }
-
-      // If this is the first clip on the track, start at 00:00 and align playhead
       const clipStart = targetTrack.clips.length === 0 ? 0 : currentTime;
-
-      const newClip: Clip = {
-        id: 'clip_' + Date.now() + '_' + i,
+      const sampleClip: Clip = {
+        id: 'clip_sample_' + Date.now(),
         trackId: targetTrack.id,
-        type: isVideo ? 'video' : isAudio ? 'audio' : 'image',
-        name: file.name,
+        type: 'video',
+        name: 'Sample Test Clip (1080p).webm',
         start: clipStart,
-        duration: actualDuration,
+        duration: sample.duration,
         sourceStart: 0,
-        sourceDuration: actualDuration,
-        mediaUrl: url,
+        sourceDuration: sample.duration,
+        mediaUrl: sample.url,
+        mediaId: mediaId,
         x: 0,
         y: 0,
         scale: 1,
@@ -139,18 +223,30 @@ export const LeftPanel: React.FC = () => {
           highlights: 0, shadows: 0, temperature: 0, tint: 0,
           vignette: 0, sharpen: 0, grain: 0,
         },
+        audioProps: {
+          volume: 1,
+          fadeIn: 0,
+          fadeOut: 0,
+          mute: false,
+          pitchShift: 0,
+        },
         keyframes: [],
       };
 
-      addClipToTrack(targetTrack.id, newClip);
-      selectClip(newClip.id);
+      addClipToTrack(targetTrack.id, sampleClip);
+      selectClip(sampleClip.id);
       if (clipStart === 0) {
         seek(0);
       }
+      console.log('[ClipForge:Upload] Sample video successfully added to track:', sampleClip.id);
+      toastSuccess('Sample test video loaded into timeline!', 'Sample Video Ready');
       window.dispatchEvent(new CustomEvent('clipforge:redraw'));
+    } catch (err: any) {
+      console.error('[ClipForge:Upload] Failed to generate/load sample video:', err);
+      toastError(err?.message || 'Failed to create sample video', 'Sample Video Error');
+    } finally {
+      setIsLoadingSample(false);
     }
-
-    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   // Handle Voiceover Recording
@@ -861,6 +957,21 @@ export const LeftPanel: React.FC = () => {
                   <Upload className="w-5 h-5 text-violet-400 group-hover:scale-110 transition-transform" />
                   <span className="text-xs font-semibold">Upload Videos, Audio, Images</span>
                   <span className="text-[10px] text-slate-500">Drag & drop files or click to browse</span>
+                </button>
+
+                {/* Built-in Sample Video Loader Button */}
+                <button
+                  onClick={handleLoadSampleVideo}
+                  disabled={isLoadingSample}
+                  className="w-full mt-2 py-2 px-3 rounded-xl border border-violet-500/30 hover:border-violet-400 bg-gradient-to-r from-violet-950/70 to-indigo-950/80 hover:from-violet-900/80 hover:to-indigo-900/90 text-violet-200 flex items-center justify-center gap-2 text-xs font-semibold transition-all shadow-sm group cursor-pointer disabled:opacity-50"
+                  title="Load short built-in test video into timeline"
+                >
+                  {isLoadingSample ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-violet-400" />
+                  ) : (
+                    <Film className="w-4 h-4 text-violet-400 group-hover:scale-110 transition-transform" />
+                  )}
+                  <span>{isLoadingSample ? 'Generating Test Clip...' : 'Load sample video'}</span>
                 </button>
               </div>
 

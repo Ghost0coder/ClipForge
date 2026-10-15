@@ -12,6 +12,7 @@ import {
 import { useEditorStore } from '../store/editorStore';
 import { exportPipeline, ExportProgress } from '../utils/exportPipeline';
 import { ExportSettings } from '../types/editor';
+import { toastError, toastSuccess } from '../store/toastStore';
 
 export const ExportModal: React.FC = () => {
   const { isExportModalOpen, setExportModalOpen, project } = useEditorStore();
@@ -30,6 +31,12 @@ export const ExportModal: React.FC = () => {
 
   const handleStartExport = async () => {
     setIsExporting(true);
+    console.log('[ClipForge:Export] handleStartExport invoked for project:', {
+      name: project.name,
+      duration: project.duration,
+      settings,
+    });
+
     setProgress({
       percentage: 0,
       currentFrame: 0,
@@ -39,18 +46,25 @@ export const ExportModal: React.FC = () => {
     });
 
     try {
-      await exportPipeline.exportProject(project, settings, (prog) => {
+      const resultUrl = await exportPipeline.exportProject(project, settings, (prog) => {
         setProgress(prog);
       });
+      if (resultUrl) {
+        console.log('[ClipForge:Export] Export finished successfully! Download URL ready.');
+        toastSuccess('Video export completed successfully!', 'Export Finished');
+      }
     } catch (err: any) {
+      console.error('[ClipForge:Export] Export failed with error:', err);
+      const errorMsg = err?.message || 'Video export encountered an unexpected error';
       setProgress({
         percentage: 0,
         currentFrame: 0,
         totalFrames: 0,
-        statusText: `Export failed: ${err.message || 'Unknown error'}`,
+        statusText: `Export failed: ${errorMsg}`,
         isComplete: false,
-        error: err.message,
+        error: errorMsg,
       });
+      toastError(errorMsg, 'Export Failed');
     } finally {
       setIsExporting(false);
     }

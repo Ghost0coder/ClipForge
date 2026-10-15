@@ -125,6 +125,7 @@ export interface Clip {
   sourceStart: number; // offset into source media in seconds
   sourceDuration: number; // original media duration in seconds
   mediaUrl?: string; // blob URL or data URL
+  mediaId?: string; // IndexedDB media storage key
   thumbnailUrl?: string;
   color?: string; // for solid color clips
 

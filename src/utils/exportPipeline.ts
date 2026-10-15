@@ -24,6 +24,14 @@ export class ExportPipeline {
     onProgress: (progress: ExportProgress) => void
   ): Promise<string | null> {
     this.isCancelled = false;
+    console.log('[ClipForge:Export] Pipeline starting exportProject:', {
+      projectName: project.name,
+      duration: project.duration,
+      format: settings.format,
+      resolution: settings.resolution,
+      fps: settings.fps,
+      quality: settings.quality,
+    });
 
     // Handle single frame PNG capture
     if (settings.format === 'png-frame') {
@@ -120,6 +128,9 @@ export class ExportPipeline {
       });
 
       const percentage = Math.round(((frame + 1) / totalFrames) * 100);
+      if (frame % Math.max(1, Math.floor(totalFrames / 5)) === 0 || frame === totalFrames - 1) {
+        console.log('[ClipForge:Export] Frame encoding progress:', `${percentage}% (${frame + 1}/${totalFrames})`);
+      }
       onProgress({
         percentage,
         currentFrame: frame + 1,
@@ -132,9 +143,15 @@ export class ExportPipeline {
       await new Promise((r) => setTimeout(r, Math.min(frameDelayMs * 0.4, 16)));
     }
 
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
+      recorder.onerror = (err) => {
+        console.error('[ClipForge:Export] MediaRecorder error event:', err);
+        reject(err);
+      };
+
       recorder.onstop = () => {
         const finalBlob = new Blob(recordedChunks, { type: mimeType });
+        console.log('[ClipForge:Export] Pipeline completed successfully! Final blob size:', finalBlob.size, 'bytes, mime:', mimeType);
         const downloadUrl = URL.createObjectURL(finalBlob);
 
         onProgress({

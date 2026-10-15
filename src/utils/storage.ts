@@ -87,27 +87,79 @@ export async function storeMediaBlob(id: string, file: File | Blob, name: string
       id,
       blob: file,
       name,
-      type: file.type,
-      size: file.size,
+      type: file.type || 'video/webm',
+      size: file.size || 0,
       createdAt: Date.now(),
+    });
+    console.log('[ClipForge:Storage] Successfully saved media file to IndexedDB:', {
+      id,
+      name,
+      size: file.size,
+      type: file.type,
     });
     return URL.createObjectURL(file);
   } catch (error) {
-    console.error('Failed to save media blob:', error);
+    console.error('[ClipForge:Storage] Failed to save media blob to IndexedDB:', error);
     return URL.createObjectURL(file);
+  }
+}
+
+export async function getMediaBlob(id: string): Promise<{ id: string; blob: Blob; name: string; type: string } | null> {
+  try {
+    const db = await getDB();
+    const record = await db.get('media', id);
+    return record || null;
+  } catch (error) {
+    console.error('[ClipForge:Storage] Failed to retrieve media record from IndexedDB:', error);
+    return null;
   }
 }
 
 export async function getMediaBlobUrl(id: string): Promise<string | null> {
   try {
-    const db = await getDB();
-    const record = await db.get('media', id);
+    const record = await getMediaBlob(id);
     if (record && record.blob) {
       return URL.createObjectURL(record.blob);
     }
     return null;
   } catch {
     return null;
+  }
+}
+
+export async function restoreProjectMediaUrls(project: Project): Promise<Project> {
+  try {
+    const updatedTracks = await Promise.all(
+      project.tracks.map(async (track) => {
+        const updatedClips = await Promise.all(
+          track.clips.map(async (clip) => {
+            const mediaKey = clip.mediaId || clip.id;
+            if (mediaKey) {
+              const record = await getMediaBlob(mediaKey);
+              if (record && record.blob) {
+                const freshUrl = URL.createObjectURL(record.blob);
+                console.log('[ClipForge:Storage] Rehydrated media blob URL from IndexedDB for clip:', {
+                  clipId: clip.id,
+                  mediaKey,
+                  name: clip.name,
+                });
+                return {
+                  ...clip,
+                  mediaUrl: freshUrl,
+                  mediaId: mediaKey,
+                };
+              }
+            }
+            return clip;
+          })
+        );
+        return { ...track, clips: updatedClips };
+      })
+    );
+    return { ...project, tracks: updatedTracks };
+  } catch (err) {
+    console.error('[ClipForge:Storage] Error restoring project media URLs:', err);
+    return project;
   }
 }
 

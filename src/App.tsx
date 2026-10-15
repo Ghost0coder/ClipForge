@@ -6,8 +6,9 @@ import { RightInspector } from './components/RightInspector';
 import { Timeline } from './components/Timeline';
 import { ExportModal } from './components/ExportModal';
 import { ProjectManagerModal } from './components/ProjectManagerModal';
+import { ToastContainer } from './components/ToastContainer';
 import { useEditorStore } from './store/editorStore';
-import { saveProjectToDB, getProjectFromDB, getLastActiveProjectId } from './utils/storage';
+import { saveProjectToDB, getProjectFromDB, getLastActiveProjectId, restoreProjectMediaUrls } from './utils/storage';
 
 export default function App() {
   const {
@@ -45,7 +46,10 @@ export default function App() {
               )
             );
             if (!hasOldDemoClips && saved.tracks.some((t) => t.clips.length > 0)) {
-              setProject(saved);
+              console.log('[ClipForge:Storage] Restoring saved project from IndexedDB:', saved.name);
+              const restored = await restoreProjectMediaUrls(saved);
+              setProject(restored);
+              window.dispatchEvent(new CustomEvent('clipforge:redraw'));
             }
           }
         }
@@ -133,6 +137,9 @@ export default function App() {
       {/* Modal Dialogs */}
       <ExportModal />
       <ProjectManagerModal />
+
+      {/* Global Error & Notification Toasts */}
+      <ToastContainer />
     </div>
   );
 }

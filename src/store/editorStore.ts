@@ -4,6 +4,7 @@ import { createDefaultProject } from '../utils/sampleData';
 import { saveProjectToDB, getProjectFromDB } from '../utils/storage';
 import { audioEngine } from '../utils/audioEngine';
 import { pauseAllVideos } from '../utils/previewRenderer';
+import { toastError, toastSuccess, toastWarning, toastInfo } from './toastStore';
 
 export type ClipUpdates = Partial<Omit<Clip, 'textProps' | 'audioProps' | 'adjustments'>> & {
   textProps?: Partial<import('../types/editor').TextClipProperties>;
@@ -95,6 +96,14 @@ interface EditorState {
   toggleLeftPanel: () => void;
   toggleRightInspector: () => void;
 
+  // Mobile layout & drawers
+  devMobilePreview: boolean;
+  toggleDevMobilePreview: () => void;
+  isMobileToolDrawerOpen: boolean;
+  setMobileToolDrawerOpen: (open: boolean) => void;
+  isMobileInspectorOpen: boolean;
+  setMobileInspectorOpen: (open: boolean) => void;
+
   // Advanced Tools
   extractAudioFromClip: (clipId: string) => void;
   autoCutSilence: () => void;
@@ -153,6 +162,13 @@ export const useEditorStore = create<EditorState>((set, get) => {
     toggleLeftPanel: () => set((state) => ({ leftPanelCollapsed: !state.leftPanelCollapsed })),
     toggleRightInspector: () => set((state) => ({ rightInspectorCollapsed: !state.rightInspectorCollapsed })),
 
+    devMobilePreview: false,
+    toggleDevMobilePreview: () => set((state) => ({ devMobilePreview: !state.devMobilePreview })),
+    isMobileToolDrawerOpen: false,
+    setMobileToolDrawerOpen: (open) => set({ isMobileToolDrawerOpen: open }),
+    isMobileInspectorOpen: false,
+    setMobileInspectorOpen: (open) => set({ isMobileInspectorOpen: open }),
+
     setProject: (project) => {
       pushHistory();
       set({ project, currentTime: 0, selectedClipIds: [] });
@@ -188,6 +204,14 @@ export const useEditorStore = create<EditorState>((set, get) => {
 
     play: () => {
       const { project, currentTime } = get();
+      console.log('[ClipForge:Play] Initiating playback at time:', currentTime, 'Duration:', project.duration);
+
+      const totalClips = project.tracks.reduce((acc, t) => acc + t.clips.length, 0);
+      if (totalClips === 0) {
+        console.log('[ClipForge:Play] Notice: Timeline has no clips');
+        toastInfo('Timeline is empty. Upload or load a sample video to start playing.', 'Playback Notice');
+      }
+
       if (currentTime >= project.duration) {
         set({ currentTime: 0 });
       }
@@ -196,6 +220,8 @@ export const useEditorStore = create<EditorState>((set, get) => {
     },
 
     pause: () => {
+      const { currentTime } = get();
+      console.log('[ClipForge:Pause] Playback paused at time:', currentTime);
       set({ isPlaying: false });
       audioEngine.stopAll();
       pauseAllVideos();
@@ -233,11 +259,12 @@ export const useEditorStore = create<EditorState>((set, get) => {
             ? state.selectedClipIds.filter((id) => id !== clipId)
             : [...state.selectedClipIds, clipId]
           : [clipId],
+        isMobileInspectorOpen: true,
       }));
     },
 
     deselectAll: () => {
-      set({ selectedClipIds: [] });
+      set({ selectedClipIds: [], isMobileInspectorOpen: false });
     },
 
     getSelectedClip: () => {
@@ -395,6 +422,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     splitClipAtPlayhead: (clipId) => {
       const { project, currentTime, selectedClipIds } = get();
       let targetId = clipId || selectedClipIds[0];
+      console.log('[ClipForge:Split] Split requested at playhead:', currentTime, 'Target clip ID:', targetId);
 
       // If no clip explicitly selected, find the first clip under the playhead
       if (!targetId) {
@@ -409,7 +437,11 @@ export const useEditorStore = create<EditorState>((set, get) => {
           }
         }
       }
-      if (!targetId) return;
+      if (!targetId) {
+        console.warn('[ClipForge:Split] Split failed: No clip selected or found under playhead');
+        toastWarning('Please select a clip on the timeline to split it.', 'Split Notice');
+        return;
+      }
 
       // Find the target clip
       let foundClip: Clip | null = null;
@@ -420,7 +452,16 @@ export const useEditorStore = create<EditorState>((set, get) => {
           break;
         }
       }
-      if (!foundClip || foundClip.duration < 0.2) return;
+      if (!foundClip) {
+        console.warn('[ClipForge:Split] Split failed: Target clip not found in project tracks');
+        toastWarning('Clip not found to split.', 'Split Notice');
+        return;
+      }
+      if (foundClip.duration < 0.2) {
+        console.warn('[ClipForge:Split] Split failed: Clip duration is too short (<0.2s):', foundClip.duration);
+        toastWarning('Clip is too short to be split (< 0.2s).', 'Split Notice');
+        return;
+      }
 
       // If playhead is inside clip bounds, split at playhead; otherwise split at the midpoint of the selected clip
       let splitTime = currentTime;
@@ -475,6 +516,8 @@ export const useEditorStore = create<EditorState>((set, get) => {
       };
       set({ project: updatedProject, selectedClipIds: createdClipId ? [createdClipId] : [] });
       saveProjectToDB(updatedProject);
+      console.log('[ClipForge:Split] Successfully split clip:', targetId, 'at time:', splitTime, 'into new clip:', createdClipId);
+      toastSuccess('Clip successfully split at playhead', 'Split Complete');
       window.dispatchEvent(new CustomEvent('clipforge:redraw'));
     },
 

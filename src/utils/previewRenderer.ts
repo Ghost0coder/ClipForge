@@ -1,5 +1,6 @@
 import { Project, Clip, Track, AspectRatio, ASPECT_RATIOS, Keyframe } from '../types/editor';
 import { FILTERS_LIST } from './sampleData';
+import { toastError } from '../store/toastStore';
 
 export interface RenderOptions {
   showSafeGuides?: boolean;
@@ -24,7 +25,11 @@ export function getVideoElement(clipId: string, url: string): HTMLVideoElement {
     }
     el.src = url;
     el.playsInline = true;
-    el.preload = 'auto';
+    const currentEl = el;
+    el.onerror = () => {
+      console.error('[ClipForge:Play] Video element playback/decode error on clip:', clipId, currentEl.error);
+      toastError(`Video error on clip (${clipId}): Failed to load or decode video media`, 'Media Playback Error');
+    };
     el.onloadeddata = () => {
       window.dispatchEvent(new CustomEvent('clipforge:redraw'));
     };
@@ -403,7 +408,16 @@ function drawVideoClip(
       videoEl.currentTime = targetTime;
     }
     if (videoEl.paused) {
-      videoEl.play().catch(() => {});
+      console.log('[ClipForge:Play] Starting video playback for clip:', {
+        clipId: clip.id,
+        name: clip.name,
+        targetTime,
+        speed: clip.speed,
+      });
+      videoEl.play().catch((err) => {
+        console.error('[ClipForge:Play] Failed to play video element for clip:', clip.id, err);
+        toastError(`Playback error for "${clip.name}": ${err?.message || 'Media playback restricted'}`, 'Playback Error');
+      });
     }
   } else {
     if (!videoEl.paused) {
