@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { Analytics } from '@vercel/analytics/react';
 import { TopBar } from './components/TopBar';
 import { LeftPanel } from './components/LeftPanel';
 import { CenterPreview } from './components/CenterPreview';
@@ -140,6 +141,9 @@ export default function App() {
 
       {/* Global Error & Notification Toasts */}
       <ToastContainer />
+
+      {/* Vercel Web Analytics */}
+      <Analytics />
     </div>
   );
 }
