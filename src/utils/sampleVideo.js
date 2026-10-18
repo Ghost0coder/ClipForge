@@ -3,7 +3,7 @@
  * Generates an actual 4-second animated video clip (1280x720) with dynamic graphics,
  * animated timecode, geometric visualizers, and synth audio track, without requiring external network requests.
  */
-export async function generateSampleVideoBlob(): Promise<{ blob: Blob; url: string; duration: number }> {
+export async function generateSampleVideoBlob() {
   console.log('[ClipForge:Upload] Generating built-in sample test video clip...');
 
   const width = 1280;
@@ -21,10 +21,10 @@ export async function generateSampleVideoBlob(): Promise<{ blob: Blob; url: stri
   }
 
   // Setup Web Audio synthesizer for test audio tone in the video stream
-  let audioTrack: MediaStreamTrack | null = null;
-  let audioContext: AudioContext | null = null;
+  let audioTrack = null;
+  let audioContext = null;
   try {
-    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    const AudioCtx = window.AudioContext || (window ).webkitAudioContext;
     if (AudioCtx) {
       audioContext = new AudioCtx();
       const dest = audioContext.createMediaStreamDestination();
@@ -32,19 +32,19 @@ export async function generateSampleVideoBlob(): Promise<{ blob: Blob; url: stri
       // Play a pleasant ambient chime chord
       const freqs = [330, 440, 554.37, 659.25]; // E, A, C#, E
       freqs.forEach((freq, idx) => {
-        const osc = audioContext!.createOscillator();
-        const gain = audioContext!.createGain();
+        const osc = audioContext.createOscillator();
+        const gain = audioContext.createGain();
         osc.type = idx % 2 === 0 ? 'sine' : 'triangle';
-        osc.frequency.setValueAtTime(freq, audioContext!.currentTime);
+        osc.frequency.setValueAtTime(freq, audioContext.currentTime);
         
         // Soft pulsing envelope
-        gain.gain.setValueAtTime(0.04, audioContext!.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.005, audioContext!.currentTime + durationSec);
+        gain.gain.setValueAtTime(0.04, audioContext.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.005, audioContext.currentTime + durationSec);
         
         osc.connect(gain);
         gain.connect(dest);
         osc.start();
-        osc.stop(audioContext!.currentTime + durationSec);
+        osc.stop(audioContext.currentTime + durationSec);
       });
 
       if (dest.stream.getAudioTracks().length > 0) {
@@ -72,7 +72,7 @@ export async function generateSampleVideoBlob(): Promise<{ blob: Blob; url: stri
     canvasStream.addTrack(audioTrack);
   }
 
-  const chunks: Blob[] = [];
+  const chunks = [];
   const recorder = new MediaRecorder(canvasStream, {
     mimeType: MediaRecorder.isTypeSupported(mimeType) ? mimeType : undefined,
     videoBitsPerSecond: 6000000,

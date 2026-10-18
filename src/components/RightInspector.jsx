@@ -1,26 +1,31 @@
-import React, { useState } from 'react';
+ function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }import React, { useState } from 'react';
 import {
   X,
   Sliders,
-  Gauge,
+
   Crop,
-  Palette,
-  Type,
+
+
   Volume2,
   Key,
   FlipHorizontal,
   FlipVertical,
-  RotateCw,
-  Plus,
+
+
   Trash2,
-  Sparkles,
-  Layers,
+
+
 } from 'lucide-react';
 import { useEditorStore } from '../store/editorStore';
-import { BlendMode, MaskType } from '../types/editor';
+
 import { FILTERS_LIST, GOOGLE_FONTS } from '../utils/sampleData';
 
-export const RightInspector: React.FC = () => {
+
+
+
+
+
+export const RightInspector = ({ mobileDrawer = false, onClose }) => {
   const {
     getSelectedClip,
     updateClip,
@@ -32,11 +37,12 @@ export const RightInspector: React.FC = () => {
     autoReframe,
   } = useEditorStore();
 
-  const [activeTab, setActiveTab] = useState<'transform' | 'text' | 'color' | 'audio' | 'speed' | 'mask' | 'keyframes'>('transform');
+  const [activeTab, setActiveTab] = useState('transform');
 
   const clip = getSelectedClip();
 
   if (!clip) {
+    if (mobileDrawer) return null;
     return (
       <aside className="w-72 md:w-80 border-l border-[#222638] bg-[#12141c] p-6 flex flex-col items-center justify-center text-center text-slate-500 select-none shrink-0 h-full overflow-hidden">
         <Sliders className="w-8 h-8 text-slate-600 mb-2" />
@@ -52,8 +58,8 @@ export const RightInspector: React.FC = () => {
   const isAudioOrVideo = clip.type === 'audio' || clip.type === 'video';
   const isVisual = clip.type !== 'audio';
 
-  return (
-    <aside className="w-72 md:w-80 border-l border-[#222638] bg-[#12141c] flex flex-col h-full select-none shrink-0 overflow-hidden">
+  const inspectorContent = (
+    <>
       {/* Inspector Header */}
       <div className="h-11 px-3 border-b border-[#222638] flex items-center justify-between shrink-0 bg-[#10121a]">
         <div className="flex items-center gap-2 min-w-0">
@@ -63,11 +69,14 @@ export const RightInspector: React.FC = () => {
           <span className="text-xs font-bold text-slate-200 truncate">{clip.name}</span>
         </div>
         <button
-          onClick={deselectAll}
-          className="p-1 text-slate-500 hover:text-white rounded transition-colors"
+          onClick={() => {
+            deselectAll();
+            _optionalChain([onClose, 'optionalCall', _ => _()]);
+          }}
+          className="p-1.5 text-slate-400 hover:text-white rounded transition-colors cursor-pointer"
           title="Deselect"
         >
-          <X className="w-3.5 h-3.5" />
+          <X className="w-4 h-4" />
         </button>
       </div>
 
@@ -256,7 +265,7 @@ export const RightInspector: React.FC = () => {
               <span className="text-slate-300 block mb-1.5">Blend Mode</span>
               <select
                 value={clip.blendMode || 'normal'}
-                onChange={(e) => updateClip(clip.id, { blendMode: e.target.value as BlendMode })}
+                onChange={(e) => updateClip(clip.id, { blendMode: e.target.value  })}
                 className="w-full bg-[#181b26] border border-[#232738] rounded-lg px-2 py-1.5 text-xs text-slate-200 outline-none"
               >
                 <option value="normal">Normal</option>
@@ -275,19 +284,19 @@ export const RightInspector: React.FC = () => {
               <span className="text-slate-300 block font-semibold">Crop Insets (%)</span>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <span className="text-[10px] text-slate-500">Top ({clip.crop?.top || 0}%)</span>
+                  <span className="text-[10px] text-slate-500">Top ({_optionalChain([clip, 'access', _2 => _2.crop, 'optionalAccess', _3 => _3.top]) || 0}%)</span>
                   <input
                     type="range"
                     min="0"
                     max="45"
-                    value={clip.crop?.top || 0}
+                    value={_optionalChain([clip, 'access', _4 => _4.crop, 'optionalAccess', _5 => _5.top]) || 0}
                     onChange={(e) =>
                       updateClip(clip.id, {
                         crop: {
                           top: parseInt(e.target.value),
-                          bottom: clip.crop?.bottom || 0,
-                          left: clip.crop?.left || 0,
-                          right: clip.crop?.right || 0,
+                          bottom: _optionalChain([clip, 'access', _6 => _6.crop, 'optionalAccess', _7 => _7.bottom]) || 0,
+                          left: _optionalChain([clip, 'access', _8 => _8.crop, 'optionalAccess', _9 => _9.left]) || 0,
+                          right: _optionalChain([clip, 'access', _10 => _10.crop, 'optionalAccess', _11 => _11.right]) || 0,
                         },
                       })
                     }
@@ -295,19 +304,19 @@ export const RightInspector: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <span className="text-[10px] text-slate-500">Bottom ({clip.crop?.bottom || 0}%)</span>
+                  <span className="text-[10px] text-slate-500">Bottom ({_optionalChain([clip, 'access', _12 => _12.crop, 'optionalAccess', _13 => _13.bottom]) || 0}%)</span>
                   <input
                     type="range"
                     min="0"
                     max="45"
-                    value={clip.crop?.bottom || 0}
+                    value={_optionalChain([clip, 'access', _14 => _14.crop, 'optionalAccess', _15 => _15.bottom]) || 0}
                     onChange={(e) =>
                       updateClip(clip.id, {
                         crop: {
-                          top: clip.crop?.top || 0,
+                          top: _optionalChain([clip, 'access', _16 => _16.crop, 'optionalAccess', _17 => _17.top]) || 0,
                           bottom: parseInt(e.target.value),
-                          left: clip.crop?.left || 0,
-                          right: clip.crop?.right || 0,
+                          left: _optionalChain([clip, 'access', _18 => _18.crop, 'optionalAccess', _19 => _19.left]) || 0,
+                          right: _optionalChain([clip, 'access', _20 => _20.crop, 'optionalAccess', _21 => _21.right]) || 0,
                         },
                       })
                     }
@@ -315,19 +324,19 @@ export const RightInspector: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <span className="text-[10px] text-slate-500">Left ({clip.crop?.left || 0}%)</span>
+                  <span className="text-[10px] text-slate-500">Left ({_optionalChain([clip, 'access', _22 => _22.crop, 'optionalAccess', _23 => _23.left]) || 0}%)</span>
                   <input
                     type="range"
                     min="0"
                     max="45"
-                    value={clip.crop?.left || 0}
+                    value={_optionalChain([clip, 'access', _24 => _24.crop, 'optionalAccess', _25 => _25.left]) || 0}
                     onChange={(e) =>
                       updateClip(clip.id, {
                         crop: {
-                          top: clip.crop?.top || 0,
-                          bottom: clip.crop?.bottom || 0,
+                          top: _optionalChain([clip, 'access', _26 => _26.crop, 'optionalAccess', _27 => _27.top]) || 0,
+                          bottom: _optionalChain([clip, 'access', _28 => _28.crop, 'optionalAccess', _29 => _29.bottom]) || 0,
                           left: parseInt(e.target.value),
-                          right: clip.crop?.right || 0,
+                          right: _optionalChain([clip, 'access', _30 => _30.crop, 'optionalAccess', _31 => _31.right]) || 0,
                         },
                       })
                     }
@@ -335,18 +344,18 @@ export const RightInspector: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <span className="text-[10px] text-slate-500">Right ({clip.crop?.right || 0}%)</span>
+                  <span className="text-[10px] text-slate-500">Right ({_optionalChain([clip, 'access', _32 => _32.crop, 'optionalAccess', _33 => _33.right]) || 0}%)</span>
                   <input
                     type="range"
                     min="0"
                     max="45"
-                    value={clip.crop?.right || 0}
+                    value={_optionalChain([clip, 'access', _34 => _34.crop, 'optionalAccess', _35 => _35.right]) || 0}
                     onChange={(e) =>
                       updateClip(clip.id, {
                         crop: {
-                          top: clip.crop?.top || 0,
-                          bottom: clip.crop?.bottom || 0,
-                          left: clip.crop?.left || 0,
+                          top: _optionalChain([clip, 'access', _36 => _36.crop, 'optionalAccess', _37 => _37.top]) || 0,
+                          bottom: _optionalChain([clip, 'access', _38 => _38.crop, 'optionalAccess', _39 => _39.bottom]) || 0,
+                          left: _optionalChain([clip, 'access', _40 => _40.crop, 'optionalAccess', _41 => _41.left]) || 0,
                           right: parseInt(e.target.value),
                         },
                       })
@@ -450,7 +459,7 @@ export const RightInspector: React.FC = () => {
                     value={clip.textProps.strokeColor || '#000000'}
                     onChange={(e) =>
                       updateClip(clip.id, {
-                        textProps: { strokeColor: e.target.value, strokeWidth: clip.textProps?.strokeWidth || 2 },
+                        textProps: { strokeColor: e.target.value, strokeWidth: _optionalChain([clip, 'access', _42 => _42.textProps, 'optionalAccess', _43 => _43.strokeWidth]) || 2 },
                       })
                     }
                     className="w-6 h-6 rounded border-none bg-transparent cursor-pointer"
@@ -468,7 +477,7 @@ export const RightInspector: React.FC = () => {
               <select
                 value={clip.textProps.animation || 'none'}
                 onChange={(e) =>
-                  updateClip(clip.id, { textProps: { animation: e.target.value as any } })
+                  updateClip(clip.id, { textProps: { animation: e.target.value  } })
                 }
                 className="w-full bg-[#181b26] border border-[#232738] rounded-lg px-2 py-1.5 text-xs text-white outline-none"
               >
@@ -530,13 +539,13 @@ export const RightInspector: React.FC = () => {
               <div>
                 <div className="flex justify-between text-slate-300 mb-1">
                   <span>Brightness</span>
-                  <span className="font-mono text-slate-400">{clip.adjustments?.brightness || 0}</span>
+                  <span className="font-mono text-slate-400">{_optionalChain([clip, 'access', _44 => _44.adjustments, 'optionalAccess', _45 => _45.brightness]) || 0}</span>
                 </div>
                 <input
                   type="range"
                   min="-100"
                   max="100"
-                  value={clip.adjustments?.brightness || 0}
+                  value={_optionalChain([clip, 'access', _46 => _46.adjustments, 'optionalAccess', _47 => _47.brightness]) || 0}
                   onChange={(e) =>
                     updateClip(clip.id, {
                       adjustments: { ...clip.adjustments, brightness: parseInt(e.target.value) },
@@ -550,13 +559,13 @@ export const RightInspector: React.FC = () => {
               <div>
                 <div className="flex justify-between text-slate-300 mb-1">
                   <span>Contrast</span>
-                  <span className="font-mono text-slate-400">{clip.adjustments?.contrast || 0}</span>
+                  <span className="font-mono text-slate-400">{_optionalChain([clip, 'access', _48 => _48.adjustments, 'optionalAccess', _49 => _49.contrast]) || 0}</span>
                 </div>
                 <input
                   type="range"
                   min="-100"
                   max="100"
-                  value={clip.adjustments?.contrast || 0}
+                  value={_optionalChain([clip, 'access', _50 => _50.adjustments, 'optionalAccess', _51 => _51.contrast]) || 0}
                   onChange={(e) =>
                     updateClip(clip.id, {
                       adjustments: { ...clip.adjustments, contrast: parseInt(e.target.value) },
@@ -570,13 +579,13 @@ export const RightInspector: React.FC = () => {
               <div>
                 <div className="flex justify-between text-slate-300 mb-1">
                   <span>Saturation</span>
-                  <span className="font-mono text-slate-400">{clip.adjustments?.saturation || 0}</span>
+                  <span className="font-mono text-slate-400">{_optionalChain([clip, 'access', _52 => _52.adjustments, 'optionalAccess', _53 => _53.saturation]) || 0}</span>
                 </div>
                 <input
                   type="range"
                   min="-100"
                   max="100"
-                  value={clip.adjustments?.saturation || 0}
+                  value={_optionalChain([clip, 'access', _54 => _54.adjustments, 'optionalAccess', _55 => _55.saturation]) || 0}
                   onChange={(e) =>
                     updateClip(clip.id, {
                       adjustments: { ...clip.adjustments, saturation: parseInt(e.target.value) },
@@ -590,13 +599,13 @@ export const RightInspector: React.FC = () => {
               <div>
                 <div className="flex justify-between text-slate-300 mb-1">
                   <span>Vignette Edge</span>
-                  <span className="font-mono text-slate-400">{clip.adjustments?.vignette || 0}%</span>
+                  <span className="font-mono text-slate-400">{_optionalChain([clip, 'access', _56 => _56.adjustments, 'optionalAccess', _57 => _57.vignette]) || 0}%</span>
                 </div>
                 <input
                   type="range"
                   min="0"
                   max="100"
-                  value={clip.adjustments?.vignette || 0}
+                  value={_optionalChain([clip, 'access', _58 => _58.adjustments, 'optionalAccess', _59 => _59.vignette]) || 0}
                   onChange={(e) =>
                     updateClip(clip.id, {
                       adjustments: { ...clip.adjustments, vignette: parseInt(e.target.value) },
@@ -617,7 +626,7 @@ export const RightInspector: React.FC = () => {
               <div className="flex justify-between text-slate-300 mb-1">
                 <span>Volume</span>
                 <span className="font-mono text-slate-400">
-                  {Math.round((clip.audioProps?.volume ?? 1) * 100)}%
+                  {Math.round((_nullishCoalesce(_optionalChain([clip, 'access', _60 => _60.audioProps, 'optionalAccess', _61 => _61.volume]), () => ( 1))) * 100)}%
                 </span>
               </div>
               <input
@@ -625,7 +634,7 @@ export const RightInspector: React.FC = () => {
                 min="0"
                 max="2"
                 step="0.05"
-                value={clip.audioProps?.volume ?? 1}
+                value={_nullishCoalesce(_optionalChain([clip, 'access', _62 => _62.audioProps, 'optionalAccess', _63 => _63.volume]), () => ( 1))}
                 onChange={(e) =>
                   updateClip(clip.id, { audioProps: { volume: parseFloat(e.target.value) } })
                 }
@@ -642,7 +651,7 @@ export const RightInspector: React.FC = () => {
                   step="0.1"
                   min="0"
                   max="5"
-                  value={clip.audioProps?.fadeIn || 0}
+                  value={_optionalChain([clip, 'access', _64 => _64.audioProps, 'optionalAccess', _65 => _65.fadeIn]) || 0}
                   onChange={(e) =>
                     updateClip(clip.id, { audioProps: { fadeIn: parseFloat(e.target.value) } })
                   }
@@ -656,7 +665,7 @@ export const RightInspector: React.FC = () => {
                   step="0.1"
                   min="0"
                   max="5"
-                  value={clip.audioProps?.fadeOut || 0}
+                  value={_optionalChain([clip, 'access', _66 => _66.audioProps, 'optionalAccess', _67 => _67.fadeOut]) || 0}
                   onChange={(e) =>
                     updateClip(clip.id, { audioProps: { fadeOut: parseFloat(e.target.value) } })
                   }
@@ -669,13 +678,13 @@ export const RightInspector: React.FC = () => {
             <div>
               <div className="flex justify-between text-slate-300 mb-1">
                 <span>Pitch Shift</span>
-                <span className="font-mono text-slate-400">{clip.audioProps?.pitchShift || 0} st</span>
+                <span className="font-mono text-slate-400">{_optionalChain([clip, 'access', _68 => _68.audioProps, 'optionalAccess', _69 => _69.pitchShift]) || 0} st</span>
               </div>
               <input
                 type="range"
                 min="-12"
                 max="12"
-                value={clip.audioProps?.pitchShift || 0}
+                value={_optionalChain([clip, 'access', _70 => _70.audioProps, 'optionalAccess', _71 => _71.pitchShift]) || 0}
                 onChange={(e) =>
                   updateClip(clip.id, { audioProps: { pitchShift: parseInt(e.target.value) } })
                 }
@@ -689,20 +698,20 @@ export const RightInspector: React.FC = () => {
               <div>
                 <div className="flex justify-between text-[11px] text-slate-400 mb-0.5">
                   <span>Bass</span>
-                  <span className="font-mono">{clip.audioProps?.equalizer?.bass || 0} dB</span>
+                  <span className="font-mono">{_optionalChain([clip, 'access', _72 => _72.audioProps, 'optionalAccess', _73 => _73.equalizer, 'optionalAccess', _74 => _74.bass]) || 0} dB</span>
                 </div>
                 <input
                   type="range"
                   min="-12"
                   max="12"
-                  value={clip.audioProps?.equalizer?.bass || 0}
+                  value={_optionalChain([clip, 'access', _75 => _75.audioProps, 'optionalAccess', _76 => _76.equalizer, 'optionalAccess', _77 => _77.bass]) || 0}
                   onChange={(e) =>
                     updateClip(clip.id, {
                       audioProps: {
                         equalizer: {
                           bass: parseInt(e.target.value),
-                          mid: clip.audioProps?.equalizer?.mid || 0,
-                          treble: clip.audioProps?.equalizer?.treble || 0,
+                          mid: _optionalChain([clip, 'access', _78 => _78.audioProps, 'optionalAccess', _79 => _79.equalizer, 'optionalAccess', _80 => _80.mid]) || 0,
+                          treble: _optionalChain([clip, 'access', _81 => _81.audioProps, 'optionalAccess', _82 => _82.equalizer, 'optionalAccess', _83 => _83.treble]) || 0,
                         },
                       },
                     })
@@ -714,20 +723,20 @@ export const RightInspector: React.FC = () => {
               <div>
                 <div className="flex justify-between text-[11px] text-slate-400 mb-0.5">
                   <span>Mid</span>
-                  <span className="font-mono">{clip.audioProps?.equalizer?.mid || 0} dB</span>
+                  <span className="font-mono">{_optionalChain([clip, 'access', _84 => _84.audioProps, 'optionalAccess', _85 => _85.equalizer, 'optionalAccess', _86 => _86.mid]) || 0} dB</span>
                 </div>
                 <input
                   type="range"
                   min="-12"
                   max="12"
-                  value={clip.audioProps?.equalizer?.mid || 0}
+                  value={_optionalChain([clip, 'access', _87 => _87.audioProps, 'optionalAccess', _88 => _88.equalizer, 'optionalAccess', _89 => _89.mid]) || 0}
                   onChange={(e) =>
                     updateClip(clip.id, {
                       audioProps: {
                         equalizer: {
-                          bass: clip.audioProps?.equalizer?.bass || 0,
+                          bass: _optionalChain([clip, 'access', _90 => _90.audioProps, 'optionalAccess', _91 => _91.equalizer, 'optionalAccess', _92 => _92.bass]) || 0,
                           mid: parseInt(e.target.value),
-                          treble: clip.audioProps?.equalizer?.treble || 0,
+                          treble: _optionalChain([clip, 'access', _93 => _93.audioProps, 'optionalAccess', _94 => _94.equalizer, 'optionalAccess', _95 => _95.treble]) || 0,
                         },
                       },
                     })
@@ -739,19 +748,19 @@ export const RightInspector: React.FC = () => {
               <div>
                 <div className="flex justify-between text-[11px] text-slate-400 mb-0.5">
                   <span>Treble</span>
-                  <span className="font-mono">{clip.audioProps?.equalizer?.treble || 0} dB</span>
+                  <span className="font-mono">{_optionalChain([clip, 'access', _96 => _96.audioProps, 'optionalAccess', _97 => _97.equalizer, 'optionalAccess', _98 => _98.treble]) || 0} dB</span>
                 </div>
                 <input
                   type="range"
                   min="-12"
                   max="12"
-                  value={clip.audioProps?.equalizer?.treble || 0}
+                  value={_optionalChain([clip, 'access', _99 => _99.audioProps, 'optionalAccess', _100 => _100.equalizer, 'optionalAccess', _101 => _101.treble]) || 0}
                   onChange={(e) =>
                     updateClip(clip.id, {
                       audioProps: {
                         equalizer: {
-                          bass: clip.audioProps?.equalizer?.bass || 0,
-                          mid: clip.audioProps?.equalizer?.mid || 0,
+                          bass: _optionalChain([clip, 'access', _102 => _102.audioProps, 'optionalAccess', _103 => _103.equalizer, 'optionalAccess', _104 => _104.bass]) || 0,
+                          mid: _optionalChain([clip, 'access', _105 => _105.audioProps, 'optionalAccess', _106 => _106.equalizer, 'optionalAccess', _107 => _107.mid]) || 0,
                           treble: parseInt(e.target.value),
                         },
                       },
@@ -766,9 +775,9 @@ export const RightInspector: React.FC = () => {
             <div className="pt-2 border-t border-[#232738]">
               <span className="text-slate-300 block mb-1 font-semibold">Voice Changer Preset</span>
               <select
-                value={clip.audioProps?.voiceChanger || 'none'}
+                value={_optionalChain([clip, 'access', _108 => _108.audioProps, 'optionalAccess', _109 => _109.voiceChanger]) || 'none'}
                 onChange={(e) =>
-                  updateClip(clip.id, { audioProps: { voiceChanger: e.target.value as any } })
+                  updateClip(clip.id, { audioProps: { voiceChanger: e.target.value  } })
                 }
                 className="w-full bg-[#181b26] border border-[#232738] rounded-lg px-2 py-1.5 text-xs text-white outline-none"
               >
@@ -832,7 +841,7 @@ export const RightInspector: React.FC = () => {
                 ].map((curve) => (
                   <button
                     key={curve.id}
-                    onClick={() => updateClip(clip.id, { speedCurve: curve.id as any })}
+                    onClick={() => updateClip(clip.id, { speedCurve: curve.id  })}
                     className={`py-1.5 px-1 text-[10px] rounded-lg border font-medium transition-all ${
                       (clip.speedCurve || 'constant') === curve.id
                         ? 'bg-cyan-900/60 border-cyan-400 text-white'
@@ -876,15 +885,15 @@ export const RightInspector: React.FC = () => {
             <div>
               <span className="text-slate-300 block mb-1 font-semibold">Shape Mask</span>
               <select
-                value={clip.mask?.type || 'none'}
+                value={_optionalChain([clip, 'access', _110 => _110.mask, 'optionalAccess', _111 => _111.type]) || 'none'}
                 onChange={(e) =>
                   updateClip(clip.id, {
                     mask: {
-                      type: e.target.value as MaskType,
-                      size: clip.mask?.size || 50,
-                      feather: clip.mask?.feather || 10,
-                      x: clip.mask?.x || 0,
-                      y: clip.mask?.y || 0,
+                      type: e.target.value ,
+                      size: _optionalChain([clip, 'access', _112 => _112.mask, 'optionalAccess', _113 => _113.size]) || 50,
+                      feather: _optionalChain([clip, 'access', _114 => _114.mask, 'optionalAccess', _115 => _115.feather]) || 10,
+                      x: _optionalChain([clip, 'access', _116 => _116.mask, 'optionalAccess', _117 => _117.x]) || 0,
+                      y: _optionalChain([clip, 'access', _118 => _118.mask, 'optionalAccess', _119 => _119.y]) || 0,
                     },
                   })
                 }
@@ -911,7 +920,7 @@ export const RightInspector: React.FC = () => {
                     max="100"
                     value={clip.mask.size}
                     onChange={(e) =>
-                      updateClip(clip.id, { mask: { ...clip.mask!, size: parseInt(e.target.value) } })
+                      updateClip(clip.id, { mask: { ...clip.mask, size: parseInt(e.target.value) } })
                     }
                     className="w-full"
                   />
@@ -925,14 +934,14 @@ export const RightInspector: React.FC = () => {
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={clip.chromaKey?.enabled || false}
+                  checked={_optionalChain([clip, 'access', _120 => _120.chromaKey, 'optionalAccess', _121 => _121.enabled]) || false}
                   onChange={(e) =>
                     updateClip(clip.id, {
                       chromaKey: {
                         enabled: e.target.checked,
-                        keyColor: clip.chromaKey?.keyColor || '#00ff00',
-                        similarity: clip.chromaKey?.similarity || 40,
-                        smoothness: clip.chromaKey?.smoothness || 10,
+                        keyColor: _optionalChain([clip, 'access', _122 => _122.chromaKey, 'optionalAccess', _123 => _123.keyColor]) || '#00ff00',
+                        similarity: _optionalChain([clip, 'access', _124 => _124.chromaKey, 'optionalAccess', _125 => _125.similarity]) || 40,
+                        smoothness: _optionalChain([clip, 'access', _126 => _126.chromaKey, 'optionalAccess', _127 => _127.smoothness]) || 10,
                       },
                     })
                   }
@@ -941,7 +950,7 @@ export const RightInspector: React.FC = () => {
                 <span className="text-slate-300">Enable Chroma Key Removal</span>
               </label>
 
-              {clip.chromaKey?.enabled && (
+              {_optionalChain([clip, 'access', _128 => _128.chromaKey, 'optionalAccess', _129 => _129.enabled]) && (
                 <div className="space-y-2 pt-1">
                   <div className="flex items-center gap-2">
                     <span className="text-slate-400">Key Color:</span>
@@ -950,7 +959,7 @@ export const RightInspector: React.FC = () => {
                       value={clip.chromaKey.keyColor}
                       onChange={(e) =>
                         updateClip(clip.id, {
-                          chromaKey: { ...clip.chromaKey!, keyColor: e.target.value },
+                          chromaKey: { ...clip.chromaKey, keyColor: e.target.value },
                         })
                       }
                       className="w-7 h-7 rounded border-none cursor-pointer"
@@ -1012,7 +1021,7 @@ export const RightInspector: React.FC = () => {
             {/* List of Existing Keyframes */}
             <div className="pt-2 border-t border-[#232738]">
               <span className="text-slate-400 block mb-1.5 text-[10px] uppercase font-bold tracking-wider">
-                Active Keyframes ({clip.keyframes?.length || 0})
+                Active Keyframes ({_optionalChain([clip, 'access', _130 => _130.keyframes, 'optionalAccess', _131 => _131.length]) || 0})
               </span>
               {(!clip.keyframes || clip.keyframes.length === 0) ? (
                 <p className="text-[11px] text-slate-600 italic">No keyframes added to this clip yet.</p>
@@ -1040,6 +1049,22 @@ export const RightInspector: React.FC = () => {
           </div>
         )}
       </div>
+    </>
+  );
+
+  if (mobileDrawer) {
+    return (
+      <div className="w-full flex flex-col h-full select-none shrink-0 overflow-hidden bg-[#141620]">
+        {/* Mobile Drag Handle */}
+        <div className="w-10 h-1 bg-slate-600/80 rounded-full mx-auto my-2 shrink-0 cursor-grab" />
+        {inspectorContent}
+      </div>
+    );
+  }
+
+  return (
+    <aside className="w-72 md:w-80 border-l border-[#222638] bg-[#12141c] flex flex-col h-full select-none shrink-0 overflow-hidden">
+      {inspectorContent}
     </aside>
   );
 };

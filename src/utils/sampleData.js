@@ -1,15 +1,15 @@
-import { Project, Track, Clip, TextClipProperties } from '../types/editor';
 
-export interface FilterPreset {
-  id: string;
-  name: string;
-  category: 'Cinematic' | 'Retro' | 'Color' | 'Atmosphere';
-  cssFilter: (intensity: number) => string;
-  description: string;
-  previewColor: string;
-}
 
-export const FILTERS_LIST: FilterPreset[] = [
+
+
+
+
+
+
+
+
+
+export const FILTERS_LIST = [
   {
     id: 'none',
     name: 'Normal',
@@ -292,15 +292,15 @@ export const FILTERS_LIST: FilterPreset[] = [
   },
 ];
 
-export interface EffectPreset {
-  id: string;
-  name: string;
-  category: 'Glitch' | 'Motion' | 'Retro' | 'Light' | 'Distortion' | 'Particles' | 'Stylize';
-  icon: string;
-  description: string;
-}
 
-export const EFFECTS_LIST: EffectPreset[] = [
+
+
+
+
+
+
+
+export const EFFECTS_LIST = [
   // Glitch
   { id: 'glitch-rgb', name: 'RGB Split', category: 'Glitch', icon: 'Zap', description: 'Chromatic aberration color separation' },
   { id: 'glitch-slice', name: 'Glitch Slice', category: 'Glitch', icon: 'Scissors', description: 'Horizontal displacement slice artifacts' },
@@ -358,14 +358,14 @@ export const EFFECTS_LIST: EffectPreset[] = [
   { id: 'acid-drip', name: 'Acid Drip', category: 'Stylize', icon: 'Droplet', description: 'Psychedelic iridescent color drip overlay' },
 ];
 
-export interface TransitionPreset {
-  id: string;
-  name: string;
-  icon: string;
-  duration: number;
-}
 
-export const TRANSITIONS_LIST: TransitionPreset[] = [
+
+
+
+
+
+
+export const TRANSITIONS_LIST = [
   { id: 'fade', name: 'Fade Black', icon: 'Moon', duration: 0.5 },
   { id: 'dissolve', name: 'Cross Dissolve', icon: 'Blend', duration: 0.6 },
   { id: 'slide-left', name: 'Slide Left', icon: 'ArrowLeft', duration: 0.4 },
@@ -434,7 +434,7 @@ export const TEMPLATES_LIST = [
     id: 'tiktok-viral-hook',
     title: 'TikTok Viral Hook',
     description: 'Fast-paced 9:16 vertical hook with bold kinetic captions and beat transitions',
-    aspectRatio: '9:16' as const,
+    aspectRatio: '9:16' ,
     duration: 10,
     tags: ['Shorts', 'Reels', 'Fast'],
   },
@@ -442,7 +442,7 @@ export const TEMPLATES_LIST = [
     id: 'youtube-intro-bold',
     title: 'YouTube Cinematic Intro',
     description: '16:9 high-production title sequence with 3D text and sub-bass drop',
-    aspectRatio: '16:9' as const,
+    aspectRatio: '16:9' ,
     duration: 8,
     tags: ['YouTube', 'Intro', '16:9'],
   },
@@ -450,7 +450,7 @@ export const TEMPLATES_LIST = [
     id: 'product-spotlight',
     title: 'Product Spotlight',
     description: 'Clean minimalist 1:1 showcase with smooth scale-ups and specs badge',
-    aspectRatio: '1:1' as const,
+    aspectRatio: '1:1' ,
     duration: 12,
     tags: ['Product', 'Square', 'SaaS'],
   },
@@ -458,7 +458,7 @@ export const TEMPLATES_LIST = [
     id: 'vlog-aesthetic-recap',
     title: 'Aesthetic Travel Reel',
     description: 'Golden hour pastel grading with nostalgic vintage text and lofi beat',
-    aspectRatio: '9:16' as const,
+    aspectRatio: '9:16' ,
     duration: 15,
     tags: ['Travel', 'Vlog', 'Mood'],
   },
@@ -466,7 +466,7 @@ export const TEMPLATES_LIST = [
     id: 'gaming-montage-fast',
     title: 'Gaming High-Octane Montage',
     description: '16:9 dynamic cuts with RGB glitch impacts, shake bass-drops and neon titles',
-    aspectRatio: '16:9' as const,
+    aspectRatio: '16:9' ,
     duration: 12,
     tags: ['Gaming', 'Action', 'Glitch'],
   },
@@ -474,16 +474,16 @@ export const TEMPLATES_LIST = [
     id: 'aesthetic-photo-slideshow',
     title: 'Minimalist Photo Slideshow',
     description: 'Clean transitions with smooth ken-burns zoom and elegant typography',
-    aspectRatio: '4:5' as const,
+    aspectRatio: '4:5' ,
     duration: 14,
     tags: ['Photo', 'Minimal', 'Feed'],
   },
 ];
 
-export function createDefaultProject(): Project {
+export function createDefaultProject() {
   const projectId = 'proj_' + Math.random().toString(36).substring(2, 9);
   
-  const textTrack: Track = {
+  const textTrack = {
     id: 'track_text_1',
     name: 'Text & Titles',
     type: 'text',
@@ -494,7 +494,7 @@ export function createDefaultProject(): Project {
     clips: [],
   };
 
-  const stickerTrack: Track = {
+  const stickerTrack = {
     id: 'track_sticker_1',
     name: 'Overlays & Stickers',
     type: 'sticker',
@@ -505,7 +505,7 @@ export function createDefaultProject(): Project {
     clips: [],
   };
 
-  const videoTrack: Track = {
+  const videoTrack = {
     id: 'track_video_1',
     name: 'Main Video',
     type: 'video',
@@ -516,7 +516,7 @@ export function createDefaultProject(): Project {
     clips: [],
   };
 
-  const audioTrack: Track = {
+  const audioTrack = {
     id: 'track_audio_1',
     name: 'Audio & Music',
     type: 'audio',

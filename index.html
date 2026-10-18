@@ -11,6 +11,7 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="manifest" href="/manifest.json" />
     <title>ClipForge Video Editor</title>
     <meta name="description" content="Full-featured browser-based video editor inspired by CapCut with multi-track timeline, real-time effects, audio tools, keyframes, and AI creation tools." />
     <meta property="og:title" content="ClipForge Video Editor" />
@@ -20,10 +21,34 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Anton&family=Bebas+Neue&family=Black+Ops+One&family=Bungee&family=Caveat:wght@700&family=Comfortaa:wght@700&family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Fredoka:wght@600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Lobster&family=Montserrat:ital,wght@0,400;0,700;0,900;1,400&family=Oswald:wght@500;700&family=Outfit:wght@400;500;600;700&family=Pacifico&family=Permanent+Marker&family=Playfair+Display:ital,wght@0,700;1,700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Poppins:wght@400;600;800&family=Righteous&family=Russo+One&family=Syne:wght@700;800&family=Titan+One&display=swap" rel="stylesheet">
+    <script>
+      // Suppress benign WebSocket/HMR disconnect errors in cloud container preview environments
+      (function () {
+        function isViteWsError(val) {
+          if (!val) return false;
+          var str = typeof val === 'string' ? val : (val.message || String(val));
+          return str.indexOf('WebSocket') !== -1 || str.indexOf('vite') !== -1 || str.indexOf('ws:') !== -1 || str.indexOf('wss:') !== -1;
+        }
+        window.addEventListener('error', function (event) {
+          if (event && (isViteWsError(event.message) || isViteWsError(event.error))) {
+            if (typeof event.preventDefault === 'function') event.preventDefault();
+            if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
+            return true;
+          }
+        }, true);
+        window.addEventListener('unhandledrejection', function (event) {
+          if (event && (isViteWsError(event.reason) || (event.reason && isViteWsError(event.reason.message)))) {
+            if (typeof event.preventDefault === 'function') event.preventDefault();
+            if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
+            return true;
+          }
+        }, true);
+      })();
+    </script>
   </head>
-  <body class="bg-[#0b0c10] text-[#e0e2ec] antialiased overflow-hidden select-none">
-    <div id="root" class="h-screen w-screen overflow-hidden flex flex-col"></div>
-    <script type="module" src="/src/main.tsx"></script>
+  <body class="bg-[#0b0c10] text-[#e0e2ec] antialiased overflow-hidden select-none overscroll-none" style="overscroll-behavior: none; touch-action: pan-x pan-y;">
+    <div id="root" class="h-[100dvh] w-screen overflow-hidden flex flex-col"></div>
+    <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
 

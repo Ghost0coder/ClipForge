@@ -13,7 +13,15 @@ import {
 } from 'lucide-react';
 import { useEditorStore } from '../store/editorStore';
 
-export const MobileBottomToolbar: React.FC = () => {
+
+
+
+
+
+
+
+
+export const MobileBottomToolbar = () => {
   const {
     activeLeftTab,
     setActiveLeftTab,
@@ -32,14 +40,14 @@ export const MobileBottomToolbar: React.FC = () => {
     { id: 'captions', label: 'Captions', icon: Subtitles, color: 'text-blue-400' },
     { id: 'templates', label: 'Templates', icon: LayoutTemplate, color: 'text-teal-400' },
     { id: 'ai', label: 'AI Studio', icon: Sparkles, color: 'text-rose-400', highlight: true },
-  ] as const;
+  ];
 
-  const handleTabClick = (tabId: typeof toolTabs[number]['id']) => {
+  const handleTabClick = (tabId) => {
     if (activeLeftTab === tabId && isMobileToolDrawerOpen) {
       // Toggle close if already open
       setMobileToolDrawerOpen(false);
     } else {
-      setActiveLeftTab(tabId as any);
+      setActiveLeftTab(tabId );
       setMobileToolDrawerOpen(true);
     }
   };

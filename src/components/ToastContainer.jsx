@@ -1,8 +1,8 @@
 import React from 'react';
 import { AlertCircle, CheckCircle2, AlertTriangle, Info, X } from 'lucide-react';
-import { useToastStore, ToastMessage } from '../store/toastStore';
+import { useToastStore, } from '../store/toastStore';
 
-export const ToastContainer: React.FC = () => {
+export const ToastContainer = () => {
   const { toasts, removeToast } = useToastStore();
 
   if (toasts.length === 0) return null;
@@ -12,7 +12,7 @@ export const ToastContainer: React.FC = () => {
       aria-live="polite"
       className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-2.5 max-w-sm w-full pointer-events-none select-none"
     >
-      {toasts.map((toast: ToastMessage) => {
+      {toasts.map((toast) => {
         const isError = toast.type === 'error';
         const isSuccess = toast.type === 'success';
         const isWarning = toast.type === 'warning';

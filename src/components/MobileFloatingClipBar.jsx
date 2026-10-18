@@ -6,11 +6,11 @@ import {
   Snowflake,
   Sliders,
   X,
-  FastForward,
+
 } from 'lucide-react';
 import { useEditorStore } from '../store/editorStore';
 
-export const MobileFloatingClipBar: React.FC = () => {
+export const MobileFloatingClipBar = () => {
   const {
     selectedClipIds,
     getSelectedClip,

@@ -1,18 +1,18 @@
-import React, { useRef, useState, useEffect } from 'react';
+ function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }import React, { useRef, useState, useEffect } from 'react';
 import {
   Scissors,
   Trash2,
   Copy,
-  Plus,
+
   Lock,
   Unlock,
-  Eye,
-  EyeOff,
+
+
   Volume2,
   VolumeX,
   ZoomIn,
   ZoomOut,
-  Magnet,
+
   Bookmark,
   ArrowLeftRight,
   Snowflake,
@@ -23,11 +23,11 @@ import {
   Layers,
 } from 'lucide-react';
 import { useEditorStore } from '../store/editorStore';
-import { TrackType, Clip, Track } from '../types/editor';
+
 import { useResponsive } from '../utils/useResponsive';
 import { MobileFloatingClipBar } from './MobileFloatingClipBar';
 
-export const Timeline: React.FC = () => {
+export const Timeline = () => {
   const {
     project,
     currentTime,
@@ -42,6 +42,7 @@ export const Timeline: React.FC = () => {
     selectClip,
     splitClipAtPlayhead,
     deleteClip,
+    deleteSelectedClips,
     duplicateClip,
     freezeFrame,
     moveClip,
@@ -60,15 +61,15 @@ export const Timeline: React.FC = () => {
 
   const { isMobile } = useResponsive();
 
-  const rulerRef = useRef<HTMLDivElement>(null);
-  const timelineTracksRef = useRef<HTMLDivElement>(null);
-  const trackHeadersRef = useRef<HTMLDivElement>(null);
+  const rulerRef = useRef(null);
+  const timelineTracksRef = useRef(null);
+  const trackHeadersRef = useRef(null);
 
   // Dragging & Scrubbing states
   const [isScrubbing, setIsScrubbing] = useState(false);
-  const [draggingClipId, setDraggingClipId] = useState<string | null>(null);
-  const [trimmingClip, setTrimmingClip] = useState<{ id: string; side: 'left' | 'right'; startX: number; origStart: number; origDuration: number } | null>(null);
-  const dragClipStartPos = useRef<{ clipId: string; startX: number; origStart: number; origTrackId: string }>({
+  const [draggingClipId, setDraggingClipId] = useState(null);
+  const [trimmingClip, setTrimmingClip] = useState(null);
+  const dragClipStartPos = useRef({
     clipId: '',
     startX: 0,
     origStart: 0,
@@ -76,24 +77,24 @@ export const Timeline: React.FC = () => {
   });
 
   // Long press timer for mobile clip drag
-  const longPressTimerRef = useRef<any>(null);
+  const longPressTimerRef = useRef(null);
   const [isLongPressDragging, setIsLongPressDragging] = useState(false);
 
   // Pinch-to-zoom tracking
-  const lastPinchDistRef = useRef<number | null>(null);
-  const pinchStartZoomRef = useRef<number>(zoom);
+  const lastPinchDistRef = useRef(null);
+  const pinchStartZoomRef = useRef(zoom);
 
   const totalWidth = Math.max(project.duration * zoom + 500, 1400);
 
   // Time format helper
-  const formatRulerTime = (seconds: number) => {
+  const formatRulerTime = (seconds) => {
     const m = Math.floor(seconds / 60);
     const s = Math.floor(seconds % 60);
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
   // Playhead scrubber interactions (mouse + touch)
-  const handleRulerScrubStart = (clientX: number) => {
+  const handleRulerScrubStart = (clientX) => {
     if (!rulerRef.current) return;
     const rect = rulerRef.current.getBoundingClientRect();
     const clickX = clientX - rect.left;
@@ -102,11 +103,11 @@ export const Timeline: React.FC = () => {
     setIsScrubbing(true);
   };
 
-  const handleRulerMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleRulerMouseDown = (e) => {
     handleRulerScrubStart(e.clientX);
   };
 
-  const handleRulerTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+  const handleRulerTouchStart = (e) => {
     if (e.touches.length > 0) {
       handleRulerScrubStart(e.touches[0].clientX);
     }
@@ -114,7 +115,7 @@ export const Timeline: React.FC = () => {
 
   // Global pointer move & up (supports mouse & touch)
   useEffect(() => {
-    const handlePointerMove = (clientX: number) => {
+    const handlePointerMove = (clientX) => {
       if (isScrubbing && rulerRef.current) {
         const rect = rulerRef.current.getBoundingClientRect();
         const clickX = clientX - rect.left;
@@ -154,11 +155,11 @@ export const Timeline: React.FC = () => {
       }
     };
 
-    const handleMouseMove = (e: MouseEvent) => {
+    const handleMouseMove = (e) => {
       handlePointerMove(e.clientX);
     };
 
-    const handleTouchMove = (e: TouchEvent) => {
+    const handleTouchMove = (e) => {
       if (isScrubbing || trimmingClip || draggingClipId) {
         if (e.touches.length > 0) {
           handlePointerMove(e.touches[0].clientX);
@@ -191,7 +192,7 @@ export const Timeline: React.FC = () => {
   }, [isScrubbing, trimmingClip, draggingClipId, zoom, project.duration, currentTime, snapping, seek, trimClip, moveClip]);
 
   // Touch pinch-to-zoom on timeline tracks
-  const handleTimelineTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+  const handleTimelineTouchStart = (e) => {
     if (e.touches.length === 2) {
       const dist = Math.hypot(
         e.touches[0].clientX - e.touches[1].clientX,
@@ -202,7 +203,7 @@ export const Timeline: React.FC = () => {
     }
   };
 
-  const handleTimelineTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+  const handleTimelineTouchMove = (e) => {
     if (e.touches.length === 2 && lastPinchDistRef.current) {
       const dist = Math.hypot(
         e.touches[0].clientX - e.touches[1].clientX,
@@ -218,42 +219,9 @@ export const Timeline: React.FC = () => {
     lastPinchDistRef.current = null;
   };
 
-  // Keyboard shortcut handlers (S = split, Delete = del, Cmd+D = dup)
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const activeEl = document.activeElement as HTMLElement | null;
-      if (
-        activeEl &&
-        (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable)
-      ) {
-        return;
-      }
 
-      if (e.key === 's' || e.key === 'S') {
-        splitClipAtPlayhead();
-      } else if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (selectedClipIds.length > 0) {
-          e.preventDefault();
-          deleteClip(selectedClipIds[0], e.shiftKey);
-        }
-      } else if (e.key === 'd' && (e.ctrlKey || e.metaKey)) {
-        if (selectedClipIds.length > 0) {
-          e.preventDefault();
-          duplicateClip(selectedClipIds[0]);
-        }
-      } else if (e.key === 'f' || e.key === 'F') {
-        if (selectedClipIds.length > 0) {
-          e.preventDefault();
-          freezeFrame(selectedClipIds[0]);
-        }
-      }
-    };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedClipIds, splitClipAtPlayhead, deleteClip, duplicateClip, freezeFrame]);
-
-  const getTrackIcon = (type: TrackType) => {
+  const getTrackIcon = (type) => {
     switch (type) {
       case 'video':
         return <Film className="w-3.5 h-3.5 text-violet-400" />;
@@ -268,7 +236,7 @@ export const Timeline: React.FC = () => {
     }
   };
 
-  const getClipBgColor = (clip: Clip) => {
+  const getClipBgColor = (clip) => {
     switch (clip.type) {
       case 'video':
       case 'color':
@@ -309,10 +277,10 @@ export const Timeline: React.FC = () => {
 
           {/* Delete */}
           <button
-            onClick={() => selectedClipIds.length > 0 && deleteClip(selectedClipIds[0])}
+            onClick={() => selectedClipIds.length > 0 && deleteSelectedClips(false)}
             disabled={selectedClipIds.length === 0}
             className="flex items-center gap-1 px-2 py-1 rounded bg-[#1a1d29] hover:bg-rose-950 hover:border-rose-500 text-xs text-slate-300 border border-[#272b3c] disabled:opacity-40 transition-colors cursor-pointer shrink-0"
-            title="Delete Selected Clip (Del)"
+            title="Delete Selected Clip(s) (Del / Backspace)"
           >
             <Trash2 className="w-3.5 h-3.5 text-rose-400" />
             <span className="hidden sm:inline">Delete</span>
@@ -342,7 +310,7 @@ export const Timeline: React.FC = () => {
 
           {/* Ripple Delete */}
           <button
-            onClick={() => selectedClipIds.length > 0 && deleteClip(selectedClipIds[0], true)}
+            onClick={() => selectedClipIds.length > 0 && deleteSelectedClips(true)}
             disabled={selectedClipIds.length === 0}
             className="flex items-center gap-1 px-2 py-1 rounded bg-[#1a1d29] hover:bg-rose-950 hover:border-rose-500 text-xs text-slate-300 border border-[#272b3c] disabled:opacity-40 transition-colors cursor-pointer shrink-0"
             title="Ripple Delete [Shift+Del]"
@@ -507,7 +475,7 @@ export const Timeline: React.FC = () => {
               })}
 
               {/* Markers on Ruler */}
-              {project.markers?.map((marker) => (
+              {_optionalChain([project, 'access', _2 => _2.markers, 'optionalAccess', _3 => _3.map, 'call', _4 => _4((marker) => (
                 <div
                   key={marker.id}
                   style={{ left: `${marker.time * zoom}px` }}
@@ -519,7 +487,7 @@ export const Timeline: React.FC = () => {
                     style={{ backgroundColor: marker.color }}
                   />
                 </div>
-              ))}
+              ))])}
             </div>
 
             {/* Playhead Scrubber Line Spanning All Tracks */}
@@ -559,7 +527,7 @@ export const Timeline: React.FC = () => {
                           selectClip(clip.id, e.shiftKey);
                         }}
                         onMouseDown={(e) => {
-                          if (e.target !== e.currentTarget && (e.target as HTMLElement).dataset.handle) {
+                          if (e.target !== e.currentTarget && (e.target ).dataset.handle) {
                             return;
                           }
                           useEditorStore.getState().pushHistory();
@@ -572,7 +540,7 @@ export const Timeline: React.FC = () => {
                           };
                         }}
                         onTouchStart={(e) => {
-                          if (e.target !== e.currentTarget && (e.target as HTMLElement).dataset.handle) {
+                          if (e.target !== e.currentTarget && (e.target ).dataset.handle) {
                             return;
                           }
                           // Select clip immediately

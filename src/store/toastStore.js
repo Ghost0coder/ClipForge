@@ -1,30 +1,30 @@
-import { create } from 'zustand';
+ function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } }import { create } from 'zustand';
 
-export type ToastType = 'error' | 'success' | 'warning' | 'info';
+ 
 
-export interface ToastMessage {
-  id: string;
-  type: ToastType;
-  title?: string;
-  message: string;
-  duration?: number;
-}
 
-interface ToastStore {
-  toasts: ToastMessage[];
-  addToast: (toast: Omit<ToastMessage, 'id'>) => string;
-  removeToast: (id: string) => void;
-  clearAll: () => void;
-}
 
-export const useToastStore = create<ToastStore>((set) => ({
+
+
+
+
+
+
+
+
+
+
+
+
+
+export const useToastStore = create((set) => ({
   toasts: [],
   addToast: (toast) => {
     const id = 'toast_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
-    const newToast: ToastMessage = {
+    const newToast = {
       ...toast,
       id,
-      duration: toast.duration ?? 4500,
+      duration: _nullishCoalesce(toast.duration, () => ( 4500)),
     };
     set((state) => ({ toasts: [...state.toasts, newToast] }));
 
@@ -42,19 +42,21 @@ export const useToastStore = create<ToastStore>((set) => ({
 }));
 
 // Global convenience helpers
-export function toastError(message: string, title: string = 'Action Failed'): string {
+export function toastError(message, title = 'Action Failed') {
   console.error(`[ClipForge:Toast] Error: ${title} - ${message}`);
   return useToastStore.getState().addToast({ type: 'error', title, message });
 }
 
-export function toastSuccess(message: string, title?: string): string {
+export function toastSuccess(message, title) {
   return useToastStore.getState().addToast({ type: 'success', title, message });
 }
 
-export function toastWarning(message: string, title?: string): string {
+export function toastWarning(message, title) {
   return useToastStore.getState().addToast({ type: 'warning', title, message });
 }
 
-export function toastInfo(message: string, title?: string): string {
+export function toastInfo(message, title) {
   return useToastStore.getState().addToast({ type: 'info', title, message });
 }
+
+export const ToastMessage = Object.freeze({});

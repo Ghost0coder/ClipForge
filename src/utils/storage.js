@@ -1,12 +1,12 @@
-import { openDB, IDBPDatabase } from 'idb';
-import { Project } from '../types/editor';
+ function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }import { openDB, } from 'idb';
+
 
 const DB_NAME = 'ClipForge_DB';
 const DB_VERSION = 1;
 
-let dbPromise: Promise<IDBPDatabase> | null = null;
+let dbPromise = null;
 
-function getDB(): Promise<IDBPDatabase> {
+function getDB() {
   if (!dbPromise) {
     dbPromise = openDB(DB_NAME, DB_VERSION, {
       upgrade(db) {
@@ -26,7 +26,7 @@ function getDB(): Promise<IDBPDatabase> {
   return dbPromise;
 }
 
-export async function saveProjectToDB(project: Project): Promise<void> {
+export async function saveProjectToDB(project) {
   try {
     const db = await getDB();
     const updatedProject = {
@@ -40,7 +40,7 @@ export async function saveProjectToDB(project: Project): Promise<void> {
   }
 }
 
-export async function getProjectFromDB(id: string): Promise<Project | undefined> {
+export async function getProjectFromDB(id) {
   try {
     const db = await getDB();
     return await db.get('projects', id);
@@ -50,7 +50,7 @@ export async function getProjectFromDB(id: string): Promise<Project | undefined>
   }
 }
 
-export async function getAllProjectsFromDB(): Promise<Project[]> {
+export async function getAllProjectsFromDB() {
   try {
     const db = await getDB();
     const projects = await db.getAll('projects');
@@ -61,7 +61,7 @@ export async function getAllProjectsFromDB(): Promise<Project[]> {
   }
 }
 
-export async function deleteProjectFromDB(id: string): Promise<void> {
+export async function deleteProjectFromDB(id) {
   try {
     const db = await getDB();
     await db.delete('projects', id);
@@ -70,17 +70,17 @@ export async function deleteProjectFromDB(id: string): Promise<void> {
   }
 }
 
-export async function getLastActiveProjectId(): Promise<string | null> {
+export async function getLastActiveProjectId() {
   try {
     const db = await getDB();
     const setting = await db.get('settings', 'last_active_project_id');
     return setting ? setting.value : null;
-  } catch {
+  } catch (e2) {
     return null;
   }
 }
 
-export async function storeMediaBlob(id: string, file: File | Blob, name: string): Promise<string> {
+export async function storeMediaBlob(id, file, name) {
   try {
     const db = await getDB();
     await db.put('media', {
@@ -104,7 +104,7 @@ export async function storeMediaBlob(id: string, file: File | Blob, name: string
   }
 }
 
-export async function getMediaBlob(id: string): Promise<{ id: string; blob: Blob; name: string; type: string } | null> {
+export async function getMediaBlob(id) {
   try {
     const db = await getDB();
     const record = await db.get('media', id);
@@ -115,19 +115,19 @@ export async function getMediaBlob(id: string): Promise<{ id: string; blob: Blob
   }
 }
 
-export async function getMediaBlobUrl(id: string): Promise<string | null> {
+export async function getMediaBlobUrl(id) {
   try {
     const record = await getMediaBlob(id);
     if (record && record.blob) {
       return URL.createObjectURL(record.blob);
     }
     return null;
-  } catch {
+  } catch (e3) {
     return null;
   }
 }
 
-export async function restoreProjectMediaUrls(project: Project): Promise<Project> {
+export async function restoreProjectMediaUrls(project) {
   try {
     const updatedTracks = await Promise.all(
       project.tracks.map(async (track) => {
@@ -163,7 +163,7 @@ export async function restoreProjectMediaUrls(project: Project): Promise<Project
   }
 }
 
-export function exportProjectToJson(project: Project): void {
+export function exportProjectToJson(project) {
   const json = JSON.stringify(project, null, 2);
   const blob = new Blob([json], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -174,13 +174,13 @@ export function exportProjectToJson(project: Project): void {
   URL.revokeObjectURL(url);
 }
 
-export function parseProjectJson(file: File): Promise<Project> {
+export function parseProjectJson(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
-        const text = e.target?.result as string;
-        const project = JSON.parse(text) as Project;
+        const text = _optionalChain([e, 'access', _ => _.target, 'optionalAccess', _2 => _2.result]) ;
+        const project = JSON.parse(text) ;
         if (!project.id || !project.tracks) {
           throw new Error('Invalid project file format');
         }

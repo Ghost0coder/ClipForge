@@ -1,28 +1,28 @@
-import { Project, ExportSettings, ASPECT_RATIOS } from '../types/editor';
+import { ASPECT_RATIOS } from '../types/editor';
 import { renderFrame } from './previewRenderer';
 
-export interface ExportProgress {
-  percentage: number;
-  currentFrame: number;
-  totalFrames: number;
-  statusText: string;
-  isComplete: boolean;
-  downloadUrl?: string;
-  error?: string;
-}
 
-export class ExportPipeline {
-  private isCancelled: boolean = false;
 
-  public cancel() {
+
+
+
+
+
+
+
+
+export class ExportPipeline {constructor() { ExportPipeline.prototype.__init.call(this); }
+   __init() {this.isCancelled = false}
+
+   cancel() {
     this.isCancelled = true;
   }
 
-  public async exportProject(
-    project: Project,
-    settings: ExportSettings,
-    onProgress: (progress: ExportProgress) => void
-  ): Promise<string | null> {
+   async exportProject(
+    project,
+    settings,
+    onProgress
+  ) {
     this.isCancelled = false;
     console.log('[ClipForge:Export] Pipeline starting exportProject:', {
       projectName: project.name,
@@ -82,7 +82,7 @@ export class ExportPipeline {
     }
 
     const stream = canvas.captureStream(fps);
-    const recordedChunks: Blob[] = [];
+    const recordedChunks = [];
 
     let bitrate = 5000000; // 5 Mbps default
     if (settings.quality === 'ultra') bitrate = 20000000;
@@ -177,16 +177,16 @@ export class ExportPipeline {
     });
   }
 
-  private async exportSingleFramePNG(
-    project: Project,
-    settings: ExportSettings,
-    onProgress: (progress: ExportProgress) => void
-  ): Promise<string> {
+   async exportSingleFramePNG(
+    project,
+    settings,
+    onProgress
+  ) {
     const ratioConfig = ASPECT_RATIOS[project.aspectRatio];
     const canvas = document.createElement('canvas');
     canvas.width = ratioConfig.width;
     canvas.height = ratioConfig.height;
-    const ctx = canvas.getContext('2d')!;
+    const ctx = canvas.getContext('2d');
 
     renderFrame(ctx, project, 0, {
       canvasWidth: ratioConfig.width,
@@ -214,3 +214,5 @@ export class ExportPipeline {
 }
 
 export const exportPipeline = new ExportPipeline();
+
+export const ExportProgress = Object.freeze({});

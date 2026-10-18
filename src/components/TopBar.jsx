@@ -20,13 +20,14 @@ import {
   X,
   Sliders,
   Laptop,
+  Keyboard,
 } from 'lucide-react';
 import { useEditorStore } from '../store/editorStore';
-import { AspectRatio, ASPECT_RATIOS } from '../types/editor';
+import { ASPECT_RATIOS } from '../types/editor';
 import { useResponsive } from '../utils/useResponsive';
 import { PWAInstallButton } from './PWAInstallButton';
 
-export const TopBar: React.FC = () => {
+export const TopBar = () => {
   const {
     project,
     updateProjectName,
@@ -48,6 +49,7 @@ export const TopBar: React.FC = () => {
     setActiveLeftTab,
     devMobilePreview,
     toggleDevMobilePreview,
+    toggleShortcutsModal,
   } = useEditorStore();
 
   const { isMobile, isDesktop } = useResponsive();
@@ -63,7 +65,7 @@ export const TopBar: React.FC = () => {
     setIsEditingName(false);
   };
 
-  const getAspectIcon = (ratio: AspectRatio) => {
+  const getAspectIcon = (ratio) => {
     switch (ratio) {
       case '16:9':
         return <Monitor className="w-3.5 h-3.5 text-violet-400" />;
@@ -176,7 +178,7 @@ export const TopBar: React.FC = () => {
                   Canvas Aspect Ratio
                 </label>
                 <div className="grid grid-cols-2 gap-2">
-                  {(Object.keys(ASPECT_RATIOS) as AspectRatio[]).map((ratio) => {
+                  {(Object.keys(ASPECT_RATIOS) ).map((ratio) => {
                     const isSelected = project.aspectRatio === ratio;
                     return (
                       <button
@@ -288,6 +290,21 @@ export const TopBar: React.FC = () => {
                     Save
                   </button>
                 </div>
+              </div>
+
+              {/* Keyboard Shortcuts Dialog */}
+              <div className="pt-2 border-t border-[#232738] flex items-center justify-between">
+                <span className="text-xs text-slate-300 font-medium">Keyboard Shortcuts</span>
+                <button
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    toggleShortcutsModal();
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-[#181b26] border border-[#2a3045] text-slate-300 hover:text-white text-xs flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Keyboard className="w-3.5 h-3.5 text-violet-400" />
+                  <span>View All</span>
+                </button>
               </div>
 
               {/* PWA Install */}
@@ -416,10 +433,10 @@ export const TopBar: React.FC = () => {
           {getAspectIcon(project.aspectRatio)}
           <select
             value={project.aspectRatio}
-            onChange={(e) => setAspectRatio(e.target.value as AspectRatio)}
+            onChange={(e) => setAspectRatio(e.target.value )}
             className="bg-transparent text-xs text-slate-200 outline-none cursor-pointer pr-1 font-medium"
           >
-            {(Object.keys(ASPECT_RATIOS) as AspectRatio[]).map((ratio) => (
+            {(Object.keys(ASPECT_RATIOS) ).map((ratio) => (
               <option key={ratio} value={ratio} className="bg-[#181b26] text-white">
                 {ratio} {ratio === '9:16' ? '(Shorts/TikTok)' : ratio === '16:9' ? '(YouTube)' : ''}
               </option>
@@ -452,9 +469,16 @@ export const TopBar: React.FC = () => {
             className={`p-1.5 rounded-md transition-colors ${
               snapping ? 'bg-violet-500/20 text-violet-400' : 'text-slate-400 hover:text-slate-200'
             }`}
-            title="Timeline Snapping"
+            title="Timeline Snapping (N)"
           >
             <Magnet className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={toggleShortcutsModal}
+            className="p-1.5 rounded-md transition-colors text-slate-400 hover:text-slate-200 hover:bg-[#232738]"
+            title="Keyboard Shortcuts (?)"
+          >
+            <Keyboard className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>

@@ -1,4 +1,5 @@
-import express from 'express';
+ function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }import express from 'express';
+import http from 'http';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -11,13 +12,33 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
+
+// Parse port: dev server must bind to port 3000 (port 8080 is reserved for nginx reverse proxy)
+function resolvePort() {
+  const portArgIdx = process.argv.indexOf('--port');
+  if (portArgIdx !== -1 && process.argv[portArgIdx + 1]) {
+    const p = parseInt(process.argv[portArgIdx + 1], 10);
+    if (!isNaN(p)) return p;
+  }
+  if (process.env.APP_PORT) {
+    const p = parseInt(process.env.APP_PORT, 10);
+    if (!isNaN(p)) return p;
+  }
+  // Cloud Run / container sets PORT=8080 for nginx ingress; backend app must use 3000
+  if (process.env.PORT && process.env.PORT !== '8080') {
+    const p = parseInt(process.env.PORT, 10);
+    if (!isNaN(p)) return p;
+  }
+  return 3000;
+}
+
+const PORT = resolvePort();
 
 app.use(express.json({ limit: '50mb' }));
 
 // Initialize Google GenAI client
 const apiKey = process.env.GEMINI_API_KEY;
-let ai: GoogleGenAI | null = null;
+let ai = null;
 if (apiKey) {
   ai = new GoogleGenAI({
     apiKey,
@@ -75,9 +96,9 @@ Return a valid JSON object with:
     const jsonText = response.text || '{}';
     const parsed = JSON.parse(jsonText);
     res.json(parsed);
-  } catch (error: any) {
+  } catch (error) {
     console.error('script-to-video error:', error);
-    res.status(500).json({ error: error?.message || 'Failed to generate video script' });
+    res.status(500).json({ error: _optionalChain([error, 'optionalAccess', _ => _.message]) || 'Failed to generate video script' });
   }
 });
 
@@ -116,7 +137,7 @@ app.post('/api/ai/tts', async (req, res) => {
       },
     });
 
-    const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+    const base64Audio = _optionalChain([response, 'access', _2 => _2.candidates, 'optionalAccess', _3 => _3[0], 'optionalAccess', _4 => _4.content, 'optionalAccess', _5 => _5.parts, 'optionalAccess', _6 => _6[0], 'optionalAccess', _7 => _7.inlineData, 'optionalAccess', _8 => _8.data]);
     if (!base64Audio) {
       return res.status(500).json({ error: 'No audio returned from Gemini TTS' });
     }
@@ -125,9 +146,9 @@ app.post('/api/ai/tts', async (req, res) => {
       audioBase64: base64Audio,
       mimeType: 'audio/wav',
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('tts error:', error);
-    res.status(500).json({ error: error?.message || 'TTS generation failed' });
+    res.status(500).json({ error: _optionalChain([error, 'optionalAccess', _9 => _9.message]) || 'TTS generation failed' });
   }
 });
 
@@ -188,9 +209,9 @@ app.post('/api/ai/auto-captions', async (req, res) => {
     }
 
     res.status(400).json({ error: 'Either text or audioBase64 must be provided' });
-  } catch (error: any) {
+  } catch (error) {
     console.error('auto-captions error:', error);
-    res.status(500).json({ error: error?.message || 'Auto captions failed' });
+    res.status(500).json({ error: _optionalChain([error, 'optionalAccess', _10 => _10.message]) || 'Auto captions failed' });
   }
 });
 
@@ -220,9 +241,9 @@ app.post('/api/ai/smart-cut', async (req, res) => {
     });
     const parsed = JSON.parse(response.text || '{}');
     res.json(parsed);
-  } catch (error: any) {
+  } catch (error) {
     console.error('smart-cut error:', error);
-    res.status(500).json({ error: error?.message || 'Smart cut failed' });
+    res.status(500).json({ error: _optionalChain([error, 'optionalAccess', _11 => _11.message]) || 'Smart cut failed' });
   }
 });
 
@@ -247,13 +268,13 @@ app.post('/api/ai/generate-overlay', async (req, res) => {
       },
       config: {
         imageConfig: {
-          aspectRatio: aspectRatio as any,
+          aspectRatio: aspectRatio ,
         },
       },
     });
 
     let imageData = null;
-    for (const part of response.candidates?.[0]?.content?.parts || []) {
+    for (const part of _optionalChain([response, 'access', _12 => _12.candidates, 'optionalAccess', _13 => _13[0], 'optionalAccess', _14 => _14.content, 'optionalAccess', _15 => _15.parts]) || []) {
       if (part.inlineData) {
         imageData = `data:${part.inlineData.mimeType || 'image/png'};base64,${part.inlineData.data}`;
         break;
@@ -265,20 +286,38 @@ app.post('/api/ai/generate-overlay', async (req, res) => {
     }
 
     res.json({ imageUrl: imageData });
-  } catch (error: any) {
+  } catch (error) {
     console.error('generate-overlay error:', error);
-    res.status(500).json({ error: error?.message || 'Failed to generate overlay image' });
+    res.status(500).json({ error: _optionalChain([error, 'optionalAccess', _16 => _16.message]) || 'Failed to generate overlay image' });
   }
 });
 
 // Vite middleware in dev or static files in production
 async function startServer() {
+  const server = http.createServer(app);
+
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`[Server] Port ${PORT} is already in use.`);
+    } else {
+      console.error('[Server] Unexpected server error:', err);
+    }
+  });
+
   if (process.env.NODE_ENV !== 'production') {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa',
-    });
-    app.use(vite.middlewares);
+    try {
+      // AI Studio environment disables HMR; disable Vite WS server to prevent disconnect errors
+      const vite = await createViteServer({
+        server: {
+          middlewareMode: true,
+          hmr: false,
+        },
+        appType: 'spa',
+      });
+      app.use(vite.middlewares);
+    } catch (viteErr) {
+      console.error('[Server] Failed to initialize Vite middleware:', viteErr);
+    }
   } else {
     app.use(express.static(path.resolve(__dirname, 'dist')));
     app.get('*', (_req, res) => {
@@ -286,7 +325,7 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  server.listen(PORT, '0.0.0.0', () => {
     console.log(`ClipForge Server running on http://0.0.0.0:${PORT}`);
   });
 }

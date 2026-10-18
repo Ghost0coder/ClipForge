@@ -1,121 +1,121 @@
 import { create } from 'zustand';
-import { Project, Track, Clip, AspectRatio, Marker, TrackType, Keyframe } from '../types/editor';
+
 import { createDefaultProject } from '../utils/sampleData';
-import { saveProjectToDB, getProjectFromDB } from '../utils/storage';
+import { saveProjectToDB, } from '../utils/storage';
 import { audioEngine } from '../utils/audioEngine';
 import { pauseAllVideos } from '../utils/previewRenderer';
-import { toastError, toastSuccess, toastWarning, toastInfo } from './toastStore';
+import { toastSuccess, toastWarning, toastInfo } from './toastStore';
 
-export type ClipUpdates = Partial<Omit<Clip, 'textProps' | 'audioProps' | 'adjustments'>> & {
-  textProps?: Partial<import('../types/editor').TextClipProperties>;
-  audioProps?: Partial<import('../types/editor').AudioProperties>;
-  adjustments?: Partial<import('../types/editor').ColorAdjustments>;
-};
+ 
 
-interface EditorState {
-  // Project
-  project: Project;
-  setProject: (project: Project) => void;
-  updateProjectName: (name: string) => void;
-  setAspectRatio: (ratio: AspectRatio) => void;
-  setBackgroundColor: (color: string) => void;
 
-  // Playback
-  currentTime: number;
-  isPlaying: boolean;
-  play: () => void;
-  pause: () => void;
-  togglePlay: () => void;
-  seek: (time: number) => void;
-  stepForward: (frames?: number) => void;
-  stepBackward: (frames?: number) => void;
 
-  // Selection
-  selectedClipIds: string[];
-  selectClip: (clipId: string, multi?: boolean) => void;
-  deselectAll: () => void;
-  getSelectedClip: () => Clip | null;
 
-  // Timeline UI
-  zoom: number; // px per second
-  setZoom: (zoom: number) => void;
-  snapping: boolean;
-  toggleSnapping: () => void;
-  magneticTimeline: boolean;
-  toggleMagnetic: () => void;
-  showSafeGuides: boolean;
-  toggleSafeGuides: () => void;
-  showGrid: boolean;
-  toggleGrid: () => void;
-  activeLeftTab: 'media' | 'audio' | 'text' | 'stickers' | 'effects' | 'transitions' | 'filters' | 'captions' | 'templates' | 'ai';
-  setActiveLeftTab: (tab: EditorState['activeLeftTab']) => void;
 
-  // Modals
-  isExportModalOpen: boolean;
-  setExportModalOpen: (open: boolean) => void;
-  isProjectManagerOpen: boolean;
-  setProjectManagerOpen: (open: boolean) => void;
 
-  // Track operations
-  addTrack: (type: TrackType) => void;
-  removeTrack: (trackId: string) => void;
-  toggleTrackLock: (trackId: string) => void;
-  toggleTrackHide: (trackId: string) => void;
-  toggleTrackMute: (trackId: string) => void;
-  setTrackVolume: (trackId: string, volume: number) => void;
 
-  // Clip operations
-  addClipToTrack: (trackId: string, clip: Clip) => void;
-  updateClip: (clipId: string, updates: ClipUpdates) => void;
-  splitClipAtPlayhead: (clipId?: string) => void;
-  deleteClip: (clipId: string, ripple?: boolean) => void;
-  duplicateClip: (clipId: string) => void;
-  moveClip: (clipId: string, targetTrackId: string, newStart: number) => void;
-  trimClip: (clipId: string, newStart: number, newDuration: number) => void;
-  freezeFrame: (clipId: string) => void;
-  reverseClip: (clipId: string) => void;
 
-  // Keyframes
-  addKeyframe: (clipId: string, prop: Keyframe['property'], value: number) => void;
-  removeKeyframe: (clipId: string, keyframeId: string) => void;
 
-  // Markers
-  addMarker: (time?: number, label?: string, color?: string) => void;
-  removeMarker: (markerId: string) => void;
 
-  // Undo / Redo
-  undoStack: Project[];
-  redoStack: Project[];
-  undo: () => void;
-  redo: () => void;
-  pushHistory: () => void;
 
-  // Panel collapse toggles for desktop/tablet
-  leftPanelCollapsed: boolean;
-  rightInspectorCollapsed: boolean;
-  toggleLeftPanel: () => void;
-  toggleRightInspector: () => void;
 
-  // Mobile layout & drawers
-  devMobilePreview: boolean;
-  toggleDevMobilePreview: () => void;
-  isMobileToolDrawerOpen: boolean;
-  setMobileToolDrawerOpen: (open: boolean) => void;
-  isMobileInspectorOpen: boolean;
-  setMobileInspectorOpen: (open: boolean) => void;
 
-  // Advanced Tools
-  extractAudioFromClip: (clipId: string) => void;
-  autoCutSilence: () => void;
-  autoReframe: () => void;
 
-  // Clipboard
-  copiedClips: Clip[];
-  copySelected: () => void;
-  pasteClips: () => void;
-}
 
-export const useEditorStore = create<EditorState>((set, get) => {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+export const useEditorStore = create((set, get) => {
   const initialProject = createDefaultProject();
 
   // Helper to push history
@@ -127,7 +127,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
   };
 
   // Recalculate project duration based on clips
-  const recalculateDuration = (project: Project): number => {
+  const recalculateDuration = (project) => {
     let maxEnd = 5;
     project.tracks.forEach((track) => {
       track.clips.forEach((clip) => {
@@ -157,6 +157,9 @@ export const useEditorStore = create<EditorState>((set, get) => {
 
     isExportModalOpen: false,
     isProjectManagerOpen: false,
+    isShortcutsModalOpen: false,
+    setShortcutsModalOpen: (isShortcutsModalOpen) => set({ isShortcutsModalOpen }),
+    toggleShortcutsModal: () => set((state) => ({ isShortcutsModalOpen: !state.isShortcutsModalOpen })),
     leftPanelCollapsed: false,
     rightInspectorCollapsed: false,
     toggleLeftPanel: () => set((state) => ({ leftPanelCollapsed: !state.leftPanelCollapsed })),
@@ -168,6 +171,8 @@ export const useEditorStore = create<EditorState>((set, get) => {
     setMobileToolDrawerOpen: (open) => set({ isMobileToolDrawerOpen: open }),
     isMobileInspectorOpen: false,
     setMobileInspectorOpen: (open) => set({ isMobileInspectorOpen: open }),
+    selectedKeyframeId: null,
+    setSelectedKeyframeId: (selectedKeyframeId) => set({ selectedKeyframeId }),
 
     setProject: (project) => {
       pushHistory();
@@ -291,7 +296,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     addTrack: (type) => {
       pushHistory();
       const { project } = get();
-      const newTrack: Track = {
+      const newTrack = {
         id: `track_${type}_${Date.now()}`,
         name: `${type.charAt(0).toUpperCase() + type.slice(1)} Track ${project.tracks.length + 1}`,
         type,
@@ -368,7 +373,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
         return track;
       });
 
-      const updatedProject: Project = {
+      const updatedProject = {
         ...project,
         tracks: updatedTracks,
         duration: recalculateDuration({ ...project, tracks: updatedTracks }),
@@ -380,7 +385,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     },
 
     updateClip: (clipId, updates) => {
-      const { project } = get();
+      const { project, currentTime } = get();
       let changed = false;
 
       const updatedTracks = project.tracks.map((track) => {
@@ -388,18 +393,59 @@ export const useEditorStore = create<EditorState>((set, get) => {
         if (clipIdx !== -1) {
           changed = true;
           const current = track.clips[clipIdx];
+          let updatedKeyframes = current.keyframes ? [...current.keyframes] : [];
+          const relTime = Math.max(0, Math.min(current.duration, currentTime - current.start));
+          const isPlayheadOverClip = currentTime >= current.start - 0.05 && currentTime <= current.start + current.duration + 0.05;
+
+          // CapCut logic: Once a property has at least one keyframe, changing its value
+          // at a playhead time automatically updates or creates a keyframe there.
+          const handleAutoKeyframe = (prop, newVal) => {
+            if (newVal === undefined || !isPlayheadOverClip) return;
+            const hasExistingPropKeyframe = updatedKeyframes.some((k) => k.property === prop);
+            if (hasExistingPropKeyframe) {
+              const existingIdx = updatedKeyframes.findIndex(
+                (k) => k.property === prop && Math.abs(k.time - relTime) <= 0.04
+              );
+              if (existingIdx !== -1) {
+                updatedKeyframes[existingIdx] = {
+                  ...updatedKeyframes[existingIdx],
+                  value: Number(newVal),
+                };
+              } else {
+                updatedKeyframes.push({
+                  id: `kf_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                  time: Math.round(relTime * 1000) / 1000,
+                  property: prop,
+                  value: Number(newVal),
+                  easing: 'easeInOut',
+                });
+                updatedKeyframes.sort((a, b) => a.time - b.time);
+              }
+            }
+          };
+
+          if (updates.x !== undefined) handleAutoKeyframe('x', updates.x);
+          if (updates.y !== undefined) handleAutoKeyframe('y', updates.y);
+          if (updates.scale !== undefined) handleAutoKeyframe('scale', updates.scale);
+          if (updates.rotation !== undefined) handleAutoKeyframe('rotation', updates.rotation);
+          if (updates.opacity !== undefined) handleAutoKeyframe('opacity', updates.opacity);
+          if (updates.audioProps && updates.audioProps.volume !== undefined) {
+            handleAutoKeyframe('volume', updates.audioProps.volume);
+          }
+
           const updatedClips = [...track.clips];
           updatedClips[clipIdx] = {
             ...current,
             ...updates,
+            keyframes: updatedKeyframes,
             adjustments: updates.adjustments
               ? { ...current.adjustments, ...updates.adjustments }
               : current.adjustments,
             textProps: updates.textProps
-              ? { ...current.textProps, ...updates.textProps } as any
+              ? { ...current.textProps, ...updates.textProps } 
               : current.textProps,
             audioProps: updates.audioProps
-              ? ({ ...current.audioProps, ...updates.audioProps } as any)
+              ? ({ ...current.audioProps, ...updates.audioProps } )
               : current.audioProps,
           };
           return { ...track, clips: updatedClips };
@@ -416,6 +462,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
         };
         set({ project: updatedProject });
         saveProjectToDB(updatedProject);
+        window.dispatchEvent(new CustomEvent('clipforge:redraw'));
       }
     },
 
@@ -444,7 +491,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
       }
 
       // Find the target clip
-      let foundClip: Clip | null = null;
+      let foundClip = null;
       for (const track of project.tracks) {
         const c = track.clips.find((clip) => clip.id === targetId);
         if (c) {
@@ -481,14 +528,14 @@ export const useEditorStore = create<EditorState>((set, get) => {
         const firstDuration = splitTime - clip.start;
         const secondDuration = clip.duration - firstDuration;
 
-        const clip1: Clip = {
+        const clip1 = {
           ...clip,
           duration: firstDuration,
           keyframes: (clip.keyframes || []).filter((k) => k.time < firstDuration),
         };
 
         createdClipId = `clip_${Date.now()}_split`;
-        const clip2: Clip = {
+        const clip2 = {
           ...clip,
           id: createdClipId,
           start: splitTime,
@@ -563,6 +610,101 @@ export const useEditorStore = create<EditorState>((set, get) => {
       window.dispatchEvent(new CustomEvent('clipforge:redraw'));
     },
 
+    deleteSelectedClips: (ripple = false) => {
+      const { project, selectedClipIds } = get();
+      if (!selectedClipIds || selectedClipIds.length === 0) return;
+
+      pushHistory();
+
+      const idsToDelete = new Set(selectedClipIds);
+      let countDeleted = 0;
+
+      const updatedTracks = project.tracks.map((track) => {
+        const remaining = track.clips.filter((c) => !idsToDelete.has(c.id));
+        const deletedInTrack = track.clips.filter((c) => idsToDelete.has(c.id));
+        countDeleted += deletedInTrack.length;
+
+        if (deletedInTrack.length === 0) return track;
+
+        if (ripple && deletedInTrack.length > 0) {
+          const totalDuration = deletedInTrack.reduce((sum, c) => sum + c.duration, 0);
+          const minStart = Math.min(...deletedInTrack.map((c) => c.start));
+          return {
+            ...track,
+            clips: remaining.map((c) =>
+              c.start > minStart
+                ? { ...c, start: Math.max(0, c.start - totalDuration) }
+                : c
+            ),
+          };
+        }
+        return { ...track, clips: remaining };
+      });
+
+      const updatedProject = {
+        ...project,
+        tracks: updatedTracks,
+        duration: recalculateDuration({ ...project, tracks: updatedTracks }),
+        updatedAt: Date.now(),
+      };
+      set({ project: updatedProject, selectedClipIds: [], isMobileInspectorOpen: false });
+      saveProjectToDB(updatedProject);
+      window.dispatchEvent(new CustomEvent('clipforge:redraw'));
+      toastSuccess(`Deleted ${countDeleted} clip${countDeleted > 1 ? 's' : ''}`, 'Deleted');
+    },
+
+    selectAllClips: () => {
+      const { project } = get();
+      const allIds = [];
+      project.tracks.forEach((track) => {
+        if (!track.locked && !track.hidden) {
+          track.clips.forEach((c) => allIds.push(c.id));
+        }
+      });
+      if (allIds.length > 0) {
+        set({ selectedClipIds: allIds });
+        toastInfo(`Selected ${allIds.length} clip${allIds.length > 1 ? 's' : ''}`, 'Selected All');
+      }
+    },
+
+    cutSelected: () => {
+      const { copySelected, deleteSelectedClips } = get();
+      copySelected();
+      deleteSelectedClips(false);
+    },
+
+    jumpToPrevCut: () => {
+      const { project, currentTime, seek } = get();
+      const cutPoints = new Set([0]);
+      project.tracks.forEach((track) => {
+        if (!track.hidden) {
+          track.clips.forEach((c) => {
+            cutPoints.add(c.start);
+            cutPoints.add(c.start + c.duration);
+          });
+        }
+      });
+      const sorted = Array.from(cutPoints).sort((a, b) => a - b);
+      const prev = sorted.filter((t) => t < currentTime - 0.05).pop();
+      seek(prev !== undefined ? prev : 0);
+    },
+
+    jumpToNextCut: () => {
+      const { project, currentTime, seek } = get();
+      const cutPoints = new Set([project.duration]);
+      project.tracks.forEach((track) => {
+        if (!track.hidden) {
+          track.clips.forEach((c) => {
+            cutPoints.add(c.start);
+            cutPoints.add(c.start + c.duration);
+          });
+        }
+      });
+      const sorted = Array.from(cutPoints).sort((a, b) => a - b);
+      const next = sorted.find((t) => t > currentTime + 0.05);
+      seek(next !== undefined ? next : project.duration);
+    },
+
     duplicateClip: (clipId) => {
       const { project, selectedClipIds } = get();
       const targetId = clipId || selectedClipIds[0];
@@ -577,7 +719,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
         if (!clip) return track;
 
         duplicatedClipId = `clip_${Date.now()}_dup`;
-        const newClip: Clip = {
+        const newClip = {
           ...clip,
           id: duplicatedClipId,
           name: `${clip.name} (Copy)`,
@@ -604,7 +746,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
 
     moveClip: (clipId, targetTrackId, newStart) => {
       const { project } = get();
-      let targetClip: Clip | null = null;
+      let targetClip = null;
 
       // Remove from source track
       const tracksWithoutClip = project.tracks.map((track) => {
@@ -621,7 +763,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
       // Add to destination track
       const updatedTracks = tracksWithoutClip.map((track) => {
         if (track.id === targetTrackId) {
-          return { ...track, clips: [...track.clips, targetClip!] };
+          return { ...track, clips: [...track.clips, targetClip] };
         }
         return track;
       });
@@ -721,37 +863,95 @@ export const useEditorStore = create<EditorState>((set, get) => {
       set({ project: { ...project, tracks: updatedTracks } });
     },
 
-    addKeyframe: (clipId, prop, value) => {
+    addKeyframe: (clipId, prop, value, easing = 'easeInOut', targetTime = null) => {
+      pushHistory();
       const { project, currentTime } = get();
+      let newId = '';
       const updatedTracks = project.tracks.map((track) => {
         const clipIdx = track.clips.findIndex((c) => c.id === clipId);
         if (clipIdx !== -1) {
           const clip = track.clips[clipIdx];
-          const relTime = Math.max(0, currentTime - clip.start);
-          const newKf: Keyframe = {
-            id: `kf_${Date.now()}`,
-            time: relTime,
+          const relTime = targetTime !== null ? Math.max(0, targetTime) : Math.max(0, Math.min(clip.duration, currentTime - clip.start));
+          newId = `kf_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+          const newKf = {
+            id: newId,
+            time: Math.round(relTime * 1000) / 1000,
             property: prop,
-            value,
-            easing: 'easeInOut',
+            value: Number(value),
+            easing,
           };
           const filtered = (clip.keyframes || []).filter(
-            (k) => !(k.property === prop && Math.abs(k.time - relTime) < 0.05)
+            (k) => !(k.property === prop && Math.abs(k.time - relTime) <= 0.04)
           );
           const updatedClips = [...track.clips];
           updatedClips[clipIdx] = {
             ...clip,
-            keyframes: [...filtered, newKf],
+            keyframes: [...filtered, newKf].sort((a, b) => a.time - b.time),
           };
           return { ...track, clips: updatedClips };
         }
         return track;
       });
-      set({ project: { ...project, tracks: updatedTracks } });
+      const updatedProject = {
+        ...project,
+        tracks: updatedTracks,
+        updatedAt: Date.now(),
+      };
+      set({ project: updatedProject, selectedKeyframeId: newId });
+      saveProjectToDB(updatedProject);
+      window.dispatchEvent(new CustomEvent('clipforge:redraw'));
+    },
+
+    addPositionKeyframe: (clipId, xVal, yVal, easing = 'easeInOut', targetTime = null) => {
+      pushHistory();
+      const { project, currentTime } = get();
+      let createdId = '';
+      const updatedTracks = project.tracks.map((track) => {
+        const clipIdx = track.clips.findIndex((c) => c.id === clipId);
+        if (clipIdx !== -1) {
+          const clip = track.clips[clipIdx];
+          const relTime = targetTime !== null ? Math.max(0, targetTime) : Math.max(0, Math.min(clip.duration, currentTime - clip.start));
+          const roundedTime = Math.round(relTime * 1000) / 1000;
+          createdId = `kf_${Date.now()}_x`;
+          const newKfX = {
+            id: createdId,
+            time: roundedTime,
+            property: 'x',
+            value: Number(xVal),
+            easing,
+          };
+          const newKfY = {
+            id: `kf_${Date.now()}_y`,
+            time: roundedTime,
+            property: 'y',
+            value: Number(yVal),
+            easing,
+          };
+          const filtered = (clip.keyframes || []).filter(
+            (k) => !((k.property === 'x' || k.property === 'y') && Math.abs(k.time - relTime) <= 0.04)
+          );
+          const updatedClips = [...track.clips];
+          updatedClips[clipIdx] = {
+            ...clip,
+            keyframes: [...filtered, newKfX, newKfY].sort((a, b) => a.time - b.time),
+          };
+          return { ...track, clips: updatedClips };
+        }
+        return track;
+      });
+      const updatedProject = {
+        ...project,
+        tracks: updatedTracks,
+        updatedAt: Date.now(),
+      };
+      set({ project: updatedProject, selectedKeyframeId: createdId });
+      saveProjectToDB(updatedProject);
+      window.dispatchEvent(new CustomEvent('clipforge:redraw'));
     },
 
     removeKeyframe: (clipId, keyframeId) => {
-      const { project } = get();
+      pushHistory();
+      const { project, selectedKeyframeId } = get();
       const updatedTracks = project.tracks.map((track) => {
         const clipIdx = track.clips.findIndex((c) => c.id === clipId);
         if (clipIdx !== -1) {
@@ -765,13 +965,152 @@ export const useEditorStore = create<EditorState>((set, get) => {
         }
         return track;
       });
-      set({ project: { ...project, tracks: updatedTracks } });
+      const updatedProject = {
+        ...project,
+        tracks: updatedTracks,
+        updatedAt: Date.now(),
+      };
+      set({
+        project: updatedProject,
+        selectedKeyframeId: selectedKeyframeId === keyframeId ? null : selectedKeyframeId,
+      });
+      saveProjectToDB(updatedProject);
+      window.dispatchEvent(new CustomEvent('clipforge:redraw'));
+    },
+
+    removeKeyframeAtTime: (clipId, prop, targetTime = null) => {
+      pushHistory();
+      const { project, currentTime, selectedKeyframeId } = get();
+      const updatedTracks = project.tracks.map((track) => {
+        const clipIdx = track.clips.findIndex((c) => c.id === clipId);
+        if (clipIdx !== -1) {
+          const clip = track.clips[clipIdx];
+          const relTime = targetTime !== null ? targetTime : Math.max(0, Math.min(clip.duration, currentTime - clip.start));
+          const updatedClips = [...track.clips];
+          const remaining = (clip.keyframes || []).filter((k) => {
+            if (prop === 'position') {
+              return !((k.property === 'x' || k.property === 'y') && Math.abs(k.time - relTime) <= 0.04);
+            }
+            return !(k.property === prop && Math.abs(k.time - relTime) <= 0.04);
+          });
+          updatedClips[clipIdx] = {
+            ...clip,
+            keyframes: remaining,
+          };
+          return { ...track, clips: updatedClips };
+        }
+        return track;
+      });
+      const updatedProject = {
+        ...project,
+        tracks: updatedTracks,
+        updatedAt: Date.now(),
+      };
+      set({ project: updatedProject });
+      saveProjectToDB(updatedProject);
+      window.dispatchEvent(new CustomEvent('clipforge:redraw'));
+    },
+
+    removeKeyframesAtTimeGroup: (clipId, targetTime) => {
+      pushHistory();
+      const { project } = get();
+      const updatedTracks = project.tracks.map((track) => {
+        const clipIdx = track.clips.findIndex((c) => c.id === clipId);
+        if (clipIdx !== -1) {
+          const clip = track.clips[clipIdx];
+          const updatedClips = [...track.clips];
+          updatedClips[clipIdx] = {
+            ...clip,
+            keyframes: (clip.keyframes || []).filter((k) => Math.abs(k.time - targetTime) > 0.04),
+          };
+          return { ...track, clips: updatedClips };
+        }
+        return track;
+      });
+      const updatedProject = {
+        ...project,
+        tracks: updatedTracks,
+        updatedAt: Date.now(),
+      };
+      set({ project: updatedProject, selectedKeyframeId: null });
+      saveProjectToDB(updatedProject);
+      window.dispatchEvent(new CustomEvent('clipforge:redraw'));
+    },
+
+    updateKeyframe: (clipId, keyframeId, updates) => {
+      pushHistory();
+      const { project } = get();
+      const updatedTracks = project.tracks.map((track) => {
+        const clipIdx = track.clips.findIndex((c) => c.id === clipId);
+        if (clipIdx !== -1) {
+          const clip = track.clips[clipIdx];
+          const updatedKfs = (clip.keyframes || []).map((k) => {
+            if (k.id === keyframeId) {
+              return { ...k, ...updates };
+            }
+            return k;
+          });
+          const updatedClips = [...track.clips];
+          updatedClips[clipIdx] = {
+            ...clip,
+            keyframes: updatedKfs,
+          };
+          return { ...track, clips: updatedClips };
+        }
+        return track;
+      });
+      const updatedProject = {
+        ...project,
+        tracks: updatedTracks,
+        updatedAt: Date.now(),
+      };
+      set({ project: updatedProject });
+      saveProjectToDB(updatedProject);
+      window.dispatchEvent(new CustomEvent('clipforge:redraw'));
+    },
+
+    updateKeyframeTime: (clipId, keyframeId, newTime) => {
+      const { project } = get();
+      const updatedTracks = project.tracks.map((track) => {
+        const clipIdx = track.clips.findIndex((c) => c.id === clipId);
+        if (clipIdx !== -1) {
+          const clip = track.clips[clipIdx];
+          const clampedTime = Math.max(0, Math.min(clip.duration, Math.round(newTime * 1000) / 1000));
+          const targetKf = (clip.keyframes || []).find((k) => k.id === keyframeId);
+          if (!targetKf) return track;
+          const origTime = targetKf.time;
+          
+          // Move this keyframe and any keyframe sharing the same original timestamp (e.g. x and y pair)
+          const updatedKfs = (clip.keyframes || []).map((k) => {
+            if (k.id === keyframeId || Math.abs(k.time - origTime) <= 0.02) {
+              return { ...k, time: clampedTime };
+            }
+            return k;
+          }).sort((a, b) => a.time - b.time);
+
+          const updatedClips = [...track.clips];
+          updatedClips[clipIdx] = {
+            ...clip,
+            keyframes: updatedKfs,
+          };
+          return { ...track, clips: updatedClips };
+        }
+        return track;
+      });
+      const updatedProject = {
+        ...project,
+        tracks: updatedTracks,
+        updatedAt: Date.now(),
+      };
+      set({ project: updatedProject });
+      saveProjectToDB(updatedProject);
+      window.dispatchEvent(new CustomEvent('clipforge:redraw'));
     },
 
     addMarker: (time, label = 'Marker', color = '#8b5cf6') => {
       const { project, currentTime } = get();
       const markerTime = time !== undefined ? time : currentTime;
-      const newMarker: Marker = {
+      const newMarker = {
         id: `marker_${Date.now()}`,
         time: markerTime,
         label,
@@ -833,7 +1172,8 @@ export const useEditorStore = create<EditorState>((set, get) => {
 
     copySelected: () => {
       const { project, selectedClipIds } = get();
-      const copied: Clip[] = [];
+      if (!selectedClipIds || selectedClipIds.length === 0) return;
+      const copied = [];
       project.tracks.forEach((track) => {
         track.clips.forEach((clip) => {
           if (selectedClipIds.includes(clip.id)) {
@@ -841,13 +1181,16 @@ export const useEditorStore = create<EditorState>((set, get) => {
           }
         });
       });
-      set({ copiedClips: copied });
+      if (copied.length > 0) {
+        set({ copiedClips: copied });
+        toastSuccess(`Copied ${copied.length} clip${copied.length > 1 ? 's' : ''}`, 'Copied');
+      }
     },
 
-    extractAudioFromClip: (clipId: string) => {
+    extractAudioFromClip: (clipId) => {
       pushHistory();
       const { project, addClipToTrack, addTrack } = get();
-      let targetClip: Clip | null = null;
+      let targetClip = null;
       for (const track of project.tracks) {
         const found = track.clips.find((c) => c.id === clipId);
         if (found) {
@@ -865,7 +1208,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
       }
 
       if (audioTrack) {
-        const extractedClip: Clip = {
+        const extractedClip = {
           ...targetClip,
           id: `clip_audio_ext_${Date.now()}`,
           trackId: audioTrack.id,
@@ -944,7 +1287,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
       copiedClips.forEach((clip) => {
         const targetTrack = project.tracks.find((t) => t.id === clip.trackId) || project.tracks[0];
         if (targetTrack) {
-          const newClip: Clip = {
+          const newClip = {
             ...clip,
             id: `clip_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
             start: currentTime,
@@ -955,3 +1298,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     },
   };
 });
+
+export const ClipUpdates = Object.freeze({});
+
+export const EditorState = Object.freeze({});

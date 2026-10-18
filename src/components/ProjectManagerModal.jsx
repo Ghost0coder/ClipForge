@@ -1,13 +1,13 @@
-import React, { useEffect, useState, useRef } from 'react';
+ function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }import React, { useEffect, useState, useRef } from 'react';
 import {
   X,
   FolderOpen,
   Plus,
   Trash2,
-  Copy,
+
   Download,
   Upload,
-  Calendar,
+
   Clock,
   Check,
 } from 'lucide-react';
@@ -18,10 +18,10 @@ import {
   exportProjectToJson,
   parseProjectJson,
 } from '../utils/storage';
-import { Project } from '../types/editor';
+
 import { createDefaultProject } from '../utils/sampleData';
 
-export const ProjectManagerModal: React.FC = () => {
+export const ProjectManagerModal = () => {
   const {
     isProjectManagerOpen,
     setProjectManagerOpen,
@@ -29,8 +29,8 @@ export const ProjectManagerModal: React.FC = () => {
     setProject,
   } = useEditorStore();
 
-  const [projectsList, setProjectsList] = useState<Project[]>([]);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [projectsList, setProjectsList] = useState([]);
+  const fileInputRef = useRef(null);
 
   const loadProjects = async () => {
     const list = await getAllProjectsFromDB();
@@ -45,12 +45,12 @@ export const ProjectManagerModal: React.FC = () => {
 
   if (!isProjectManagerOpen) return null;
 
-  const handleOpenProject = (proj: Project) => {
+  const handleOpenProject = (proj) => {
     setProject(proj);
     setProjectManagerOpen(false);
   };
 
-  const handleDeleteProject = async (id: string, e: React.MouseEvent) => {
+  const handleDeleteProject = async (id, e) => {
     e.stopPropagation();
     if (confirm('Delete this project permanently?')) {
       await deleteProjectFromDB(id);
@@ -65,19 +65,19 @@ export const ProjectManagerModal: React.FC = () => {
     setProjectManagerOpen(false);
   };
 
-  const handleImportJson = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleImportJson = async (e) => {
+    const file = _optionalChain([e, 'access', _ => _.target, 'access', _2 => _2.files, 'optionalAccess', _3 => _3[0]]);
     if (!file) return;
     try {
       const parsed = await parseProjectJson(file);
       setProject(parsed);
       setProjectManagerOpen(false);
-    } catch (err: any) {
+    } catch (err) {
       alert(`Invalid ClipForge project file: ${err.message}`);
     }
   };
 
-  const formatDate = (timestamp: number) => {
+  const formatDate = (timestamp) => {
     return new Date(timestamp).toLocaleDateString(undefined, {
       month: 'short',
       day: 'numeric',
@@ -128,7 +128,7 @@ export const ProjectManagerModal: React.FC = () => {
               className="hidden"
             />
             <button
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => _optionalChain([fileInputRef, 'access', _4 => _4.current, 'optionalAccess', _5 => _5.click, 'call', _6 => _6()])}
               className="px-3 py-1.5 rounded-lg bg-[#1a1d29] hover:bg-[#232738] border border-[#272b3c] text-xs font-medium text-slate-300 flex items-center gap-1.5"
             >
               <Upload className="w-3.5 h-3.5 text-violet-400" /> Load JSON

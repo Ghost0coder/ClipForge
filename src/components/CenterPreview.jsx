@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+ function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }import React, { useRef, useEffect, useState, } from 'react';
 import {
   Play,
   Pause,
@@ -16,7 +16,7 @@ import { ASPECT_RATIOS } from '../types/editor';
 import { useResponsive } from '../utils/useResponsive';
 import { audioEngine } from '../utils/audioEngine';
 
-export const CenterPreview: React.FC = () => {
+export const CenterPreview = () => {
   const {
     project,
     currentTime,
@@ -36,13 +36,13 @@ export const CenterPreview: React.FC = () => {
 
   const { isMobile } = useResponsive();
 
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef(null);
+  const containerRef = useRef(null);
 
-  const [previewZoom, setPreviewZoom] = useState<'fit' | '50%' | '100%' | '200%'>('fit');
+  const [previewZoom, setPreviewZoom] = useState('fit');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isDraggingClip, setIsDraggingClip] = useState(false);
-  const dragStartPos = useRef<{ x: number; y: number; initialClipX: number; initialClipY: number }>({
+  const dragStartPos = useRef({
     x: 0,
     y: 0,
     initialClipX: 0,
@@ -57,7 +57,7 @@ export const CenterPreview: React.FC = () => {
   const renderHeight = isMobile ? Math.round(ratioConfig.height / 2) : ratioConfig.height;
 
   // Tap preview handler (also unlocks AudioContext for iOS/Android)
-  const handlePlayerTap = (e: React.MouseEvent | React.TouchEvent) => {
+  const handlePlayerTap = (e) => {
     // If user was dragging clip, don't toggle play
     if (isDraggingClip) return;
     audioEngine.getContext();
@@ -68,10 +68,10 @@ export const CenterPreview: React.FC = () => {
   useEffect(() => {
     if (!isPlaying) return;
 
-    let animId: number;
+    let animId;
     let lastTime = performance.now();
 
-    const loop = (now: number) => {
+    const loop = (now) => {
       const delta = Math.max(0, (now - lastTime) / 1000);
       lastTime = now;
 
@@ -135,7 +135,7 @@ export const CenterPreview: React.FC = () => {
         renderFrame(ctx, project, currentTime, {
           canvasWidth: renderWidth,
           canvasHeight: renderHeight,
-          selectedClipId: selectedClip?.id,
+          selectedClipId: _optionalChain([selectedClip, 'optionalAccess', _ => _.id]),
           showSafeGuides,
           showGrid,
           isExporting: false,
@@ -173,7 +173,7 @@ export const CenterPreview: React.FC = () => {
   }, [isMobile]);
 
   // Format timecode (00:00:00.00)
-  const formatTimecode = (seconds: number) => {
+  const formatTimecode = (seconds) => {
     const totalMs = Math.floor(seconds * 100);
     const ms = (totalMs % 100).toString().padStart(2, '0');
     const totalSec = Math.floor(seconds);
@@ -205,7 +205,7 @@ export const CenterPreview: React.FC = () => {
   };
 
   // Direct canvas drag to move clip (mouse + touch)
-  const handleStartDrag = (clientX: number, clientY: number) => {
+  const handleStartDrag = (clientX, clientY) => {
     if (!selectedClip || !canvasRef.current) return;
     setIsDraggingClip(true);
     dragStartPos.current = {
@@ -216,7 +216,7 @@ export const CenterPreview: React.FC = () => {
     };
   };
 
-  const handleMoveDrag = (clientX: number, clientY: number) => {
+  const handleMoveDrag = (clientX, clientY) => {
     if (!isDraggingClip || !selectedClip || !canvasRef.current) return;
     const rect = canvasRef.current.getBoundingClientRect();
     const deltaX = ((clientX - dragStartPos.current.x) / rect.width) * 100;
@@ -232,32 +232,7 @@ export const CenterPreview: React.FC = () => {
     setIsDraggingClip(false);
   };
 
-  // Keyboard controls
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const activeEl = document.activeElement as HTMLElement | null;
-      if (
-        activeEl &&
-        (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable)
-      ) {
-        return;
-      }
 
-      if (e.code === 'Space') {
-        e.preventDefault();
-        togglePlay();
-      } else if (e.code === 'ArrowLeft') {
-        e.preventDefault();
-        stepBackward(e.shiftKey ? 5 : 1);
-      } else if (e.code === 'ArrowRight') {
-        e.preventDefault();
-        stepForward(e.shiftKey ? 5 : 1);
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [togglePlay, stepBackward, stepForward]);
 
   return (
     <main
@@ -283,7 +258,7 @@ export const CenterPreview: React.FC = () => {
               <span className="text-[10px] text-slate-400">Scale:</span>
               <select
                 value={previewZoom}
-                onChange={(e) => setPreviewZoom(e.target.value as any)}
+                onChange={(e) => setPreviewZoom(e.target.value )}
                 className="bg-transparent text-[11px] text-slate-200 outline-none cursor-pointer"
               >
                 <option value="fit">Fit</option>

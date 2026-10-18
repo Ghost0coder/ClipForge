@@ -1,22 +1,22 @@
-import { Project, Clip, Track, AspectRatio, ASPECT_RATIOS, Keyframe } from '../types/editor';
+ function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }import { ASPECT_RATIOS, } from '../types/editor';
 import { FILTERS_LIST } from './sampleData';
 import { toastError } from '../store/toastStore';
 
-export interface RenderOptions {
-  showSafeGuides?: boolean;
-  showGrid?: boolean;
-  selectedClipId?: string | null;
-  canvasWidth?: number;
-  canvasHeight?: number;
-  isExporting?: boolean;
-  isPlaying?: boolean;
-}
+
+
+
+
+
+
+
+
+
 
 // Media element cache to prevent reloading during playback
-const videoElementsCache = new Map<string, HTMLVideoElement>();
-const imageElementsCache = new Map<string, HTMLImageElement>();
+const videoElementsCache = new Map();
+const imageElementsCache = new Map();
 
-export function getVideoElement(clipId: string, url: string): HTMLVideoElement {
+export function getVideoElement(clipId, url) {
   let el = videoElementsCache.get(clipId);
   if (!el || el.src !== url) {
     el = document.createElement('video');
@@ -44,7 +44,7 @@ export function getVideoElement(clipId: string, url: string): HTMLVideoElement {
   return el;
 }
 
-export function pauseAllVideos(): void {
+export function pauseAllVideos() {
   videoElementsCache.forEach((el) => {
     if (!el.paused) {
       el.pause();
@@ -52,7 +52,7 @@ export function pauseAllVideos(): void {
   });
 }
 
-export function getImageElement(clipId: string, url: string): HTMLImageElement {
+export function getImageElement(clipId, url) {
   let el = imageElementsCache.get(clipId);
   if (!el || el.src !== url) {
     el = new Image();
@@ -64,12 +64,12 @@ export function getImageElement(clipId: string, url: string): HTMLImageElement {
 }
 
 // Keyframe property interpolator
-function getInterpolatedProperty(
-  clip: Clip,
-  prop: 'x' | 'y' | 'scale' | 'rotation' | 'opacity' | 'volume',
-  currentTime: number,
-  defaultValue: number
-): number {
+export function getInterpolatedProperty(
+  clip,
+  prop,
+  currentTime,
+  defaultValue
+) {
   const kfs = (clip.keyframes || [])
     .filter((k) => k.property === prop)
     .sort((a, b) => a.time - b.time);
@@ -113,11 +113,11 @@ function getInterpolatedProperty(
 }
 
 export function renderFrame(
-  ctx: CanvasRenderingContext2D,
-  project: Project,
-  currentTime: number,
-  options: RenderOptions = {}
-): void {
+  ctx,
+  project,
+  currentTime,
+  options = {}
+) {
   const { width: targetWidth, height: targetHeight } = ASPECT_RATIOS[project.aspectRatio];
   const cw = options.canvasWidth || targetWidth;
   const ch = options.canvasHeight || targetHeight;
@@ -145,7 +145,7 @@ export function renderFrame(
   // Active clips in visual tracks, sorted by layer order:
   // Tracks array bottom to top: video (base), stickers, text (top)
   const visualTracks = [...project.tracks].reverse().filter((t) => !t.hidden && t.type !== 'audio');
-  const activeVideoClipIds = new Set<string>();
+  const activeVideoClipIds = new Set();
 
   for (const track of visualTracks) {
     for (const clip of track.clips) {
@@ -183,13 +183,13 @@ export function renderFrame(
 }
 
 function renderClip(
-  ctx: CanvasRenderingContext2D,
-  clip: Clip,
-  track: Track,
-  currentTime: number,
-  canvasW: number,
-  canvasH: number,
-  options: RenderOptions
+  ctx,
+  clip,
+  track,
+  currentTime,
+  canvasW,
+  canvasH,
+  options
 ) {
   ctx.save();
 
@@ -241,7 +241,7 @@ function renderClip(
   }
 
   ctx.globalAlpha = Math.max(0, Math.min(1, opacity));
-  ctx.globalCompositeOperation = (clip.blendMode || 'source-over') as GlobalCompositeOperation;
+  ctx.globalCompositeOperation = (clip.blendMode || 'source-over') ;
 
   // Center coordinate space
   const centerX = canvasW / 2 + (posX / 100) * canvasW + transitionTransformX;
@@ -268,7 +268,7 @@ function renderClip(
   // Apply Filter CSS
   const filterPreset = FILTERS_LIST.find((f) => f.id === clip.filter);
   if (filterPreset && filterPreset.id !== 'none') {
-    const intensity = (clip.filterIntensity ?? 80) / 100;
+    const intensity = (_nullishCoalesce(clip.filterIntensity, () => ( 80))) / 100;
     ctx.filter = filterPreset.cssFilter(intensity);
   } else {
     // Build filter string from adjustments
@@ -345,11 +345,11 @@ function renderClip(
 }
 
 function drawColorClip(
-  ctx: CanvasRenderingContext2D,
-  clip: Clip,
-  canvasW: number,
-  canvasH: number,
-  currentTime: number
+  ctx,
+  clip,
+  canvasW,
+  canvasH,
+  currentTime
 ) {
   // Rich procedural dynamic visual for color/demo clips
   const baseColor = clip.color || '#1e1b4b';
@@ -381,23 +381,24 @@ function drawColorClip(
 }
 
 function drawVideoClip(
-  ctx: CanvasRenderingContext2D,
-  clip: Clip,
-  currentTime: number,
-  canvasW: number,
-  canvasH: number,
-  isPlaying?: boolean,
-  track?: Track
+  ctx,
+  clip,
+  currentTime,
+  canvasW,
+  canvasH,
+  isPlaying,
+  track
 ) {
-  const videoEl = getVideoElement(clip.id, clip.mediaUrl!);
+  const videoEl = getVideoElement(clip.id, clip.mediaUrl);
   const targetTime = clip.freezeFrame
     ? clip.sourceStart
     : Math.max(0, (currentTime - clip.start) * clip.speed + clip.sourceStart);
 
   // Sync Video Audio volume and Mute directly on the video element for native, perfectly synchronized AV playback
-  const isMuted = Boolean(track?.muted || clip.audioProps?.mute);
-  const trackVol = track?.volume ?? 1;
-  const clipVol = clip.audioProps?.volume ?? 1;
+  const isMuted = Boolean(_optionalChain([track, 'optionalAccess', _ => _.muted]) || _optionalChain([clip, 'access', _2 => _2.audioProps, 'optionalAccess', _3 => _3.mute]));
+  const trackVol = _nullishCoalesce(_optionalChain([track, 'optionalAccess', _4 => _4.volume]), () => ( 1));
+  const baseClipVol = _nullishCoalesce(_optionalChain([clip, 'access', _5 => _5.audioProps, 'optionalAccess', _6 => _6.volume]), () => ( 1));
+  const clipVol = getInterpolatedProperty(clip, 'volume', currentTime, baseClipVol);
   videoEl.muted = isMuted;
   videoEl.volume = isMuted ? 0 : Math.min(Math.max(trackVol * clipVol, 0), 1);
 
@@ -416,7 +417,7 @@ function drawVideoClip(
       });
       videoEl.play().catch((err) => {
         console.error('[ClipForge:Play] Failed to play video element for clip:', clip.id, err);
-        toastError(`Playback error for "${clip.name}": ${err?.message || 'Media playback restricted'}`, 'Playback Error');
+        toastError(`Playback error for "${clip.name}": ${_optionalChain([err, 'optionalAccess', _7 => _7.message]) || 'Media playback restricted'}`, 'Playback Error');
       });
     }
   } else {
@@ -446,7 +447,7 @@ function drawVideoClip(
       ctx.fillStyle = '#1e293b';
       ctx.fillRect(-drawW / 2, -drawH / 2, drawW, drawH);
     }
-  } catch {
+  } catch (e) {
     // If not ready yet, draw placeholder
     ctx.fillStyle = '#1e293b';
     ctx.fillRect(-drawW / 2, -drawH / 2, drawW, drawH);
@@ -454,12 +455,12 @@ function drawVideoClip(
 }
 
 function drawImageClip(
-  ctx: CanvasRenderingContext2D,
-  clip: Clip,
-  canvasW: number,
-  canvasH: number
+  ctx,
+  clip,
+  canvasW,
+  canvasH
 ) {
-  const imgEl = getImageElement(clip.id, clip.mediaUrl!);
+  const imgEl = getImageElement(clip.id, clip.mediaUrl);
   if (!imgEl.complete) {
     ctx.fillStyle = '#1e293b';
     ctx.fillRect(-canvasW / 2, -canvasH / 2, canvasW, canvasH);
@@ -481,18 +482,18 @@ function drawImageClip(
 }
 
 function drawTextClip(
-  ctx: CanvasRenderingContext2D,
-  props: import('../types/editor').TextClipProperties,
-  clipElapsed: number,
-  canvasW: number,
-  canvasH: number
+  ctx,
+  props,
+  clipElapsed,
+  canvasW,
+  canvasH
 ) {
   const fontSize = props.fontSize || 48;
   const fontFam = props.fontFamily || 'Outfit';
   const weight = props.fontWeight || '700';
 
   ctx.font = `${weight} ${fontSize}px "${fontFam}", sans-serif`;
-  ctx.textAlign = (props.align || 'center') as CanvasTextAlign;
+  ctx.textAlign = (props.align || 'center') ;
   ctx.textBaseline = 'middle';
 
   let displayText = props.text;
@@ -540,7 +541,7 @@ function drawTextClip(
   }
 
   // Fill (Gradient or Solid)
-  if (props.gradient?.enabled) {
+  if (_optionalChain([props, 'access', _8 => _8.gradient, 'optionalAccess', _9 => _9.enabled])) {
     const grad = ctx.createLinearGradient(
       -textWidth / 2,
       0,
@@ -578,10 +579,10 @@ function drawTextClip(
 }
 
 function drawStickerClip(
-  ctx: CanvasRenderingContext2D,
-  clip: Clip,
-  canvasW: number,
-  canvasH: number
+  ctx,
+  clip,
+  canvasW,
+  canvasH
 ) {
   if (clip.stickerEmoji) {
     const size = 100 * (clip.scale || 1);
@@ -599,7 +600,7 @@ function drawStickerClip(
   }
 }
 
-function applyClipMask(ctx: CanvasRenderingContext2D, mask: import('../types/editor').MaskConfig, w: number, h: number) {
+function applyClipMask(ctx, mask, w, h) {
   const size = (mask.size || 50) * 0.01 * Math.min(w, h);
   const mx = (mask.x || 0) * 0.01 * w;
   const my = (mask.y || 0) * 0.01 * h;
@@ -631,13 +632,13 @@ function applyClipMask(ctx: CanvasRenderingContext2D, mask: import('../types/edi
 }
 
 function applyPostEffects(
-  ctx: CanvasRenderingContext2D,
-  clip: Clip,
-  canvasW: number,
-  canvasH: number,
-  currentTime: number
+  ctx,
+  clip,
+  canvasW,
+  canvasH,
+  currentTime
 ) {
-  const intensity = (clip.effectIntensity ?? 50) / 100;
+  const intensity = (_nullishCoalesce(clip.effectIntensity, () => ( 50))) / 100;
   const fx = clip.effectType;
   if (!fx) return;
 
@@ -812,7 +813,7 @@ function applyPostEffects(
   ctx.restore();
 }
 
-function renderSafeGuides(ctx: CanvasRenderingContext2D, ratio: AspectRatio, w: number, h: number) {
+function renderSafeGuides(ctx, ratio, w, h) {
   ctx.save();
   ctx.strokeStyle = 'rgba(6, 182, 212, 0.7)';
   ctx.lineWidth = 1;
@@ -834,7 +835,7 @@ function renderSafeGuides(ctx: CanvasRenderingContext2D, ratio: AspectRatio, w: 
   ctx.restore();
 }
 
-function renderGridGuides(ctx: CanvasRenderingContext2D, w: number, h: number) {
+function renderGridGuides(ctx, w, h) {
   ctx.save();
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
   ctx.lineWidth = 1;
@@ -855,7 +856,7 @@ function renderGridGuides(ctx: CanvasRenderingContext2D, w: number, h: number) {
   ctx.restore();
 }
 
-function adjustBrightness(hex: string, percent: number): string {
+function adjustBrightness(hex, percent) {
   const num = parseInt(hex.replace('#', ''), 16);
   const amt = Math.round(2.55 * percent);
   const R = (num >> 16) + amt;

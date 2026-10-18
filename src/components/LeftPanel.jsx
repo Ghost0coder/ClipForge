@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+ function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }import React, { useState, useRef } from 'react';
 import {
   Video,
   Music,
@@ -14,16 +14,17 @@ import {
   Mic,
   MicOff,
   Plus,
-  Play,
+
   Volume2,
   Zap,
   Bookmark,
-  FileText,
+
   Download,
   Flame,
-  Check,
+
   Film,
   Loader2,
+  X,
 } from 'lucide-react';
 import { useEditorStore } from '../store/editorStore';
 import {
@@ -39,11 +40,16 @@ import {
 } from '../utils/sampleData';
 import { audioEngine } from '../utils/audioEngine';
 import { storeMediaBlob } from '../utils/storage';
-import { Clip } from '../types/editor';
-import { toastError, toastSuccess, toastInfo } from '../store/toastStore';
+
+import { toastError, toastSuccess, } from '../store/toastStore';
 import { generateSampleVideoBlob } from '../utils/sampleVideo';
 
-export const LeftPanel: React.FC = () => {
+
+
+
+
+
+export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
   const {
     activeLeftTab,
     setActiveLeftTab,
@@ -59,10 +65,10 @@ export const LeftPanel: React.FC = () => {
     addMarker,
   } = useEditorStore();
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef(null);
   const [isRecording, setIsRecording] = useState(false);
   const [recordSeconds, setRecordSeconds] = useState(0);
-  const recordTimerRef = useRef<any>(null);
+  const recordTimerRef = useRef(null);
 
   // AI Generation States
   const [aiPrompt, setAiPrompt] = useState('');
@@ -82,7 +88,7 @@ export const LeftPanel: React.FC = () => {
   const [isLoadingSample, setIsLoadingSample] = useState(false);
 
   // Handle local media file upload (video, image, audio)
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
@@ -111,7 +117,7 @@ export const LeftPanel: React.FC = () => {
           try {
             const mediaEl = document.createElement(isVideo ? 'video' : 'audio');
             mediaEl.src = url;
-            await new Promise<void>((resolve) => {
+            await new Promise((resolve) => {
               mediaEl.onloadedmetadata = () => {
                 if (mediaEl.duration && !isNaN(mediaEl.duration) && isFinite(mediaEl.duration)) {
                   actualDuration = Math.round(mediaEl.duration * 10) / 10;
@@ -133,7 +139,7 @@ export const LeftPanel: React.FC = () => {
         // If this is the first clip on the track, start at 00:00 and align playhead
         const clipStart = targetTrack.clips.length === 0 ? 0 : currentTime;
 
-        const newClip: Clip = {
+        const newClip = {
           id: 'clip_' + Date.now() + '_' + i,
           trackId: targetTrack.id,
           type: isVideo ? 'video' : isAudio ? 'audio' : 'image',
@@ -175,9 +181,9 @@ export const LeftPanel: React.FC = () => {
         });
         toastSuccess(`Added "${file.name}" to timeline`, 'Upload Complete');
         window.dispatchEvent(new CustomEvent('clipforge:redraw'));
-      } catch (uploadErr: any) {
+      } catch (uploadErr) {
         console.error('[ClipForge:Upload] Failed to process uploaded file:', file.name, uploadErr);
-        toastError(`Failed to process "${file.name}": ${uploadErr?.message || 'Unsupported format'}`, 'Upload Failed');
+        toastError(`Failed to process "${file.name}": ${_optionalChain([uploadErr, 'optionalAccess', _ => _.message]) || 'Unsupported format'}`, 'Upload Failed');
       }
     }
 
@@ -197,7 +203,7 @@ export const LeftPanel: React.FC = () => {
       if (!targetTrack) targetTrack = project.tracks[0];
 
       const clipStart = targetTrack.clips.length === 0 ? 0 : currentTime;
-      const sampleClip: Clip = {
+      const sampleClip = {
         id: 'clip_sample_' + Date.now(),
         trackId: targetTrack.id,
         type: 'video',
@@ -241,9 +247,9 @@ export const LeftPanel: React.FC = () => {
       console.log('[ClipForge:Upload] Sample video successfully added to track:', sampleClip.id);
       toastSuccess('Sample test video loaded into timeline!', 'Sample Video Ready');
       window.dispatchEvent(new CustomEvent('clipforge:redraw'));
-    } catch (err: any) {
+    } catch (err) {
       console.error('[ClipForge:Upload] Failed to generate/load sample video:', err);
-      toastError(err?.message || 'Failed to create sample video', 'Sample Video Error');
+      toastError(_optionalChain([err, 'optionalAccess', _2 => _2.message]) || 'Failed to create sample video', 'Sample Video Error');
     } finally {
       setIsLoadingSample(false);
     }
@@ -268,7 +274,7 @@ export const LeftPanel: React.FC = () => {
         let audioTrack = project.tracks.find((t) => t.type === 'audio');
         if (!audioTrack) audioTrack = project.tracks[project.tracks.length - 1];
 
-        const clip: Clip = {
+        const clip = {
           id: 'clip_mic_' + Date.now(),
           trackId: audioTrack.id,
           type: 'audio',
@@ -310,9 +316,9 @@ export const LeftPanel: React.FC = () => {
   };
 
   // Add solid color clip
-  const handleAddColorClip = (color: string, name: string) => {
+  const handleAddColorClip = (color, name) => {
     const videoTrack = project.tracks.find((t) => t.type === 'video') || project.tracks[0];
-    const newClip: Clip = {
+    const newClip = {
       id: 'clip_color_' + Date.now(),
       trackId: videoTrack.id,
       type: 'color',
@@ -343,11 +349,11 @@ export const LeftPanel: React.FC = () => {
   };
 
   // Add preset music
-  const handleAddMusic = (preset: typeof MUSIC_PRESETS[0]) => {
+  const handleAddMusic = (preset) => {
     let audioTrack = project.tracks.find((t) => t.type === 'audio');
     if (!audioTrack) audioTrack = project.tracks[project.tracks.length - 1];
 
-    const clip: Clip = {
+    const clip = {
       id: 'clip_music_' + Date.now(),
       trackId: audioTrack.id,
       type: 'audio',
@@ -385,11 +391,11 @@ export const LeftPanel: React.FC = () => {
   };
 
   // Add preset SFX
-  const handleAddSFX = (sfx: typeof SFX_PRESETS[0]) => {
+  const handleAddSFX = (sfx) => {
     audioEngine.playSFX(sfx.id);
     let audioTrack = project.tracks.find((t) => t.type === 'audio') || project.tracks[project.tracks.length - 1];
 
-    const clip: Clip = {
+    const clip = {
       id: 'clip_sfx_' + Date.now(),
       trackId: audioTrack.id,
       type: 'audio',
@@ -436,10 +442,10 @@ export const LeftPanel: React.FC = () => {
   };
 
   // Add text preset
-  const handleAddText = (styleType: string = 'default', customFont?: string) => {
+  const handleAddText = (styleType = 'default', customFont) => {
     const textTrack = project.tracks.find((t) => t.type === 'text') || project.tracks[0];
 
-    let textProps: import('../types/editor').TextClipProperties = {
+    let textProps = {
       text: 'ADD HEADLINE HERE',
       fontFamily: customFont || 'Outfit',
       fontSize: 54,
@@ -518,7 +524,7 @@ export const LeftPanel: React.FC = () => {
       };
     }
 
-    const newClip: Clip = {
+    const newClip = {
       id: 'clip_text_' + Date.now(),
       trackId: textTrack.id,
       type: 'text',
@@ -549,9 +555,9 @@ export const LeftPanel: React.FC = () => {
   };
 
   // Add sticker emoji
-  const handleAddSticker = (emoji: string) => {
+  const handleAddSticker = (emoji) => {
     const stickerTrack = project.tracks.find((t) => t.type === 'sticker') || project.tracks[0];
-    const newClip: Clip = {
+    const newClip = {
       id: 'clip_sticker_' + Date.now(),
       trackId: stickerTrack.id,
       type: 'sticker',
@@ -582,23 +588,23 @@ export const LeftPanel: React.FC = () => {
   };
 
   // Apply Filter to selected clip or add effect
-  const handleApplyFilter = (filterId: string) => {
+  const handleApplyFilter = (filterId) => {
     if (selectedClip) {
       updateClip(selectedClip.id, { filter: filterId, filterIntensity: 80 });
     }
   };
 
   // Apply Transition to selected clip
-  const handleApplyTransition = (transId: string) => {
+  const handleApplyTransition = (transId) => {
     if (selectedClip) {
       updateClip(selectedClip.id, {
-        transitionIn: { type: transId as any, duration: 0.5 },
+        transitionIn: { type: transId , duration: 0.5 },
       });
     }
   };
 
   // Apply Visual Effect to selected clip
-  const handleApplyEffect = (effectId: string) => {
+  const handleApplyEffect = (effectId) => {
     if (selectedClip) {
       updateClip(selectedClip.id, { effectType: effectId, effectIntensity: 50 });
     }
@@ -628,12 +634,12 @@ export const LeftPanel: React.FC = () => {
         const textTrack = project.tracks.find((t) => t.type === 'text') || project.tracks[1];
         const stickerTrack = project.tracks.find((t) => t.type === 'sticker') || project.tracks[2];
 
-        data.scenes.forEach((sc: any, idx: number) => {
+        data.scenes.forEach((sc, idx) => {
           const colorList = ['#1e1b4b', '#0f172a', '#1e293b', '#3b0764', '#172554'];
           const color = colorList[idx % colorList.length];
 
           // Video clip
-          const vClip: Clip = {
+          const vClip = {
             id: `clip_ai_v_${Date.now()}_${idx}`,
             trackId: videoTrack.id,
             type: 'color',
@@ -666,7 +672,7 @@ export const LeftPanel: React.FC = () => {
 
           // Text overlay clip
           if (sc.headline) {
-            const tClip: Clip = {
+            const tClip = {
               id: `clip_ai_t_${Date.now()}_${idx}`,
               trackId: textTrack.id,
               type: 'text',
@@ -712,7 +718,7 @@ export const LeftPanel: React.FC = () => {
 
           // Optional sticker
           if (sc.stickerEmoji) {
-            const sClip: Clip = {
+            const sClip = {
               id: `clip_ai_s_${Date.now()}_${idx}`,
               trackId: stickerTrack.id,
               type: 'sticker',
@@ -747,7 +753,7 @@ export const LeftPanel: React.FC = () => {
       } else {
         setAiMessage('Generated response without scenes array.');
       }
-    } catch (err: any) {
+    } catch (err) {
       setAiMessage(`AI Error: ${err.message || 'Failed'}`);
     } finally {
       setAiLoading(false);
@@ -773,7 +779,7 @@ export const LeftPanel: React.FC = () => {
         const audioUrl = `data:audio/wav;base64,${data.audioBase64}`;
         const audioTrack = project.tracks.find((t) => t.type === 'audio') || project.tracks[project.tracks.length - 1];
 
-        const clip: Clip = {
+        const clip = {
           id: 'clip_tts_' + Date.now(),
           trackId: audioTrack.id,
           type: 'audio',
@@ -812,7 +818,7 @@ export const LeftPanel: React.FC = () => {
       } else {
         setAiMessage(data.error || 'TTS generation returned no audio.');
       }
-    } catch (err: any) {
+    } catch (err) {
       setAiMessage(`TTS Error: ${err.message || 'Failed'}`);
     } finally {
       setAiLoading(false);
@@ -836,7 +842,7 @@ export const LeftPanel: React.FC = () => {
 
       if (data.imageUrl) {
         const stickerTrack = project.tracks.find((t) => t.type === 'sticker') || project.tracks[0];
-        const clip: Clip = {
+        const clip = {
           id: 'clip_overlay_' + Date.now(),
           trackId: stickerTrack.id,
           type: 'sticker',
@@ -868,7 +874,7 @@ export const LeftPanel: React.FC = () => {
       } else {
         setAiMessage(data.error || 'Failed to generate overlay');
       }
-    } catch (err: any) {
+    } catch (err) {
       setAiMessage(`Error: ${err.message || 'Failed'}`);
     } finally {
       setAiLoading(false);
@@ -889,55 +895,9 @@ export const LeftPanel: React.FC = () => {
     { id: 'ai', label: 'AI Studio', icon: Sparkles, highlight: true },
   ];
 
-  return (
-    <aside className="w-80 md:w-96 border-r border-[#222638] bg-[#12141c] flex h-full select-none shrink-0 overflow-hidden">
-      {/* CapCut Vertical Tab Strip */}
-      <nav className="w-16 border-r border-[#222638] bg-[#0e1017] flex flex-col items-center py-2 gap-1.5 shrink-0 z-10 overflow-y-auto">
-        {navTabs.map((tab) => {
-          const Icon = tab.icon;
-          const isActive = activeLeftTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveLeftTab(tab.id as any)}
-              className={`flex flex-col items-center justify-center w-13 py-2 rounded-xl text-[10px] font-medium transition-all group ${
-                isActive
-                  ? 'bg-[#1e2233] text-white shadow-sm shadow-violet-500/10 border border-violet-500/40'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-[#151824]'
-              } ${tab.highlight ? 'text-violet-400 hover:text-cyan-300' : ''}`}
-            >
-              <Icon
-                className={`w-4 h-4 mb-1 transition-transform group-hover:scale-110 ${
-                  isActive
-                    ? 'text-violet-400'
-                    : tab.highlight
-                    ? 'text-cyan-400'
-                    : 'text-slate-400'
-                }`}
-              />
-              <span className="truncate max-w-[48px]">{tab.label}</span>
-            </button>
-          );
-        })}
-      </nav>
-
-      {/* Tab Drawer Content */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden min-h-0 bg-[#141620]">
-        {/* Drawer Header */}
-        <div className="h-10 px-4 border-b border-[#222638] flex items-center justify-between shrink-0 bg-[#12141c]">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-300">
-            {navTabs.find((t) => t.id === activeLeftTab)?.label}
-          </h2>
-          {aiMessage && (
-            <span className="text-[11px] text-cyan-400 font-medium truncate max-w-[180px]">
-              {aiMessage}
-            </span>
-          )}
-        </div>
-
-        {/* Content Viewport */}
-        <div className="flex-1 overflow-y-auto p-3 space-y-4 min-h-0">
-          {/* TAB: MEDIA */}
+  const tabContent = (
+    <div className="flex-1 overflow-y-auto p-3 space-y-4 min-h-0">
+      {/* TAB: MEDIA */}
           {activeLeftTab === 'media' && (
             <div className="space-y-4">
               {/* Import button */}
@@ -951,7 +911,7 @@ export const LeftPanel: React.FC = () => {
                   className="hidden"
                 />
                 <button
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={() => _optionalChain([fileInputRef, 'access', _3 => _3.current, 'optionalAccess', _4 => _4.click, 'call', _5 => _5()])}
                   className="w-full py-4 px-3 rounded-xl border-2 border-dashed border-[#2f354c] hover:border-violet-500/70 bg-[#181b26] hover:bg-[#1c202e] flex flex-col items-center justify-center gap-1.5 transition-all text-slate-300 group cursor-pointer"
                 >
                   <Upload className="w-5 h-5 text-violet-400 group-hover:scale-110 transition-transform" />
@@ -1309,8 +1269,8 @@ export const LeftPanel: React.FC = () => {
                       const data = await res.json();
                       if (data.captions && Array.isArray(data.captions)) {
                         const textTrack = project.tracks.find((t) => t.type === 'text') || project.tracks[0];
-                        data.captions.forEach((c: any, i: number) => {
-                          const capClip: Clip = {
+                        data.captions.forEach((c, i) => {
+                          const capClip = {
                             id: `clip_cap_${Date.now()}_${i}`,
                             trackId: textTrack.id,
                             type: 'text',
@@ -1355,7 +1315,7 @@ export const LeftPanel: React.FC = () => {
                         });
                         setAiMessage(`Created ${data.captions.length} timed captions!`);
                       }
-                    } catch (err: any) {
+                    } catch (err) {
                       setAiMessage(`Error: ${err.message}`);
                     } finally {
                       setAiLoading(false);
@@ -1379,7 +1339,7 @@ export const LeftPanel: React.FC = () => {
                       if (t.type === 'text') {
                         t.clips.forEach((c) => {
                           if (c.textProps) {
-                            const formatTime = (sec: number) => {
+                            const formatTime = (sec) => {
                               const hrs = Math.floor(sec / 3600).toString().padStart(2, '0');
                               const mins = Math.floor((sec % 3600) / 60).toString().padStart(2, '0');
                               const secs = Math.floor(sec % 60).toString().padStart(2, '0');
@@ -1540,6 +1500,93 @@ export const LeftPanel: React.FC = () => {
             </div>
           )}
         </div>
+      );
+
+  if (mobileDrawer) {
+    return (
+      <div className="w-full flex flex-col h-full overflow-hidden min-h-0 bg-[#141620] select-none">
+        {/* Mobile Drag Handle */}
+        <div className="w-10 h-1 bg-slate-600/80 rounded-full mx-auto my-2 shrink-0 cursor-grab" />
+
+        {/* Drawer Header */}
+        <div className="h-11 px-4 border-b border-[#222638] flex items-center justify-between shrink-0 bg-[#12141c]">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-200">
+              {_optionalChain([navTabs, 'access', _6 => _6.find, 'call', _7 => _7((t) => t.id === activeLeftTab), 'optionalAccess', _8 => _8.label])}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            {aiMessage && (
+              <span className="text-[11px] text-cyan-400 font-medium truncate max-w-[140px]">
+                {aiMessage}
+              </span>
+            )}
+            {onClose && (
+              <button
+                onClick={onClose}
+                className="flex items-center justify-center min-w-[36px] min-h-[36px] text-slate-400 hover:text-white rounded-lg transition-colors cursor-pointer"
+                title="Close Drawer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Content Viewport */}
+        {tabContent}
+      </div>
+    );
+  }
+
+  return (
+    <aside className="w-80 md:w-96 border-r border-[#222638] bg-[#12141c] flex h-full select-none shrink-0 overflow-hidden">
+      {/* CapCut Vertical Tab Strip */}
+      <nav className="w-16 border-r border-[#222638] bg-[#0e1017] flex flex-col items-center py-2 gap-1.5 shrink-0 z-10 overflow-y-auto">
+        {navTabs.map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeLeftTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveLeftTab(tab.id )}
+              className={`flex flex-col items-center justify-center w-13 py-2 rounded-xl text-[10px] font-medium transition-all group ${
+                isActive
+                  ? 'bg-[#1e2233] text-white shadow-sm shadow-violet-500/10 border border-violet-500/40'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-[#151824]'
+              } ${tab.highlight ? 'text-violet-400 hover:text-cyan-300' : ''}`}
+            >
+              <Icon
+                className={`w-4 h-4 mb-1 transition-transform group-hover:scale-110 ${
+                  isActive
+                    ? 'text-violet-400'
+                    : tab.highlight
+                    ? 'text-cyan-400'
+                    : 'text-slate-400'
+                }`}
+              />
+              <span className="truncate max-w-[48px]">{tab.label}</span>
+            </button>
+          );
+        })}
+      </nav>
+
+      {/* Tab Drawer Content */}
+      <div className="flex-1 flex flex-col h-full overflow-hidden min-h-0 bg-[#141620]">
+        {/* Drawer Header */}
+        <div className="h-10 px-4 border-b border-[#222638] flex items-center justify-between shrink-0 bg-[#12141c]">
+          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-300">
+            {_optionalChain([navTabs, 'access', _9 => _9.find, 'call', _10 => _10((t) => t.id === activeLeftTab), 'optionalAccess', _11 => _11.label])}
+          </h2>
+          {aiMessage && (
+            <span className="text-[11px] text-cyan-400 font-medium truncate max-w-[180px]">
+              {aiMessage}
+            </span>
+          )}
+        </div>
+
+        {/* Content Viewport */}
+        {tabContent}
       </div>
     </aside>
   );

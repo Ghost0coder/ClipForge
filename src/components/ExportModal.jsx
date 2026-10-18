@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+ function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }import React, { useState } from 'react';
 import {
   X,
   Download,
@@ -10,22 +10,24 @@ import {
   Loader2,
 } from 'lucide-react';
 import { useEditorStore } from '../store/editorStore';
-import { exportPipeline, ExportProgress } from '../utils/exportPipeline';
-import { ExportSettings } from '../types/editor';
+import { exportPipeline, } from '../utils/exportPipeline';
+
 import { toastError, toastSuccess } from '../store/toastStore';
+import { useResponsive } from '../utils/useResponsive';
 
-export const ExportModal: React.FC = () => {
+export const ExportModal = () => {
   const { isExportModalOpen, setExportModalOpen, project } = useEditorStore();
+  const { isMobile } = useResponsive();
 
-  const [settings, setSettings] = useState<ExportSettings>({
-    resolution: '1080p',
+  const [settings, setSettings] = useState({
+    resolution: isMobile ? '720p' : '1080p',
     fps: 30,
     format: 'mp4',
     quality: 'high',
   });
 
   const [isExporting, setIsExporting] = useState(false);
-  const [progress, setProgress] = useState<ExportProgress | null>(null);
+  const [progress, setProgress] = useState(null);
 
   if (!isExportModalOpen) return null;
 
@@ -53,9 +55,14 @@ export const ExportModal: React.FC = () => {
         console.log('[ClipForge:Export] Export finished successfully! Download URL ready.');
         toastSuccess('Video export completed successfully!', 'Export Finished');
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('[ClipForge:Export] Export failed with error:', err);
-      const errorMsg = err?.message || 'Video export encountered an unexpected error';
+      const isOOM =
+        _optionalChain([err, 'optionalAccess', _ => _.name]) === 'QuotaExceededError' ||
+        /memory|oom|allocation|heap|buffer|out of memory/i.test(_optionalChain([err, 'optionalAccess', _2 => _2.message]) || '');
+      const errorMsg = isOOM
+        ? 'Device ran out of memory during export. Try exporting at 720p or reducing the project duration.'
+        : (_optionalChain([err, 'optionalAccess', _3 => _3.message]) || 'Video export encountered an unexpected error');
       setProgress({
         percentage: 0,
         currentFrame: 0,
@@ -64,7 +71,7 @@ export const ExportModal: React.FC = () => {
         isComplete: false,
         error: errorMsg,
       });
-      toastError(errorMsg, 'Export Failed');
+      toastError(errorMsg, isOOM ? 'Out of Memory Error' : 'Export Failed');
     } finally {
       setIsExporting(false);
     }
@@ -98,7 +105,7 @@ export const ExportModal: React.FC = () => {
 
         {/* Body */}
         <div className="p-5 space-y-4">
-          {!isExporting && !progress?.isComplete ? (
+          {!isExporting && !_optionalChain([progress, 'optionalAccess', _4 => _4.isComplete]) ? (
             <>
               {/* Format selection */}
               <div>
@@ -115,7 +122,7 @@ export const ExportModal: React.FC = () => {
                     return (
                       <button
                         key={fmt.id}
-                        onClick={() => setSettings({ ...settings, format: fmt.id as any })}
+                        onClick={() => setSettings({ ...settings, format: fmt.id  })}
                         className={`p-2.5 rounded-xl border flex flex-col items-center gap-1 transition-all ${
                           isSelected
                             ? 'bg-violet-950/60 border-violet-500 text-white shadow-md shadow-violet-500/20'
@@ -139,7 +146,7 @@ export const ExportModal: React.FC = () => {
                       {['480p', '720p', '1080p', '2K', '4K'].map((res) => (
                         <button
                           key={res}
-                          onClick={() => setSettings({ ...settings, resolution: res as any })}
+                          onClick={() => setSettings({ ...settings, resolution: res  })}
                           className={`py-2 rounded-lg border text-xs font-mono font-bold transition-all ${
                             settings.resolution === res
                               ? 'bg-violet-600 text-white border-violet-500'
@@ -150,6 +157,16 @@ export const ExportModal: React.FC = () => {
                         </button>
                       ))}
                     </div>
+
+                    {/* 4K Mobile Warning */}
+                    {settings.resolution === '4K' && (
+                      <div className="mt-2.5 p-2.5 rounded-xl bg-amber-950/40 border border-amber-500/40 text-amber-200 text-xs flex items-start gap-2">
+                        <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                        <div>
+                          <strong className="text-amber-300">Warning for mobile devices:</strong> 4K encoding requires extreme GPU and heap memory and may fail on phones. 720p or 1080p is recommended.
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Frame Rate selection */}
@@ -163,7 +180,7 @@ export const ExportModal: React.FC = () => {
                       ].map((item) => (
                         <button
                           key={item.fps}
-                          onClick={() => setSettings({ ...settings, fps: item.fps as any })}
+                          onClick={() => setSettings({ ...settings, fps: item.fps  })}
                           className={`py-2 rounded-lg border text-xs font-medium transition-all ${
                             settings.fps === item.fps
                               ? 'bg-cyan-900/60 text-cyan-300 border-cyan-500'
@@ -183,7 +200,7 @@ export const ExportModal: React.FC = () => {
                       {['low', 'medium', 'high', 'ultra'].map((q) => (
                         <button
                           key={q}
-                          onClick={() => setSettings({ ...settings, quality: q as any })}
+                          onClick={() => setSettings({ ...settings, quality: q  })}
                           className={`py-1.5 rounded-lg border text-xs capitalize transition-all ${
                             settings.quality === q
                               ? 'bg-violet-600 text-white border-violet-500'
@@ -207,7 +224,7 @@ export const ExportModal: React.FC = () => {
           ) : (
             /* Progress State */
             <div className="py-6 space-y-4 text-center">
-              {progress?.isComplete ? (
+              {_optionalChain([progress, 'optionalAccess', _5 => _5.isComplete]) ? (
                 <div className="flex flex-col items-center gap-2">
                   <CheckCircle2 className="w-12 h-12 text-emerald-400 animate-bounce" />
                   <h3 className="text-base font-bold text-white">Video Successfully Exported!</h3>
@@ -221,17 +238,17 @@ export const ExportModal: React.FC = () => {
                     <Loader2 className="w-5 h-5 text-violet-400 animate-spin" />
                   </div>
                   <h3 className="text-sm font-bold text-white">Encoding ClipForge Timeline...</h3>
-                  <p className="text-xs font-mono text-slate-400">{progress?.statusText}</p>
+                  <p className="text-xs font-mono text-slate-400">{_optionalChain([progress, 'optionalAccess', _6 => _6.statusText])}</p>
 
                   {/* Progress bar */}
                   <div className="w-full bg-[#1e2233] rounded-full h-3 overflow-hidden border border-[#2a2f46]">
                     <div
                       className="bg-gradient-to-r from-violet-600 to-cyan-400 h-full transition-all duration-150"
-                      style={{ width: `${progress?.percentage || 0}%` }}
+                      style={{ width: `${_optionalChain([progress, 'optionalAccess', _7 => _7.percentage]) || 0}%` }}
                     />
                   </div>
                   <span className="text-xs font-mono font-bold text-cyan-400">
-                    {progress?.percentage}%
+                    {_optionalChain([progress, 'optionalAccess', _8 => _8.percentage])}%
                   </span>
                 </div>
               )}
@@ -248,7 +265,7 @@ export const ExportModal: React.FC = () => {
             >
               Cancel Export
             </button>
-          ) : progress?.isComplete ? (
+          ) : _optionalChain([progress, 'optionalAccess', _9 => _9.isComplete]) ? (
             <button
               onClick={() => {
                 setProgress(null);

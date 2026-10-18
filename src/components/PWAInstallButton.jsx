@@ -2,11 +2,11 @@ import React, { useState } from 'react';
 import { Download, Share2, X, Smartphone } from 'lucide-react';
 import { usePWAInstall } from '../utils/usePWAInstall';
 
-interface PWAInstallButtonProps {
-  compact?: boolean;
-}
 
-export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({ compact = false }) => {
+
+
+
+export const PWAInstallButton = ({ compact = false }) => {
   const { isInstallable, isInstalled, isIOS, install } = usePWAInstall();
   const [showIOSGuide, setShowIOSGuide] = useState(false);
 

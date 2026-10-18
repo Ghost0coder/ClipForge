@@ -1,17 +1,17 @@
-import { Clip, Track } from '../types/editor';
+import { getInterpolatedProperty } from './previewRenderer';
 
-class AudioEngine {
-  private ctx: AudioContext | null = null;
-  private activeSources: Map<string, { source: AudioNode; gain: GainNode; cleanup: () => void }> = new Map();
-  private mediaElements: Map<string, HTMLAudioElement> = new Map();
-  private isPlaying: boolean = false;
-  private mediaRecorder: MediaRecorder | null = null;
-  private micStream: MediaStream | null = null;
-  private recordedChunks: Blob[] = [];
+class AudioEngine {constructor() { AudioEngine.prototype.__init.call(this);AudioEngine.prototype.__init2.call(this);AudioEngine.prototype.__init3.call(this);AudioEngine.prototype.__init4.call(this);AudioEngine.prototype.__init5.call(this);AudioEngine.prototype.__init6.call(this);AudioEngine.prototype.__init7.call(this); }
+   __init() {this.ctx = null}
+   __init2() {this.activeSources = new Map()}
+   __init3() {this.mediaElements = new Map()}
+   __init4() {this.isPlaying = false}
+   __init5() {this.mediaRecorder = null}
+   __init6() {this.micStream = null}
+   __init7() {this.recordedChunks = []}
 
-  public getContext(): AudioContext {
+   getContext() {
     if (!this.ctx) {
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      const AudioCtx = window.AudioContext || (window ).webkitAudioContext;
       this.ctx = new AudioCtx();
     }
     if (this.ctx.state === 'suspended') {
@@ -21,7 +21,7 @@ class AudioEngine {
   }
 
   // Play synthetic preview sound effects
-  public playSFX(type: string) {
+   playSFX(type) {
     try {
       const ctx = this.getContext();
       const now = ctx.currentTime;
@@ -110,13 +110,13 @@ class AudioEngine {
         osc.start(now);
         osc.stop(now + 0.06);
       }
-    } catch {
+    } catch (e2) {
       // Audio autoplay restrictions might silence initial SFX
     }
   }
 
   // Synchronize playing audio tracks with playhead
-  public syncPlayback(tracks: Track[], currentTime: number, isPlaying: boolean) {
+   syncPlayback(tracks, currentTime, isPlaying) {
     this.isPlaying = isPlaying;
     if (!isPlaying) {
       this.stopAll();
@@ -138,7 +138,15 @@ class AudioEngine {
 
         if (currentTime >= clipStart && currentTime < clipEnd) {
           const timeIntoClip = (currentTime - clipStart) * clip.speed + clip.sourceStart;
-          this.playClipAudio(clip, track, timeIntoClip);
+          this.playClipAudio(clip, track, timeIntoClip, currentTime);
+          const audioEl = this.mediaElements.get(clip.id);
+          if (audioEl) {
+            const baseVol = (clip.audioProps && clip.audioProps.volume != null) ? clip.audioProps.volume : 1;
+            const dynVol = getInterpolatedProperty(clip, 'volume', currentTime, baseVol);
+            const trackVol = track.volume != null ? track.volume : 1;
+            const isMute = Boolean(clip.audioProps && clip.audioProps.mute);
+            audioEl.volume = isMute ? 0 : Math.min(Math.max(dynVol * trackVol, 0), 1);
+          }
         } else {
           this.stopClipAudio(clip.id);
         }
@@ -146,14 +154,16 @@ class AudioEngine {
     });
   }
 
-  private playClipAudio(clip: Clip, track: Track, offset: number) {
+   playClipAudio(clip, track, offset, currentTime = 0) {
     if (this.activeSources.has(clip.id)) {
       return; // Already playing
     }
 
     const ctx = this.getContext();
-    const clipVolume = (clip.audioProps?.volume ?? 1) * (track.volume ?? 1);
-    if (clip.audioProps?.mute) return;
+    const baseVol = (clip.audioProps && clip.audioProps.volume != null) ? clip.audioProps.volume : 1;
+    const dynVol = getInterpolatedProperty(clip, 'volume', currentTime, baseVol);
+    const clipVolume = dynVol * (track.volume != null ? track.volume : 1);
+    if (clip.audioProps && clip.audioProps.mute) return;
 
     if (clip.mediaUrl) {
       // Real media URL audio playback
@@ -197,13 +207,13 @@ class AudioEngine {
           try {
             osc.stop();
             osc.disconnect();
-          } catch {}
+          } catch (e3) {}
         },
       });
     }
   }
 
-  public stopClipAudio(clipId: string) {
+   stopClipAudio(clipId) {
     const active = this.activeSources.get(clipId);
     if (active) {
       active.cleanup();
@@ -215,7 +225,7 @@ class AudioEngine {
     }
   }
 
-  public stopAll() {
+   stopAll() {
     this.activeSources.forEach((active) => active.cleanup());
     this.activeSources.clear();
     this.mediaElements.forEach((el) => {
@@ -226,7 +236,7 @@ class AudioEngine {
   }
 
   // Voiceover Recording using navigator.mediaDevices
-  public async startRecording(onDataAvailable?: (chunk: Blob) => void): Promise<boolean> {
+   async startRecording(onDataAvailable) {
     try {
       this.micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
       this.recordedChunks = [];
@@ -235,7 +245,7 @@ class AudioEngine {
       this.mediaRecorder.ondataavailable = (e) => {
         if (e.data.size > 0) {
           this.recordedChunks.push(e.data);
-          onDataAvailable?.(e.data);
+          _optionalChain([onDataAvailable, 'optionalCall', _5 => _5(e.data)]);
         }
       };
 
@@ -247,7 +257,7 @@ class AudioEngine {
     }
   }
 
-  public stopRecording(): Promise<{ blob: Blob; url: string; duration: number }> {
+   stopRecording() {
     return new Promise((resolve, reject) => {
       if (!this.mediaRecorder) {
         return reject(new Error('No active recorder'));
@@ -276,8 +286,8 @@ class AudioEngine {
   }
 
   // Beat Detection Algorithm for Automatic Music Marker Sync
-  public detectBeats(bpm: number = 120, totalDuration: number = 15): number[] {
-    const beats: number[] = [];
+   detectBeats(bpm = 120, totalDuration = 15) {
+    const beats = [];
     const interval = 60 / bpm;
     let t = 0;
     while (t < totalDuration) {
