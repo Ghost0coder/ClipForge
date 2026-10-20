@@ -320,16 +320,16 @@ function renderClip(
   // Selected Clip Bounding Box (in Preview Mode)
   if (options.selectedClipId === clip.id && !options.isExporting) {
     ctx.filter = 'none';
-    ctx.strokeStyle = '#8b5cf6';
-    ctx.lineWidth = 2;
-    ctx.setLineDash([6, 4]);
+    ctx.strokeStyle = '#3b82f6';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 4]);
     const boxW = canvasW * 0.4;
     const boxH = canvasH * 0.25;
     ctx.strokeRect(-boxW / 2, -boxH / 2, boxW, boxH);
 
     // Corner transform handles
     ctx.setLineDash([]);
-    ctx.fillStyle = '#06b6d4';
+    ctx.fillStyle = '#3b82f6';
     const corners = [
       [-boxW / 2, -boxH / 2],
       [boxW / 2, -boxH / 2],
@@ -337,7 +337,7 @@ function renderClip(
       [boxW / 2, boxH / 2],
     ];
     corners.forEach(([cx, cy]) => {
-      ctx.fillRect(cx - 5, cy - 5, 10, 10);
+      ctx.fillRect(cx - 4, cy - 4, 8, 8);
     });
   }
 
@@ -815,20 +815,20 @@ function applyPostEffects(
 
 function renderSafeGuides(ctx, ratio, w, h) {
   ctx.save();
-  ctx.strokeStyle = 'rgba(6, 182, 212, 0.7)';
+  ctx.strokeStyle = 'rgba(59, 130, 246, 0.6)';
   ctx.lineWidth = 1;
   ctx.setLineDash([4, 4]);
 
   if (ratio === '9:16') {
     // TikTok/Shorts UI safe areas (top 15%, bottom 20%, right 15%)
     ctx.strokeRect(w * 0.05, h * 0.12, w * 0.78, h * 0.68);
-    ctx.fillStyle = 'rgba(6, 182, 212, 0.8)';
-    ctx.font = '12px sans-serif';
+    ctx.fillStyle = 'rgba(59, 130, 246, 0.8)';
+    ctx.font = '11px sans-serif';
     ctx.fillText('TikTok / Shorts Safe Zone', w * 0.08, h * 0.15);
   } else {
     // 90% action safe & 80% title safe
     ctx.strokeRect(w * 0.05, h * 0.05, w * 0.9, h * 0.9);
-    ctx.strokeStyle = 'rgba(139, 92, 246, 0.6)';
+    ctx.strokeStyle = 'rgba(59, 130, 246, 0.4)';
     ctx.strokeRect(w * 0.1, h * 0.1, w * 0.8, h * 0.8);
   }
 

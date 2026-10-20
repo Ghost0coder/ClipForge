@@ -306,6 +306,7 @@ async function startServer() {
 
   if (process.env.NODE_ENV !== 'production') {
     try {
+      globalThis.__dirname = path.resolve(__dirname, 'node_modules/vite-plugin-pwa/dist');
       // AI Studio environment disables HMR; disable Vite WS server to prevent disconnect errors
       const vite = await createViteServer({
         server: {

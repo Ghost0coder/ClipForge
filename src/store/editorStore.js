@@ -174,6 +174,31 @@ export const useEditorStore = create((set, get) => {
     selectedKeyframeId: null,
     setSelectedKeyframeId: (selectedKeyframeId) => set({ selectedKeyframeId }),
 
+    theme: typeof window !== 'undefined' ? (localStorage.getItem('clipforge_theme') || 'light') : 'light',
+    toggleTheme: () => {
+      const nextTheme = get().theme === 'dark' ? 'light' : 'dark';
+      try {
+        localStorage.setItem('clipforge_theme', nextTheme);
+        if (nextTheme === 'dark') {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
+      } catch (e) {}
+      set({ theme: nextTheme });
+    },
+    setTheme: (theme) => {
+      try {
+        localStorage.setItem('clipforge_theme', theme);
+        if (theme === 'dark') {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
+      } catch (e) {}
+      set({ theme });
+    },
+
     setProject: (project) => {
       pushHistory();
       set({ project, currentTime: 0, selectedClipIds: [] });

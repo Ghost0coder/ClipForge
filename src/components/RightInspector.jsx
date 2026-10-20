@@ -1,29 +1,153 @@
- function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }import React, { useState } from 'react';
+import React, { useState } from 'react';
 import {
   X,
   Sliders,
-
   Crop,
-
-
   Volume2,
   Key,
   FlipHorizontal,
   FlipVertical,
-
-
   Trash2,
-
-
+  Diamond,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { useEditorStore } from '../store/editorStore';
-
 import { FILTERS_LIST, GOOGLE_FONTS } from '../utils/sampleData';
+import { getInterpolatedProperty } from '../utils/previewRenderer';
 
+/**
+ * CapCut-Style Diamond Keyframe Controller
+ * Next to Position X/Y, Scale, Rotation, Opacity, and Volume
+ */
+const KeyframePropertyControl = ({
+  clip,
+  property,
+  currentValue,
+  currentTime,
+  seek,
+  addKeyframe,
+  addPositionKeyframe,
+  removeKeyframeAtTime,
+  updateKeyframe,
+}) => {
+  if (!clip) return null;
 
+  const relTime = Math.max(0, Math.min(clip.duration, currentTime - clip.start));
+  const isPlayheadOverClip =
+    currentTime >= clip.start - 0.04 && currentTime <= clip.start + clip.duration + 0.04;
 
+  const kfs = clip.keyframes || [];
+  const propKfs =
+    property === 'position'
+      ? kfs.filter((k) => k.property === 'x' || k.property === 'y')
+      : kfs.filter((k) => k.property === property);
 
+  const existingKfAtPlayhead = isPlayheadOverClip
+    ? propKfs.find((k) => Math.abs(k.time - relTime) <= 0.04)
+    : null;
+  const isFilled = Boolean(existingKfAtPlayhead);
 
+  const uniqueTimes = Array.from(
+    new Set(propKfs.map((k) => Math.round(k.time * 100) / 100))
+  ).sort((a, b) => a - b);
+
+  const prevTime = uniqueTimes.filter((t) => t < relTime - 0.04).pop();
+  const nextTime = uniqueTimes.find((t) => t > relTime + 0.04);
+
+  const handlePrev = (e) => {
+    e.stopPropagation();
+    if (prevTime !== undefined) {
+      seek(clip.start + prevTime);
+    }
+  };
+
+  const handleNext = (e) => {
+    e.stopPropagation();
+    if (nextTime !== undefined) {
+      seek(clip.start + nextTime);
+    }
+  };
+
+  const handleDiamondClick = (e) => {
+    e.stopPropagation();
+    if (isFilled) {
+      removeKeyframeAtTime(clip.id, property, relTime);
+    } else {
+      if (property === 'position') {
+        const xVal = typeof currentValue === 'object' ? currentValue.x : clip.x;
+        const yVal = typeof currentValue === 'object' ? currentValue.y : clip.y;
+        addPositionKeyframe(clip.id, xVal, yVal, 'easeInOut', relTime);
+      } else {
+        addKeyframe(clip.id, property, currentValue, 'easeInOut', relTime);
+      }
+    }
+  };
+
+  const handleEasingChange = (e) => {
+    e.stopPropagation();
+    const newEasing = e.target.value;
+    propKfs
+      .filter((k) => Math.abs(k.time - relTime) <= 0.04)
+      .forEach((k) => {
+        updateKeyframe(clip.id, k.id, { easing: newEasing });
+      });
+  };
+
+  return (
+    <div className="flex items-center gap-0.5 shrink-0 select-none">
+      <button
+        type="button"
+        onClick={handlePrev}
+        disabled={prevTime === undefined}
+        title={prevTime !== undefined ? `Previous keyframe (${(clip.start + prevTime).toFixed(2)}s)` : 'No previous keyframe'}
+        className="p-0.5 rounded-[4px] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] transition-colors cursor-pointer disabled:opacity-20 disabled:cursor-not-allowed text-[#737373] dark:text-[#A1A1A1] hover:text-[#171717] dark:hover:text-[#EDEDED]"
+      >
+        <ChevronLeft className="w-3.5 h-3.5" strokeWidth={1.5} />
+      </button>
+
+      <button
+        type="button"
+        onClick={handleDiamondClick}
+        title={isFilled ? 'Keyframe exists at playhead (click to remove)' : 'Add keyframe at playhead'}
+        className={`p-0.5 rounded-[4px] transition-colors cursor-pointer ${
+          isFilled
+            ? 'text-[#3B82F6]'
+            : 'text-[#737373] dark:text-[#A1A1A1] hover:text-[#171717] dark:hover:text-[#EDEDED] hover:bg-[#F5F5F5] dark:hover:bg-[#262626]'
+        }`}
+      >
+        <Diamond
+          className={`w-3.5 h-3.5 ${isFilled ? 'fill-[#3B82F6] text-[#3B82F6]' : 'text-[#737373] dark:text-[#A1A1A1]'}`}
+          strokeWidth={1.5}
+        />
+      </button>
+
+      <button
+        type="button"
+        onClick={handleNext}
+        disabled={nextTime === undefined}
+        title={nextTime !== undefined ? `Next keyframe (${(clip.start + nextTime).toFixed(2)}s)` : 'No next keyframe'}
+        className="p-0.5 rounded-[4px] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] transition-colors cursor-pointer disabled:opacity-20 disabled:cursor-not-allowed text-[#737373] dark:text-[#A1A1A1] hover:text-[#171717] dark:hover:text-[#EDEDED]"
+      >
+        <ChevronRight className="w-3.5 h-3.5" strokeWidth={1.5} />
+      </button>
+
+      {isFilled && (
+        <select
+          value={existingKfAtPlayhead?.easing || 'easeInOut'}
+          onChange={handleEasingChange}
+          title="Keyframe Easing: Linear, Ease In, Ease Out, Ease In-Out"
+          className="ml-1 text-[9px] bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] text-[#171717] dark:text-[#EDEDED] rounded-[4px] px-1 py-0.5 focus:outline-none cursor-pointer"
+        >
+          <option value="linear">Linear</option>
+          <option value="easeIn">Ease In</option>
+          <option value="easeOut">Ease Out</option>
+          <option value="easeInOut">Ease In-Out</option>
+        </select>
+      )}
+    </div>
+  );
+};
 
 export const RightInspector = ({ mobileDrawer = false, onClose }) => {
   const {
@@ -31,8 +155,12 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
     updateClip,
     deselectAll,
     currentTime,
+    seek,
     addKeyframe,
+    addPositionKeyframe,
     removeKeyframe,
+    removeKeyframeAtTime,
+    updateKeyframe,
     extractAudioFromClip,
     autoReframe,
   } = useEditorStore();
@@ -44,10 +172,10 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
   if (!clip) {
     if (mobileDrawer) return null;
     return (
-      <aside className="w-72 md:w-80 border-l border-[#222638] bg-[#12141c] p-6 flex flex-col items-center justify-center text-center text-slate-500 select-none shrink-0 h-full overflow-hidden">
-        <Sliders className="w-8 h-8 text-slate-600 mb-2" />
-        <h3 className="text-sm font-semibold text-slate-400">No Clip Selected</h3>
-        <p className="text-xs text-slate-600 mt-1 max-w-[200px]">
+      <aside className="w-72 md:w-80 border-l border-[#E5E5E5] dark:border-[#2A2A2A] bg-white dark:bg-[#1A1A1A] p-6 flex flex-col items-center justify-center text-center text-[#737373] dark:text-[#A1A1A1] select-none shrink-0 h-full overflow-hidden transition-colors">
+        <Sliders className="w-7 h-7 text-[#A3A3A3] dark:text-[#555555] mb-2" strokeWidth={1.5} />
+        <h3 className="text-xs font-medium text-[#171717] dark:text-[#EDEDED]">No Clip Selected</h3>
+        <p className="text-xs text-[#737373] dark:text-[#A1A1A1] mt-1 max-w-[200px]">
           Click on any video, text, sticker or audio clip on the timeline to inspect and edit properties.
         </p>
       </aside>
@@ -58,35 +186,45 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
   const isAudioOrVideo = clip.type === 'audio' || clip.type === 'video';
   const isVisual = clip.type !== 'audio';
 
+  const currentX = getInterpolatedProperty(clip, 'x', currentTime, clip.x);
+  const currentY = getInterpolatedProperty(clip, 'y', currentTime, clip.y);
+  const currentScale = getInterpolatedProperty(clip, 'scale', currentTime, clip.scale);
+  const currentRotation = getInterpolatedProperty(clip, 'rotation', currentTime, clip.rotation);
+  const currentOpacity = getInterpolatedProperty(clip, 'opacity', currentTime, clip.opacity);
+  const baseVol = (clip.audioProps && clip.audioProps.volume != null) ? clip.audioProps.volume : 1;
+  const currentVolume = getInterpolatedProperty(clip, 'volume', currentTime, baseVol);
+
   const inspectorContent = (
     <>
       {/* Inspector Header */}
-      <div className="h-11 px-3 border-b border-[#222638] flex items-center justify-between shrink-0 bg-[#10121a]">
+      <div className="h-10 px-3 border-b border-[#E5E5E5] dark:border-[#2A2A2A] flex items-center justify-between shrink-0 bg-white dark:bg-[#1A1A1A]">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-violet-950 text-violet-300 border border-violet-500/30 shrink-0">
+          <span className="text-[10px] font-normal uppercase px-1.5 py-0.5 rounded-[4px] bg-[#F5F5F5] dark:bg-[#222222] text-[#737373] dark:text-[#A1A1A1] border border-[#E5E5E5] dark:border-[#2A2A2A] shrink-0">
             {clip.type}
           </span>
-          <span className="text-xs font-bold text-slate-200 truncate">{clip.name}</span>
+          <span className="text-xs font-normal text-[#171717] dark:text-[#EDEDED] truncate">{clip.name}</span>
         </div>
         <button
           onClick={() => {
             deselectAll();
             _optionalChain([onClose, 'optionalCall', _ => _()]);
           }}
-          className="p-1.5 text-slate-400 hover:text-white rounded transition-colors cursor-pointer"
+          className="p-1.5 text-[#737373] dark:text-[#A1A1A1] hover:text-[#171717] dark:hover:text-[#EDEDED] rounded-[4px] transition-colors cursor-pointer"
           title="Deselect"
         >
-          <X className="w-4 h-4" />
+          <X className="w-4 h-4" strokeWidth={1.5} />
         </button>
       </div>
 
       {/* Tab Selector Strip */}
-      <div className="flex border-b border-[#222638] bg-[#0e1017] p-1 gap-1 overflow-x-auto text-xs shrink-0">
+      <div className="flex border-b border-[#E5E5E5] dark:border-[#2A2A2A] bg-[#FAFAFA] dark:bg-[#111111] p-1 gap-1 overflow-x-auto text-xs shrink-0">
         {isVisual && (
           <button
             onClick={() => setActiveTab('transform')}
-            className={`px-2 py-1 rounded text-[11px] font-medium transition-colors ${
-              activeTab === 'transform' ? 'bg-[#1e2233] text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
+            className={`px-2 py-1 rounded-[4px] text-[11px] font-normal transition-colors cursor-pointer ${
+              activeTab === 'transform'
+                ? 'bg-white dark:bg-[#1A1A1A] text-[#171717] dark:text-[#EDEDED] border-b-2 border-b-[#3B82F6] shadow-sm'
+                : 'text-[#737373] dark:text-[#A1A1A1] hover:text-[#171717] dark:hover:text-[#EDEDED]'
             }`}
           >
             Transform
@@ -95,8 +233,10 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
         {isText && (
           <button
             onClick={() => setActiveTab('text')}
-            className={`px-2 py-1 rounded text-[11px] font-medium transition-colors ${
-              activeTab === 'text' ? 'bg-[#1e2233] text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
+            className={`px-2 py-1 rounded-[4px] text-[11px] font-normal transition-colors cursor-pointer ${
+              activeTab === 'text'
+                ? 'bg-white dark:bg-[#1A1A1A] text-[#171717] dark:text-[#EDEDED] border-b-2 border-b-[#3B82F6] shadow-sm'
+                : 'text-[#737373] dark:text-[#A1A1A1] hover:text-[#171717] dark:hover:text-[#EDEDED]'
             }`}
           >
             Text
@@ -105,8 +245,10 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
         {isVisual && (
           <button
             onClick={() => setActiveTab('color')}
-            className={`px-2 py-1 rounded text-[11px] font-medium transition-colors ${
-              activeTab === 'color' ? 'bg-[#1e2233] text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
+            className={`px-2 py-1 rounded-[4px] text-[11px] font-normal transition-colors cursor-pointer ${
+              activeTab === 'color'
+                ? 'bg-white dark:bg-[#1A1A1A] text-[#171717] dark:text-[#EDEDED] border-b-2 border-b-[#3B82F6] shadow-sm'
+                : 'text-[#737373] dark:text-[#A1A1A1] hover:text-[#171717] dark:hover:text-[#EDEDED]'
             }`}
           >
             Color/Filter
@@ -115,8 +257,10 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
         {isAudioOrVideo && (
           <button
             onClick={() => setActiveTab('audio')}
-            className={`px-2 py-1 rounded text-[11px] font-medium transition-colors ${
-              activeTab === 'audio' ? 'bg-[#1e2233] text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
+            className={`px-2 py-1 rounded-[4px] text-[11px] font-normal transition-colors cursor-pointer ${
+              activeTab === 'audio'
+                ? 'bg-white dark:bg-[#1A1A1A] text-[#171717] dark:text-[#EDEDED] border-b-2 border-b-[#3B82F6] shadow-sm'
+                : 'text-[#737373] dark:text-[#A1A1A1] hover:text-[#171717] dark:hover:text-[#EDEDED]'
             }`}
           >
             Audio
@@ -125,8 +269,10 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
         {isVisual && (
           <button
             onClick={() => setActiveTab('speed')}
-            className={`px-2 py-1 rounded text-[11px] font-medium transition-colors ${
-              activeTab === 'speed' ? 'bg-[#1e2233] text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
+            className={`px-2 py-1 rounded-[4px] text-[11px] font-normal transition-colors cursor-pointer ${
+              activeTab === 'speed'
+                ? 'bg-white dark:bg-[#1A1A1A] text-[#171717] dark:text-[#EDEDED] border-b-2 border-b-[#3B82F6] shadow-sm'
+                : 'text-[#737373] dark:text-[#A1A1A1] hover:text-[#171717] dark:hover:text-[#EDEDED]'
             }`}
           >
             Speed
@@ -135,8 +281,10 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
         {isVisual && (
           <button
             onClick={() => setActiveTab('mask')}
-            className={`px-2 py-1 rounded text-[11px] font-medium transition-colors ${
-              activeTab === 'mask' ? 'bg-[#1e2233] text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
+            className={`px-2 py-1 rounded-[4px] text-[11px] font-normal transition-colors cursor-pointer ${
+              activeTab === 'mask'
+                ? 'bg-white dark:bg-[#1A1A1A] text-[#171717] dark:text-[#EDEDED] border-b-2 border-b-[#3B82F6] shadow-sm'
+                : 'text-[#737373] dark:text-[#A1A1A1] hover:text-[#171717] dark:hover:text-[#EDEDED]'
             }`}
           >
             Mask/Chroma
@@ -144,8 +292,10 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
         )}
         <button
           onClick={() => setActiveTab('keyframes')}
-          className={`px-2 py-1 rounded text-[11px] font-medium transition-colors ${
-            activeTab === 'keyframes' ? 'bg-[#1e2233] text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
+          className={`px-2 py-1 rounded-[4px] text-[11px] font-normal transition-colors cursor-pointer ${
+            activeTab === 'keyframes'
+              ? 'bg-white dark:bg-[#1A1A1A] text-[#171717] dark:text-[#EDEDED] border-b-2 border-b-[#3B82F6] shadow-sm'
+              : 'text-[#737373] dark:text-[#A1A1A1] hover:text-[#171717] dark:hover:text-[#EDEDED]'
           }`}
         >
           Keyframes
@@ -159,10 +309,23 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
           <div className="space-y-3.5 text-xs">
             {/* Position X & Y */}
             <div>
-              <div className="flex justify-between text-slate-300 mb-1">
-                <span>Position X / Y</span>
+              <div className="flex items-center justify-between text-slate-300 mb-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-medium">Position X / Y</span>
+                  <KeyframePropertyControl
+                    clip={clip}
+                    property="position"
+                    currentValue={{ x: currentX, y: currentY }}
+                    currentTime={currentTime}
+                    seek={seek}
+                    addKeyframe={addKeyframe}
+                    addPositionKeyframe={addPositionKeyframe}
+                    removeKeyframeAtTime={removeKeyframeAtTime}
+                    updateKeyframe={updateKeyframe}
+                  />
+                </div>
                 <span className="font-mono text-slate-400">
-                  {clip.x}%, {clip.y}%
+                  {Math.round(currentX)}%, {Math.round(currentY)}%
                 </span>
               </div>
               <div className="grid grid-cols-2 gap-2">
@@ -170,7 +333,7 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
                   type="range"
                   min="-100"
                   max="100"
-                  value={clip.x}
+                  value={currentX}
                   onChange={(e) => updateClip(clip.id, { x: parseFloat(e.target.value) })}
                   className="w-full"
                 />
@@ -178,7 +341,7 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
                   type="range"
                   min="-100"
                   max="100"
-                  value={clip.y}
+                  value={currentY}
                   onChange={(e) => updateClip(clip.id, { y: parseFloat(e.target.value) })}
                   className="w-full"
                 />
@@ -187,16 +350,29 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
 
             {/* Scale */}
             <div>
-              <div className="flex justify-between text-slate-300 mb-1">
-                <span>Scale Size</span>
-                <span className="font-mono text-slate-400">{clip.scale.toFixed(2)}x</span>
+              <div className="flex items-center justify-between text-slate-300 mb-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-medium">Scale Size</span>
+                  <KeyframePropertyControl
+                    clip={clip}
+                    property="scale"
+                    currentValue={currentScale}
+                    currentTime={currentTime}
+                    seek={seek}
+                    addKeyframe={addKeyframe}
+                    addPositionKeyframe={addPositionKeyframe}
+                    removeKeyframeAtTime={removeKeyframeAtTime}
+                    updateKeyframe={updateKeyframe}
+                  />
+                </div>
+                <span className="font-mono text-slate-400">{currentScale.toFixed(2)}x</span>
               </div>
               <input
                 type="range"
                 min="0.1"
                 max="3"
                 step="0.05"
-                value={clip.scale}
+                value={currentScale}
                 onChange={(e) => updateClip(clip.id, { scale: parseFloat(e.target.value) })}
                 className="w-full"
               />
@@ -204,15 +380,28 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
 
             {/* Rotation */}
             <div>
-              <div className="flex justify-between text-slate-300 mb-1">
-                <span>Rotation Angle</span>
-                <span className="font-mono text-slate-400">{clip.rotation}°</span>
+              <div className="flex items-center justify-between text-slate-300 mb-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-medium">Rotation Angle</span>
+                  <KeyframePropertyControl
+                    clip={clip}
+                    property="rotation"
+                    currentValue={currentRotation}
+                    currentTime={currentTime}
+                    seek={seek}
+                    addKeyframe={addKeyframe}
+                    addPositionKeyframe={addPositionKeyframe}
+                    removeKeyframeAtTime={removeKeyframeAtTime}
+                    updateKeyframe={updateKeyframe}
+                  />
+                </div>
+                <span className="font-mono text-slate-400">{Math.round(currentRotation)}°</span>
               </div>
               <input
                 type="range"
                 min="-180"
                 max="180"
-                value={clip.rotation}
+                value={Math.round(currentRotation)}
                 onChange={(e) => updateClip(clip.id, { rotation: parseInt(e.target.value) })}
                 className="w-full"
               />
@@ -220,53 +409,70 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
 
             {/* Opacity */}
             <div>
-              <div className="flex justify-between text-slate-300 mb-1">
-                <span>Opacity</span>
-                <span className="font-mono text-slate-400">{Math.round(clip.opacity * 100)}%</span>
+              <div className="flex items-center justify-between text-slate-300 mb-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-medium">Opacity</span>
+                  <KeyframePropertyControl
+                    clip={clip}
+                    property="opacity"
+                    currentValue={currentOpacity}
+                    currentTime={currentTime}
+                    seek={seek}
+                    addKeyframe={addKeyframe}
+                    addPositionKeyframe={addPositionKeyframe}
+                    removeKeyframeAtTime={removeKeyframeAtTime}
+                    updateKeyframe={updateKeyframe}
+                  />
+                </div>
+                <span className="font-mono text-slate-400">{Math.round(currentOpacity * 100)}%</span>
               </div>
               <input
                 type="range"
                 min="0"
                 max="1"
                 step="0.01"
-                value={clip.opacity}
+                value={currentOpacity}
                 onChange={(e) => updateClip(clip.id, { opacity: parseFloat(e.target.value) })}
                 className="w-full"
               />
             </div>
 
             {/* Flip Controls */}
-            <div className="pt-2 border-t border-[#232738] flex items-center justify-between">
-              <span className="text-slate-300">Flip / Mirror</span>
+            <div className="pt-2 border-t border-[#E5E5E5] dark:border-[#2A2A2A] flex items-center justify-between">
+              <span className="text-[#171717] dark:text-[#EDEDED]">Flip / Mirror</span>
               <div className="flex items-center gap-1.5">
                 <button
                   onClick={() => updateClip(clip.id, { flipH: !clip.flipH })}
-                  className={`p-1.5 rounded-md border border-[#232738] transition-colors ${
-                    clip.flipH ? 'bg-violet-600 text-white' : 'bg-[#181b26] text-slate-400 hover:text-white'
+                  className={`p-1.5 rounded-[6px] border border-[#E5E5E5] dark:border-[#2A2A2A] transition-colors cursor-pointer ${
+                    clip.flipH
+                      ? 'bg-[#171717] text-white dark:bg-[#EDEDED] dark:text-[#171717]'
+                      : 'bg-white dark:bg-[#1A1A1A] text-[#737373] dark:text-[#A1A1A1] hover:text-[#171717] dark:hover:text-[#EDEDED] hover:bg-[#F5F5F5] dark:hover:bg-[#262626]'
                   }`}
                   title="Flip Horizontal"
                 >
-                  <FlipHorizontal className="w-3.5 h-3.5" />
+                  <FlipHorizontal className="w-3.5 h-3.5" strokeWidth={1.5} />
                 </button>
                 <button
                   onClick={() => updateClip(clip.id, { flipV: !clip.flipV })}
-                  className={`p-1.5 rounded-md border border-[#232738] transition-colors ${
-                    clip.flipV ? 'bg-violet-600 text-white' : 'bg-[#181b26] text-slate-400 hover:text-white'
+                  className={`p-1.5 rounded-[6px] border border-[#E5E5E5] dark:border-[#2A2A2A] transition-colors cursor-pointer ${
+                    clip.flipV
+                      ? 'bg-[#171717] text-white dark:bg-[#EDEDED] dark:text-[#171717]'
+                      : 'bg-white dark:bg-[#1A1A1A] text-[#737373] dark:text-[#A1A1A1] hover:text-[#171717] dark:hover:text-[#EDEDED] hover:bg-[#F5F5F5] dark:hover:bg-[#262626]'
                   }`}
                   title="Flip Vertical"
                 >
-                  <FlipVertical className="w-3.5 h-3.5" />
+                  <FlipVertical className="w-3.5 h-3.5" strokeWidth={1.5} />
                 </button>
               </div>
             </div>
 
             {/* Blend Mode */}
-            <div className="pt-2 border-t border-[#232738]">
-              <span className="text-slate-300 block mb-1.5">Blend Mode</span>
+            <div className="pt-2 border-t border-[#E5E5E5] dark:border-[#2A2A2A]">
+              <span className="text-[#171717] dark:text-[#EDEDED] block mb-1.5 font-normal">Blend Mode</span>
               <select
                 value={clip.blendMode || 'normal'}
                 onChange={(e) => updateClip(clip.id, { blendMode: e.target.value  })}
-                className="w-full bg-[#181b26] border border-[#232738] rounded-lg px-2 py-1.5 text-xs text-slate-200 outline-none"
+                className="w-full bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] px-2 py-1.5 text-xs text-[#171717] dark:text-[#EDEDED] outline-none"
               >
                 <option value="normal">Normal</option>
                 <option value="screen">Screen (Lighten overlay)</option>
@@ -280,11 +486,11 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
             </div>
 
             {/* Crop Margins */}
-            <div className="pt-2 border-t border-[#232738] space-y-2">
-              <span className="text-slate-300 block font-semibold">Crop Insets (%)</span>
+            <div className="pt-2 border-t border-[#E5E5E5] dark:border-[#2A2A2A] space-y-2">
+              <span className="text-[#171717] dark:text-[#EDEDED] block font-normal">Crop Insets (%)</span>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <span className="text-[10px] text-slate-500">Top ({_optionalChain([clip, 'access', _2 => _2.crop, 'optionalAccess', _3 => _3.top]) || 0}%)</span>
+                  <span className="text-[10px] text-[#737373] dark:text-[#A1A1A1] tabular-nums">Top ({_optionalChain([clip, 'access', _2 => _2.crop, 'optionalAccess', _3 => _3.top]) || 0}%)</span>
                   <input
                     type="range"
                     min="0"
@@ -304,7 +510,7 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
                   />
                 </div>
                 <div>
-                  <span className="text-[10px] text-slate-500">Bottom ({_optionalChain([clip, 'access', _12 => _12.crop, 'optionalAccess', _13 => _13.bottom]) || 0}%)</span>
+                  <span className="text-[10px] text-[#737373] dark:text-[#A1A1A1] tabular-nums">Bottom ({_optionalChain([clip, 'access', _12 => _12.crop, 'optionalAccess', _13 => _13.bottom]) || 0}%)</span>
                   <input
                     type="range"
                     min="0"
@@ -324,7 +530,7 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
                   />
                 </div>
                 <div>
-                  <span className="text-[10px] text-slate-500">Left ({_optionalChain([clip, 'access', _22 => _22.crop, 'optionalAccess', _23 => _23.left]) || 0}%)</span>
+                  <span className="text-[10px] text-[#737373] dark:text-[#A1A1A1] tabular-nums">Left ({_optionalChain([clip, 'access', _22 => _22.crop, 'optionalAccess', _23 => _23.left]) || 0}%)</span>
                   <input
                     type="range"
                     min="0"
@@ -344,7 +550,7 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
                   />
                 </div>
                 <div>
-                  <span className="text-[10px] text-slate-500">Right ({_optionalChain([clip, 'access', _32 => _32.crop, 'optionalAccess', _33 => _33.right]) || 0}%)</span>
+                  <span className="text-[10px] text-[#737373] dark:text-[#A1A1A1] tabular-nums">Right ({_optionalChain([clip, 'access', _32 => _32.crop, 'optionalAccess', _33 => _33.right]) || 0}%)</span>
                   <input
                     type="range"
                     min="0"
@@ -367,20 +573,20 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
             </div>
 
             {/* Quick Actions: Auto-Reframe & Extract Audio */}
-            <div className="pt-2 border-t border-[#232738] space-y-1.5">
+            <div className="pt-2 border-t border-[#E5E5E5] dark:border-[#2A2A2A] space-y-1.5">
               <button
                 onClick={autoReframe}
-                className="w-full py-1.5 px-2 rounded-lg bg-[#181b26] hover:bg-[#202436] border border-[#272b3c] text-slate-200 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
+                className="w-full py-1.5 px-2 rounded-[6px] bg-white dark:bg-[#1A1A1A] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] border border-[#E5E5E5] dark:border-[#2A2A2A] text-[#171717] dark:text-[#EDEDED] text-xs font-normal flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
               >
-                <Crop className="w-3.5 h-3.5 text-cyan-400" /> Auto-Reframe for Aspect Ratio
+                <Crop className="w-3.5 h-3.5 text-[#737373] dark:text-[#A1A1A1]" strokeWidth={1.5} /> Auto-Reframe for Aspect Ratio
               </button>
 
               {clip.type === 'video' && (
                 <button
                   onClick={() => extractAudioFromClip(clip.id)}
-                  className="w-full py-1.5 px-2 rounded-lg bg-[#181b26] hover:bg-[#202436] border border-[#272b3c] text-emerald-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
+                  className="w-full py-1.5 px-2 rounded-[6px] bg-white dark:bg-[#1A1A1A] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] border border-[#E5E5E5] dark:border-[#2A2A2A] text-[#171717] dark:text-[#EDEDED] text-xs font-normal flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                 >
-                  <Volume2 className="w-3.5 h-3.5 text-emerald-400" /> Extract Audio to Dedicated Track
+                  <Volume2 className="w-3.5 h-3.5 text-[#737373] dark:text-[#A1A1A1]" strokeWidth={1.5} /> Extract Audio to Dedicated Track
                 </button>
               )}
             </div>
@@ -392,21 +598,21 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
           <div className="space-y-3.5 text-xs">
             {/* Text Input */}
             <div>
-              <span className="text-slate-300 block mb-1">Text Content</span>
+              <span className="text-[#171717] dark:text-[#EDEDED] block mb-1 font-normal">Text Content</span>
               <textarea
                 value={clip.textProps.text}
                 onChange={(e) => updateClip(clip.id, { textProps: { text: e.target.value } })}
-                className="w-full h-18 bg-[#181b26] border border-[#232738] rounded-lg p-2 text-xs text-white outline-none resize-none focus:border-violet-500/50"
+                className="w-full h-18 bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] p-2 text-xs text-[#171717] dark:text-[#EDEDED] outline-none resize-none focus:border-[#171717] dark:focus:border-[#EDEDED]"
               />
             </div>
 
             {/* Font Family (50+ Google Fonts) */}
             <div>
-              <span className="text-slate-300 block mb-1">Font Family</span>
+              <span className="text-[#171717] dark:text-[#EDEDED] block mb-1 font-normal">Font Family</span>
               <select
                 value={clip.textProps.fontFamily}
                 onChange={(e) => updateClip(clip.id, { textProps: { fontFamily: e.target.value } })}
-                className="w-full bg-[#181b26] border border-[#232738] rounded-lg px-2 py-1.5 text-xs text-white outline-none"
+                className="w-full bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] px-2 py-1.5 text-xs text-[#171717] dark:text-[#EDEDED] outline-none"
               >
                 {GOOGLE_FONTS.map((f) => (
                   <option key={f.name} value={f.name}>
@@ -418,9 +624,9 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
 
             {/* Font Size */}
             <div>
-              <div className="flex justify-between text-slate-300 mb-1">
-                <span>Font Size</span>
-                <span className="font-mono text-slate-400">{clip.textProps.fontSize}px</span>
+              <div className="flex justify-between text-[#171717] dark:text-[#EDEDED] mb-1">
+                <span className="font-normal">Font Size</span>
+                <span className="text-[#737373] dark:text-[#A1A1A1] tabular-nums">{clip.textProps.fontSize}px</span>
               </div>
               <input
                 type="range"
@@ -434,26 +640,26 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
               />
             </div>
 
-            {/* Colors: Text & Gradient */}
+            {/* Colors: Text & Stroke */}
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <span className="text-slate-300 block mb-1">Text Color</span>
-                <div className="flex items-center gap-1.5 bg-[#181b26] border border-[#232738] rounded-lg p-1">
+                <span className="text-[#171717] dark:text-[#EDEDED] block mb-1 font-normal">Text Color</span>
+                <div className="flex items-center gap-1.5 bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] p-1">
                   <input
                     type="color"
                     value={clip.textProps.color}
                     onChange={(e) => updateClip(clip.id, { textProps: { color: e.target.value } })}
                     className="w-6 h-6 rounded border-none bg-transparent cursor-pointer"
                   />
-                  <span className="font-mono text-[11px] text-slate-300 uppercase">
+                  <span className="text-[11px] text-[#737373] dark:text-[#A1A1A1] uppercase tabular-nums">
                     {clip.textProps.color}
                   </span>
                 </div>
               </div>
 
               <div>
-                <span className="text-slate-300 block mb-1">Stroke Color</span>
-                <div className="flex items-center gap-1.5 bg-[#181b26] border border-[#232738] rounded-lg p-1">
+                <span className="text-[#171717] dark:text-[#EDEDED] block mb-1 font-normal">Stroke Color</span>
+                <div className="flex items-center gap-1.5 bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] p-1">
                   <input
                     type="color"
                     value={clip.textProps.strokeColor || '#000000'}
@@ -464,7 +670,7 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
                     }
                     className="w-6 h-6 rounded border-none bg-transparent cursor-pointer"
                   />
-                  <span className="font-mono text-[11px] text-slate-300 uppercase">
+                  <span className="text-[11px] text-[#737373] dark:text-[#A1A1A1] uppercase tabular-nums">
                     {clip.textProps.strokeColor || '#000000'}
                   </span>
                 </div>
@@ -473,18 +679,18 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
 
             {/* Text Animation */}
             <div>
-              <span className="text-slate-300 block mb-1">Text Animation</span>
+              <span className="text-[#171717] dark:text-[#EDEDED] block mb-1 font-normal">Text Animation</span>
               <select
                 value={clip.textProps.animation || 'none'}
                 onChange={(e) =>
                   updateClip(clip.id, { textProps: { animation: e.target.value  } })
                 }
-                className="w-full bg-[#181b26] border border-[#232738] rounded-lg px-2 py-1.5 text-xs text-white outline-none"
+                className="w-full bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] px-2 py-1.5 text-xs text-[#171717] dark:text-[#EDEDED] outline-none"
               >
                 <option value="none">None (Static)</option>
                 <option value="typewriter">Typewriter (Character by character)</option>
                 <option value="bounce">Bounce In (Kinetic impact)</option>
-                <option value="glow">Neon Glow Pulse</option>
+                <option value="glow">Soft Glow Pulse</option>
                 <option value="karaoke">Karaoke Word Highlight</option>
               </select>
             </div>
@@ -496,11 +702,11 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
           <div className="space-y-3.5 text-xs">
             {/* Filter Selector */}
             <div>
-              <span className="text-slate-300 block mb-1">Filter Preset</span>
+              <span className="text-[#171717] dark:text-[#EDEDED] block mb-1 font-normal">Filter Preset</span>
               <select
                 value={clip.filter || 'none'}
                 onChange={(e) => updateClip(clip.id, { filter: e.target.value })}
-                className="w-full bg-[#181b26] border border-[#232738] rounded-lg px-2 py-1.5 text-xs text-white outline-none"
+                className="w-full bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] px-2 py-1.5 text-xs text-[#171717] dark:text-[#EDEDED] outline-none"
               >
                 {FILTERS_LIST.map((f) => (
                   <option key={f.id} value={f.id}>
@@ -512,9 +718,9 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
 
             {clip.filter && clip.filter !== 'none' && (
               <div>
-                <div className="flex justify-between text-slate-300 mb-1">
-                  <span>Filter Intensity</span>
-                  <span className="font-mono text-slate-400">{clip.filterIntensity}%</span>
+                <div className="flex justify-between text-[#171717] dark:text-[#EDEDED] mb-1">
+                  <span className="font-normal">Filter Intensity</span>
+                  <span className="text-[#737373] dark:text-[#A1A1A1] tabular-nums">{clip.filterIntensity}%</span>
                 </div>
                 <input
                   type="range"
@@ -530,16 +736,16 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
             )}
 
             {/* Adjustments */}
-            <div className="pt-2 border-t border-[#232738] space-y-3">
-              <span className="text-xs font-bold text-slate-400 block uppercase tracking-wider">
+            <div className="pt-2 border-t border-[#E5E5E5] dark:border-[#2A2A2A] space-y-3">
+              <span className="text-xs font-normal text-[#737373] dark:text-[#A1A1A1] block">
                 Manual Color Adjustments
               </span>
 
               {/* Brightness */}
               <div>
-                <div className="flex justify-between text-slate-300 mb-1">
-                  <span>Brightness</span>
-                  <span className="font-mono text-slate-400">{_optionalChain([clip, 'access', _44 => _44.adjustments, 'optionalAccess', _45 => _45.brightness]) || 0}</span>
+                <div className="flex justify-between text-[#171717] dark:text-[#EDEDED] mb-1">
+                  <span className="font-normal">Brightness</span>
+                  <span className="text-[#737373] dark:text-[#A1A1A1] tabular-nums">{_optionalChain([clip, 'access', _44 => _44.adjustments, 'optionalAccess', _45 => _45.brightness]) || 0}</span>
                 </div>
                 <input
                   type="range"
@@ -557,9 +763,9 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
 
               {/* Contrast */}
               <div>
-                <div className="flex justify-between text-slate-300 mb-1">
-                  <span>Contrast</span>
-                  <span className="font-mono text-slate-400">{_optionalChain([clip, 'access', _48 => _48.adjustments, 'optionalAccess', _49 => _49.contrast]) || 0}</span>
+                <div className="flex justify-between text-[#171717] dark:text-[#EDEDED] mb-1">
+                  <span className="font-normal">Contrast</span>
+                  <span className="text-[#737373] dark:text-[#A1A1A1] tabular-nums">{_optionalChain([clip, 'access', _48 => _48.adjustments, 'optionalAccess', _49 => _49.contrast]) || 0}</span>
                 </div>
                 <input
                   type="range"
@@ -577,9 +783,9 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
 
               {/* Saturation */}
               <div>
-                <div className="flex justify-between text-slate-300 mb-1">
-                  <span>Saturation</span>
-                  <span className="font-mono text-slate-400">{_optionalChain([clip, 'access', _52 => _52.adjustments, 'optionalAccess', _53 => _53.saturation]) || 0}</span>
+                <div className="flex justify-between text-[#171717] dark:text-[#EDEDED] mb-1">
+                  <span className="font-normal">Saturation</span>
+                  <span className="text-[#737373] dark:text-[#A1A1A1] tabular-nums">{_optionalChain([clip, 'access', _52 => _52.adjustments, 'optionalAccess', _53 => _53.saturation]) || 0}</span>
                 </div>
                 <input
                   type="range"
@@ -597,9 +803,9 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
 
               {/* Vignette */}
               <div>
-                <div className="flex justify-between text-slate-300 mb-1">
-                  <span>Vignette Edge</span>
-                  <span className="font-mono text-slate-400">{_optionalChain([clip, 'access', _56 => _56.adjustments, 'optionalAccess', _57 => _57.vignette]) || 0}%</span>
+                <div className="flex justify-between text-[#171717] dark:text-[#EDEDED] mb-1">
+                  <span className="font-normal">Vignette Edge</span>
+                  <span className="text-[#737373] dark:text-[#A1A1A1] tabular-nums">{_optionalChain([clip, 'access', _56 => _56.adjustments, 'optionalAccess', _57 => _57.vignette]) || 0}%</span>
                 </div>
                 <input
                   type="range"
@@ -623,10 +829,23 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
           <div className="space-y-3.5 text-xs">
             {/* Volume */}
             <div>
-              <div className="flex justify-between text-slate-300 mb-1">
-                <span>Volume</span>
-                <span className="font-mono text-slate-400">
-                  {Math.round((_nullishCoalesce(_optionalChain([clip, 'access', _60 => _60.audioProps, 'optionalAccess', _61 => _61.volume]), () => ( 1))) * 100)}%
+              <div className="flex items-center justify-between text-[#171717] dark:text-[#EDEDED] mb-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-normal">Volume</span>
+                  <KeyframePropertyControl
+                    clip={clip}
+                    property="volume"
+                    currentValue={currentVolume}
+                    currentTime={currentTime}
+                    seek={seek}
+                    addKeyframe={addKeyframe}
+                    addPositionKeyframe={addPositionKeyframe}
+                    removeKeyframeAtTime={removeKeyframeAtTime}
+                    updateKeyframe={updateKeyframe}
+                  />
+                </div>
+                <span className="text-[#737373] dark:text-[#A1A1A1] tabular-nums">
+                  {Math.round(currentVolume * 100)}%
                 </span>
               </div>
               <input
@@ -634,7 +853,7 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
                 min="0"
                 max="2"
                 step="0.05"
-                value={_nullishCoalesce(_optionalChain([clip, 'access', _62 => _62.audioProps, 'optionalAccess', _63 => _63.volume]), () => ( 1))}
+                value={currentVolume}
                 onChange={(e) =>
                   updateClip(clip.id, { audioProps: { volume: parseFloat(e.target.value) } })
                 }
@@ -645,7 +864,7 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
             {/* Fade In & Out */}
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <span className="text-slate-300 block mb-1">Fade In (s)</span>
+                <span className="text-[#171717] dark:text-[#EDEDED] block mb-1 font-normal">Fade In (s)</span>
                 <input
                   type="number"
                   step="0.1"
@@ -655,11 +874,11 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
                   onChange={(e) =>
                     updateClip(clip.id, { audioProps: { fadeIn: parseFloat(e.target.value) } })
                   }
-                  className="w-full bg-[#181b26] border border-[#232738] rounded-lg p-1.5 text-xs text-white"
+                  className="w-full bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] p-1.5 text-xs text-[#171717] dark:text-[#EDEDED] outline-none"
                 />
               </div>
               <div>
-                <span className="text-slate-300 block mb-1">Fade Out (s)</span>
+                <span className="text-[#171717] dark:text-[#EDEDED] block mb-1 font-normal">Fade Out (s)</span>
                 <input
                   type="number"
                   step="0.1"
@@ -669,16 +888,16 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
                   onChange={(e) =>
                     updateClip(clip.id, { audioProps: { fadeOut: parseFloat(e.target.value) } })
                   }
-                  className="w-full bg-[#181b26] border border-[#232738] rounded-lg p-1.5 text-xs text-white"
+                  className="w-full bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] p-1.5 text-xs text-[#171717] dark:text-[#EDEDED] outline-none"
                 />
               </div>
             </div>
 
             {/* Pitch Shift */}
             <div>
-              <div className="flex justify-between text-slate-300 mb-1">
-                <span>Pitch Shift</span>
-                <span className="font-mono text-slate-400">{_optionalChain([clip, 'access', _68 => _68.audioProps, 'optionalAccess', _69 => _69.pitchShift]) || 0} st</span>
+              <div className="flex justify-between text-[#171717] dark:text-[#EDEDED] mb-1">
+                <span className="font-normal">Pitch Shift</span>
+                <span className="text-[#737373] dark:text-[#A1A1A1] tabular-nums">{_optionalChain([clip, 'access', _68 => _68.audioProps, 'optionalAccess', _69 => _69.pitchShift]) || 0} st</span>
               </div>
               <input
                 type="range"
@@ -693,12 +912,12 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
             </div>
 
             {/* 3-Band Equalizer */}
-            <div className="pt-2 border-t border-[#232738] space-y-2">
-              <span className="text-slate-300 block font-semibold">3-Band Graphic Equalizer</span>
+            <div className="pt-2 border-t border-[#E5E5E5] dark:border-[#2A2A2A] space-y-2">
+              <span className="text-[#171717] dark:text-[#EDEDED] block font-normal">3-Band Graphic Equalizer</span>
               <div>
-                <div className="flex justify-between text-[11px] text-slate-400 mb-0.5">
+                <div className="flex justify-between text-[11px] text-[#737373] dark:text-[#A1A1A1] mb-0.5">
                   <span>Bass</span>
-                  <span className="font-mono">{_optionalChain([clip, 'access', _72 => _72.audioProps, 'optionalAccess', _73 => _73.equalizer, 'optionalAccess', _74 => _74.bass]) || 0} dB</span>
+                  <span className="tabular-nums">{_optionalChain([clip, 'access', _72 => _72.audioProps, 'optionalAccess', _73 => _73.equalizer, 'optionalAccess', _74 => _74.bass]) || 0} dB</span>
                 </div>
                 <input
                   type="range"
@@ -721,9 +940,9 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
               </div>
 
               <div>
-                <div className="flex justify-between text-[11px] text-slate-400 mb-0.5">
+                <div className="flex justify-between text-[11px] text-[#737373] dark:text-[#A1A1A1] mb-0.5">
                   <span>Mid</span>
-                  <span className="font-mono">{_optionalChain([clip, 'access', _84 => _84.audioProps, 'optionalAccess', _85 => _85.equalizer, 'optionalAccess', _86 => _86.mid]) || 0} dB</span>
+                  <span className="tabular-nums">{_optionalChain([clip, 'access', _84 => _84.audioProps, 'optionalAccess', _85 => _85.equalizer, 'optionalAccess', _86 => _86.mid]) || 0} dB</span>
                 </div>
                 <input
                   type="range"
@@ -746,9 +965,9 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
               </div>
 
               <div>
-                <div className="flex justify-between text-[11px] text-slate-400 mb-0.5">
+                <div className="flex justify-between text-[11px] text-[#737373] dark:text-[#A1A1A1] mb-0.5">
                   <span>Treble</span>
-                  <span className="font-mono">{_optionalChain([clip, 'access', _96 => _96.audioProps, 'optionalAccess', _97 => _97.equalizer, 'optionalAccess', _98 => _98.treble]) || 0} dB</span>
+                  <span className="tabular-nums">{_optionalChain([clip, 'access', _96 => _96.audioProps, 'optionalAccess', _97 => _97.equalizer, 'optionalAccess', _98 => _98.treble]) || 0} dB</span>
                 </div>
                 <input
                   type="range"
@@ -772,14 +991,14 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
             </div>
 
             {/* Voice Changer Presets */}
-            <div className="pt-2 border-t border-[#232738]">
-              <span className="text-slate-300 block mb-1 font-semibold">Voice Changer Preset</span>
+            <div className="pt-2 border-t border-[#E5E5E5] dark:border-[#2A2A2A]">
+              <span className="text-[#171717] dark:text-[#EDEDED] block mb-1 font-normal">Voice Changer Preset</span>
               <select
                 value={_optionalChain([clip, 'access', _108 => _108.audioProps, 'optionalAccess', _109 => _109.voiceChanger]) || 'none'}
                 onChange={(e) =>
                   updateClip(clip.id, { audioProps: { voiceChanger: e.target.value  } })
                 }
-                className="w-full bg-[#181b26] border border-[#232738] rounded-lg px-2 py-1.5 text-xs text-white outline-none"
+                className="w-full bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] px-2 py-1.5 text-xs text-[#171717] dark:text-[#EDEDED] outline-none"
               >
                 <option value="none">None (Natural Voice)</option>
                 <option value="chipmunk">Chipmunk (High pitch)</option>
@@ -796,9 +1015,9 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
         {activeTab === 'speed' && isVisual && (
           <div className="space-y-3.5 text-xs">
             <div>
-              <div className="flex justify-between text-slate-300 mb-1">
-                <span>Speed Factor</span>
-                <span className="font-mono text-slate-400">{clip.speed}x</span>
+              <div className="flex justify-between text-[#171717] dark:text-[#EDEDED] mb-1">
+                <span className="font-normal">Speed Factor</span>
+                <span className="text-[#737373] dark:text-[#A1A1A1] tabular-nums">{clip.speed}x</span>
               </div>
               <input
                 type="range"
@@ -816,10 +1035,10 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
                 <button
                   key={s}
                   onClick={() => updateClip(clip.id, { speed: s })}
-                  className={`py-1 rounded text-xs font-mono font-bold border transition-colors ${
+                  className={`py-1 rounded-[6px] text-xs font-normal border transition-colors cursor-pointer tabular-nums ${
                     clip.speed === s
-                      ? 'bg-violet-600 text-white border-violet-500'
-                      : 'bg-[#181b26] text-slate-400 border-[#232738] hover:text-white'
+                      ? 'bg-[#171717] text-white dark:bg-[#EDEDED] dark:text-[#171717] border-[#171717] dark:border-[#EDEDED]'
+                      : 'bg-white dark:bg-[#1A1A1A] text-[#737373] dark:text-[#A1A1A1] border-[#E5E5E5] dark:border-[#2A2A2A] hover:bg-[#F5F5F5] dark:hover:bg-[#262626]'
                   }`}
                 >
                   {s}x
@@ -828,8 +1047,8 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
             </div>
 
             {/* Speed Curves */}
-            <div className="pt-2 border-t border-[#232738] space-y-1.5">
-              <span className="text-slate-300 block font-semibold">Speed Curves</span>
+            <div className="pt-2 border-t border-[#E5E5E5] dark:border-[#2A2A2A] space-y-1.5">
+              <span className="text-[#171717] dark:text-[#EDEDED] block font-normal">Speed Curves</span>
               <div className="grid grid-cols-3 gap-1.5">
                 {[
                   { id: 'constant', label: 'Constant' },
@@ -842,10 +1061,10 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
                   <button
                     key={curve.id}
                     onClick={() => updateClip(clip.id, { speedCurve: curve.id  })}
-                    className={`py-1.5 px-1 text-[10px] rounded-lg border font-medium transition-all ${
+                    className={`py-1.5 px-1 text-[10px] rounded-[6px] border font-normal transition-colors cursor-pointer ${
                       (clip.speedCurve || 'constant') === curve.id
-                        ? 'bg-cyan-900/60 border-cyan-400 text-white'
-                        : 'bg-[#181b26] border-[#272b3c] text-slate-400 hover:text-white'
+                        ? 'bg-blue-50 dark:bg-blue-950/40 border-[#3B82F6] text-[#3B82F6]'
+                        : 'bg-white dark:bg-[#1A1A1A] border-[#E5E5E5] dark:border-[#2A2A2A] text-[#737373] dark:text-[#A1A1A1] hover:bg-[#F5F5F5] dark:hover:bg-[#262626]'
                     }`}
                   >
                     {curve.label}
@@ -854,25 +1073,25 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
               </div>
             </div>
 
-            <div className="pt-2 border-t border-[#232738] space-y-2">
-              <label className="flex items-center gap-2 cursor-pointer">
+            <div className="pt-2 border-t border-[#E5E5E5] dark:border-[#2A2A2A] space-y-2">
+              <label className="flex items-center gap-2 cursor-pointer text-[#171717] dark:text-[#EDEDED]">
                 <input
                   type="checkbox"
                   checked={clip.reverse || false}
                   onChange={(e) => updateClip(clip.id, { reverse: e.target.checked })}
-                  className="rounded border-[#2a2f42] bg-[#181b26] text-violet-600"
+                  className="rounded border-[#E5E5E5] dark:border-[#2A2A2A] accent-[#171717] dark:accent-[#EDEDED]"
                 />
-                <span className="text-slate-300">Reverse Playback</span>
+                <span className="font-normal">Reverse Playback</span>
               </label>
 
-              <label className="flex items-center gap-2 cursor-pointer">
+              <label className="flex items-center gap-2 cursor-pointer text-[#171717] dark:text-[#EDEDED]">
                 <input
                   type="checkbox"
                   checked={clip.freezeFrame || false}
                   onChange={(e) => updateClip(clip.id, { freezeFrame: e.target.checked })}
-                  className="rounded border-[#2a2f42] bg-[#181b26] text-violet-600"
+                  className="rounded border-[#E5E5E5] dark:border-[#2A2A2A] accent-[#171717] dark:accent-[#EDEDED]"
                 />
-                <span className="text-slate-300">Freeze Frame</span>
+                <span className="font-normal">Freeze Frame</span>
               </label>
             </div>
           </div>
@@ -883,7 +1102,7 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
           <div className="space-y-4 text-xs">
             {/* Shape Mask */}
             <div>
-              <span className="text-slate-300 block mb-1 font-semibold">Shape Mask</span>
+              <span className="text-[#171717] dark:text-[#EDEDED] block mb-1 font-normal">Shape Mask</span>
               <select
                 value={_optionalChain([clip, 'access', _110 => _110.mask, 'optionalAccess', _111 => _111.type]) || 'none'}
                 onChange={(e) =>
@@ -897,7 +1116,7 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
                     },
                   })
                 }
-                className="w-full bg-[#181b26] border border-[#232738] rounded-lg px-2 py-1.5 text-xs text-white outline-none"
+                className="w-full bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] px-2 py-1.5 text-xs text-[#171717] dark:text-[#EDEDED] outline-none"
               >
                 <option value="none">None</option>
                 <option value="circle">Circle Mask</option>
@@ -910,9 +1129,9 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
             {clip.mask && clip.mask.type !== 'none' && (
               <div className="space-y-2">
                 <div>
-                  <div className="flex justify-between text-slate-300 mb-1">
-                    <span>Mask Radius Size</span>
-                    <span className="font-mono text-slate-400">{clip.mask.size}%</span>
+                  <div className="flex justify-between text-[#171717] dark:text-[#EDEDED] mb-1">
+                    <span className="font-normal">Mask Radius Size</span>
+                    <span className="text-[#737373] dark:text-[#A1A1A1] tabular-nums">{clip.mask.size}%</span>
                   </div>
                   <input
                     type="range"
@@ -929,9 +1148,9 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
             )}
 
             {/* Chroma Key (Green Screen) */}
-            <div className="pt-2 border-t border-[#232738] space-y-2">
-              <span className="text-slate-300 block font-semibold">Chroma Key (Green Screen)</span>
-              <label className="flex items-center gap-2 cursor-pointer">
+            <div className="pt-2 border-t border-[#E5E5E5] dark:border-[#2A2A2A] space-y-2">
+              <span className="text-[#171717] dark:text-[#EDEDED] block font-normal">Chroma Key (Green Screen)</span>
+              <label className="flex items-center gap-2 cursor-pointer text-[#171717] dark:text-[#EDEDED]">
                 <input
                   type="checkbox"
                   checked={_optionalChain([clip, 'access', _120 => _120.chromaKey, 'optionalAccess', _121 => _121.enabled]) || false}
@@ -945,15 +1164,15 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
                       },
                     })
                   }
-                  className="rounded border-[#2a2f42] bg-[#181b26] text-violet-600"
+                  className="rounded border-[#E5E5E5] dark:border-[#2A2A2A] accent-[#171717] dark:accent-[#EDEDED]"
                 />
-                <span className="text-slate-300">Enable Chroma Key Removal</span>
+                <span className="font-normal">Enable Chroma Key Removal</span>
               </label>
 
               {_optionalChain([clip, 'access', _128 => _128.chromaKey, 'optionalAccess', _129 => _129.enabled]) && (
                 <div className="space-y-2 pt-1">
                   <div className="flex items-center gap-2">
-                    <span className="text-slate-400">Key Color:</span>
+                    <span className="text-[#737373] dark:text-[#A1A1A1]">Key Color:</span>
                     <input
                       type="color"
                       value={clip.chromaKey.keyColor}
@@ -962,7 +1181,7 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
                           chromaKey: { ...clip.chromaKey, keyColor: e.target.value },
                         })
                       }
-                      className="w-7 h-7 rounded border-none cursor-pointer"
+                      className="w-7 h-7 rounded-[4px] border border-[#E5E5E5] dark:border-[#2A2A2A] cursor-pointer"
                     />
                   </div>
                 </div>
@@ -975,72 +1194,96 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
         {activeTab === 'keyframes' && (
           <div className="space-y-3.5 text-xs">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                <Key className="w-3.5 h-3.5 text-cyan-400" /> Keyframe Animation
+              <span className="text-xs font-normal text-[#171717] dark:text-[#EDEDED] flex items-center gap-1.5">
+                <Key className="w-3.5 h-3.5 text-[#3B82F6]" strokeWidth={1.5} /> Keyframe Animation
               </span>
-              <span className="text-[10px] text-slate-500 font-mono">
+              <span className="text-[10px] text-[#737373] dark:text-[#A1A1A1] tabular-nums font-normal">
                 At {(currentTime - clip.start).toFixed(2)}s
               </span>
             </div>
 
-            <p className="text-[11px] text-slate-400">
+            <p className="text-[11px] text-[#737373] dark:text-[#A1A1A1]">
               Animate clip position, scale, rotation, or opacity smoothly across time.
             </p>
 
             <div className="grid grid-cols-2 gap-1.5">
               <button
                 onClick={() => addKeyframe(clip.id, 'scale', clip.scale)}
-                className="py-1.5 px-2 rounded-lg bg-[#181b26] border border-[#232738] hover:border-violet-500/50 text-[11px] text-slate-200 flex items-center justify-between"
+                className="py-1.5 px-2 rounded-[6px] bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] text-[11px] text-[#171717] dark:text-[#EDEDED] flex items-center justify-between cursor-pointer transition-colors"
               >
                 <span>+ Scale Key</span>
-                <Key className="w-3 h-3 text-violet-400" />
+                <Key className="w-3 h-3 text-[#737373] dark:text-[#A1A1A1]" strokeWidth={1.5} />
               </button>
               <button
                 onClick={() => addKeyframe(clip.id, 'opacity', clip.opacity)}
-                className="py-1.5 px-2 rounded-lg bg-[#181b26] border border-[#232738] hover:border-violet-500/50 text-[11px] text-slate-200 flex items-center justify-between"
+                className="py-1.5 px-2 rounded-[6px] bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] text-[11px] text-[#171717] dark:text-[#EDEDED] flex items-center justify-between cursor-pointer transition-colors"
               >
                 <span>+ Opacity Key</span>
-                <Key className="w-3 h-3 text-violet-400" />
+                <Key className="w-3 h-3 text-[#737373] dark:text-[#A1A1A1]" strokeWidth={1.5} />
               </button>
               <button
                 onClick={() => addKeyframe(clip.id, 'rotation', clip.rotation)}
-                className="py-1.5 px-2 rounded-lg bg-[#181b26] border border-[#232738] hover:border-violet-500/50 text-[11px] text-slate-200 flex items-center justify-between"
+                className="py-1.5 px-2 rounded-[6px] bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] text-[11px] text-[#171717] dark:text-[#EDEDED] flex items-center justify-between cursor-pointer transition-colors"
               >
                 <span>+ Rotation Key</span>
-                <Key className="w-3 h-3 text-violet-400" />
+                <Key className="w-3 h-3 text-[#737373] dark:text-[#A1A1A1]" strokeWidth={1.5} />
               </button>
               <button
                 onClick={() => addKeyframe(clip.id, 'x', clip.x)}
-                className="py-1.5 px-2 rounded-lg bg-[#181b26] border border-[#232738] hover:border-violet-500/50 text-[11px] text-slate-200 flex items-center justify-between"
+                className="py-1.5 px-2 rounded-[6px] bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] text-[11px] text-[#171717] dark:text-[#EDEDED] flex items-center justify-between cursor-pointer transition-colors"
               >
                 <span>+ Pos X Key</span>
-                <Key className="w-3 h-3 text-violet-400" />
+                <Key className="w-3 h-3 text-[#737373] dark:text-[#A1A1A1]" strokeWidth={1.5} />
               </button>
             </div>
 
             {/* List of Existing Keyframes */}
-            <div className="pt-2 border-t border-[#232738]">
-              <span className="text-slate-400 block mb-1.5 text-[10px] uppercase font-bold tracking-wider">
-                Active Keyframes ({_optionalChain([clip, 'access', _130 => _130.keyframes, 'optionalAccess', _131 => _131.length]) || 0})
+            <div className="pt-2 border-t border-[#E5E5E5] dark:border-[#2A2A2A]">
+              <span className="text-[#737373] dark:text-[#A1A1A1] block mb-1.5 text-[10px] font-normal">
+                Active Keyframes ({clip.keyframes ? clip.keyframes.length : 0})
               </span>
               {(!clip.keyframes || clip.keyframes.length === 0) ? (
-                <p className="text-[11px] text-slate-600 italic">No keyframes added to this clip yet.</p>
+                <p className="text-[11px] text-[#A3A3A3] dark:text-[#737373] italic">No keyframes added to this clip yet.</p>
               ) : (
-                <div className="space-y-1">
+                <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
                   {clip.keyframes.map((kf) => (
                     <div
                       key={kf.id}
-                      className="flex items-center justify-between p-1.5 rounded bg-[#181b26] border border-[#232738] text-[11px]"
+                      className="flex items-center justify-between p-2 rounded-[6px] bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] text-[11px] gap-2"
                     >
-                      <span className="font-mono text-cyan-400">
-                        {kf.property}: {kf.value.toFixed(1)} @ {kf.time.toFixed(2)}s
-                      </span>
                       <button
-                        onClick={() => removeKeyframe(clip.id, kf.id)}
-                        className="p-1 hover:text-rose-400 text-slate-500 transition-colors"
+                        type="button"
+                        onClick={() => seek(clip.start + kf.time)}
+                        className="text-[#3B82F6] hover:underline text-left flex-1 truncate cursor-pointer tabular-nums"
+                        title="Click to jump playhead to this keyframe"
                       >
-                        <Trash2 className="w-3 h-3" />
+                        <span className="font-medium text-[#171717] dark:text-[#EDEDED]">{kf.property}:</span>{' '}
+                        {typeof kf.value === 'number' ? kf.value.toFixed(1) : kf.value} @ {kf.time.toFixed(2)}s
                       </button>
+                      
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {/* Easing choice */}
+                        <select
+                          value={kf.easing || 'easeInOut'}
+                          onChange={(e) => updateKeyframe(clip.id, kf.id, { easing: e.target.value })}
+                          title="Keyframe Easing: Linear, Ease In, Ease Out, Ease In-Out"
+                          className="text-[9px] bg-[#FAFAFA] dark:bg-[#151515] border border-[#E5E5E5] dark:border-[#2A2A2A] text-[#171717] dark:text-[#EDEDED] rounded-[4px] px-1.5 py-0.5 cursor-pointer focus:outline-none"
+                        >
+                          <option value="linear">Linear</option>
+                          <option value="easeIn">Ease In</option>
+                          <option value="easeOut">Ease Out</option>
+                          <option value="easeInOut">Ease In-Out</option>
+                        </select>
+
+                        <button
+                          type="button"
+                          onClick={() => removeKeyframe(clip.id, kf.id)}
+                          className="p-1 hover:text-red-500 text-[#737373] dark:text-[#A1A1A1] transition-colors cursor-pointer"
+                          title="Delete keyframe"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" strokeWidth={1.5} />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1054,16 +1297,16 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
 
   if (mobileDrawer) {
     return (
-      <div className="w-full flex flex-col h-full select-none shrink-0 overflow-hidden bg-[#141620]">
+      <div className="w-full flex flex-col h-full select-none shrink-0 overflow-hidden bg-white dark:bg-[#1A1A1A] text-[#171717] dark:text-[#EDEDED] transition-colors">
         {/* Mobile Drag Handle */}
-        <div className="w-10 h-1 bg-slate-600/80 rounded-full mx-auto my-2 shrink-0 cursor-grab" />
+        <div className="w-8 h-1 bg-[#D4D4D4] dark:bg-[#383838] rounded-full mx-auto my-2 shrink-0 cursor-grab" />
         {inspectorContent}
       </div>
     );
   }
 
   return (
-    <aside className="w-72 md:w-80 border-l border-[#222638] bg-[#12141c] flex flex-col h-full select-none shrink-0 overflow-hidden">
+    <aside className="w-72 md:w-80 border-l border-[#E5E5E5] dark:border-[#2A2A2A] bg-white dark:bg-[#1A1A1A] flex flex-col h-full select-none shrink-0 overflow-hidden text-[#171717] dark:text-[#EDEDED] transition-colors">
       {inspectorContent}
     </aside>
   );

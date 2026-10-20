@@ -57,6 +57,9 @@ export const Timeline = () => {
     copySelected,
     pasteClips,
     autoCutSilence,
+    selectedKeyframeId,
+    setSelectedKeyframeId,
+    updateKeyframeTime,
   } = useEditorStore();
 
   const { isMobile } = useResponsive();
@@ -69,6 +72,7 @@ export const Timeline = () => {
   const [isScrubbing, setIsScrubbing] = useState(false);
   const [draggingClipId, setDraggingClipId] = useState(null);
   const [trimmingClip, setTrimmingClip] = useState(null);
+  const [draggingKeyframe, setDraggingKeyframe] = useState(null);
   const dragClipStartPos = useRef({
     clipId: '',
     startX: 0,
@@ -153,6 +157,16 @@ export const Timeline = () => {
 
         moveClip(draggingClipId, dragClipStartPos.current.origTrackId, newStart);
       }
+
+      if (draggingKeyframe) {
+        const deltaPx = clientX - draggingKeyframe.startX;
+        const deltaSec = deltaPx / zoom;
+        const newTime = Math.max(0, Math.min(draggingKeyframe.clipDuration, draggingKeyframe.origTime + deltaSec));
+        draggingKeyframe.keyframeIds.forEach((kId) => {
+          updateKeyframeTime(draggingKeyframe.clipId, kId, newTime);
+        });
+        seek(draggingKeyframe.clipStart + newTime);
+      }
     };
 
     const handleMouseMove = (e) => {
@@ -160,7 +174,7 @@ export const Timeline = () => {
     };
 
     const handleTouchMove = (e) => {
-      if (isScrubbing || trimmingClip || draggingClipId) {
+      if (isScrubbing || trimmingClip || draggingClipId || draggingKeyframe) {
         if (e.touches.length > 0) {
           handlePointerMove(e.touches[0].clientX);
         }
@@ -171,6 +185,7 @@ export const Timeline = () => {
       setIsScrubbing(false);
       setTrimmingClip(null);
       setDraggingClipId(null);
+      setDraggingKeyframe(null);
       setIsLongPressDragging(false);
       if (longPressTimerRef.current) {
         clearTimeout(longPressTimerRef.current);
@@ -189,7 +204,7 @@ export const Timeline = () => {
       window.removeEventListener('touchmove', handleTouchMove);
       window.removeEventListener('touchend', handlePointerUp);
     };
-  }, [isScrubbing, trimmingClip, draggingClipId, zoom, project.duration, currentTime, snapping, seek, trimClip, moveClip]);
+  }, [isScrubbing, trimmingClip, draggingClipId, draggingKeyframe, zoom, project.duration, currentTime, snapping, seek, trimClip, moveClip, updateKeyframeTime]);
 
   // Touch pinch-to-zoom on timeline tracks
   const handleTimelineTouchStart = (e) => {
@@ -224,15 +239,15 @@ export const Timeline = () => {
   const getTrackIcon = (type) => {
     switch (type) {
       case 'video':
-        return <Film className="w-3.5 h-3.5 text-violet-400" />;
+        return <Film className="w-3.5 h-3.5 text-[#737373] dark:text-[#A1A1A1]" strokeWidth={1.5} />;
       case 'audio':
-        return <Music className="w-3.5 h-3.5 text-emerald-400" />;
+        return <Music className="w-3.5 h-3.5 text-[#737373] dark:text-[#A1A1A1]" strokeWidth={1.5} />;
       case 'text':
-        return <Type className="w-3.5 h-3.5 text-cyan-400" />;
+        return <Type className="w-3.5 h-3.5 text-[#737373] dark:text-[#A1A1A1]" strokeWidth={1.5} />;
       case 'sticker':
-        return <Smile className="w-3.5 h-3.5 text-amber-400" />;
+        return <Smile className="w-3.5 h-3.5 text-[#737373] dark:text-[#A1A1A1]" strokeWidth={1.5} />;
       default:
-        return <Layers className="w-3.5 h-3.5 text-slate-400" />;
+        return <Layers className="w-3.5 h-3.5 text-[#737373] dark:text-[#A1A1A1]" strokeWidth={1.5} />;
     }
   };
 
@@ -241,21 +256,21 @@ export const Timeline = () => {
       case 'video':
       case 'color':
       case 'image':
-        return 'bg-gradient-to-r from-violet-950 to-indigo-950 border-violet-500/50 text-violet-100';
+        return 'bg-[#DCE7F5] dark:bg-[#1E293B] border-[#CBD5E1] dark:border-[#334155] text-[#1E293B] dark:text-[#E2E8F0]';
       case 'audio':
-        return 'bg-gradient-to-r from-emerald-950 to-teal-950 border-emerald-500/50 text-emerald-100';
+        return 'bg-[#E2ECE5] dark:bg-[#1C3024] border-[#C6DBD0] dark:border-[#2A4B38] text-[#23422E] dark:text-[#D1E7D9]';
       case 'text':
-        return 'bg-gradient-to-r from-cyan-950 to-blue-950 border-cyan-500/50 text-cyan-100';
+        return 'bg-[#F5EFE6] dark:bg-[#362F24] border-[#E5DAC9] dark:border-[#4D4233] text-[#4F3B20] dark:text-[#EAD9C2]';
       case 'sticker':
-        return 'bg-gradient-to-r from-amber-950 to-orange-950 border-amber-500/50 text-amber-100';
+        return 'bg-[#FCEAEB] dark:bg-[#382327] border-[#F3CDD1] dark:border-[#543138] text-[#5E282D] dark:text-[#F2CBD2]';
       default:
-        return 'bg-slate-800 border-slate-600 text-slate-100';
+        return 'bg-[#F5F5F5] dark:bg-[#222222] border-[#E5E5E5] dark:border-[#2A2A2A] text-[#171717] dark:text-[#EDEDED]';
     }
   };
 
   return (
     <footer
-      className={`border-t border-[#222638] bg-[#0e1017] flex flex-col select-none shrink-0 overflow-visible relative z-20 ${
+      className={`border-t border-[#E5E5E5] dark:border-[#2A2A2A] bg-[#FAFAFA] dark:bg-[#111111] flex flex-col select-none shrink-0 overflow-visible relative z-20 transition-colors ${
         isMobile ? 'flex-1 min-h-[160px] max-h-[30vh]' : 'h-64 md:h-72'
       }`}
     >
@@ -263,15 +278,15 @@ export const Timeline = () => {
       {isMobile && <MobileFloatingClipBar />}
 
       {/* Timeline Toolbar */}
-      <div className="h-9 px-3 border-b border-[#222638] bg-[#12141c] flex items-center justify-between shrink-0">
+      <div className="h-9 px-3 border-b border-[#E5E5E5] dark:border-[#2A2A2A] bg-white dark:bg-[#1A1A1A] flex items-center justify-between shrink-0 transition-colors">
         <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5">
           {/* Split (S) */}
           <button
             onClick={() => splitClipAtPlayhead()}
-            className="flex items-center gap-1 px-2.5 py-1 rounded bg-[#1a1d29] hover:bg-violet-600/30 hover:border-violet-500 text-xs font-semibold text-slate-200 border border-[#272b3c] transition-colors cursor-pointer shrink-0"
+            className="flex items-center gap-1 px-2.5 py-1 rounded-[6px] bg-white dark:bg-[#1A1A1A] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] text-xs font-normal text-[#171717] dark:text-[#EDEDED] border border-[#E5E5E5] dark:border-[#2A2A2A] transition-colors cursor-pointer shrink-0"
             title="Split Clip at Playhead (S)"
           >
-            <Scissors className="w-3.5 h-3.5 text-cyan-400" />
+            <Scissors className="w-3.5 h-3.5 text-[#737373] dark:text-[#A1A1A1]" strokeWidth={1.5} />
             <span className="hidden sm:inline">Split</span>
           </button>
 
@@ -279,10 +294,10 @@ export const Timeline = () => {
           <button
             onClick={() => selectedClipIds.length > 0 && deleteSelectedClips(false)}
             disabled={selectedClipIds.length === 0}
-            className="flex items-center gap-1 px-2 py-1 rounded bg-[#1a1d29] hover:bg-rose-950 hover:border-rose-500 text-xs text-slate-300 border border-[#272b3c] disabled:opacity-40 transition-colors cursor-pointer shrink-0"
+            className="flex items-center gap-1 px-2 py-1 rounded-[6px] bg-white dark:bg-[#1A1A1A] hover:bg-red-50 dark:hover:bg-red-950/30 text-xs text-[#737373] dark:text-[#A1A1A1] hover:text-red-600 dark:hover:text-red-400 border border-[#E5E5E5] dark:border-[#2A2A2A] disabled:opacity-30 transition-colors cursor-pointer shrink-0"
             title="Delete Selected Clip(s) (Del / Backspace)"
           >
-            <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+            <Trash2 className="w-3.5 h-3.5" strokeWidth={1.5} />
             <span className="hidden sm:inline">Delete</span>
           </button>
 
@@ -290,10 +305,10 @@ export const Timeline = () => {
           <button
             onClick={() => selectedClipIds.length > 0 && duplicateClip(selectedClipIds[0])}
             disabled={selectedClipIds.length === 0}
-            className="flex items-center gap-1 px-2 py-1 rounded bg-[#1a1d29] hover:bg-[#232738] text-xs text-slate-300 border border-[#272b3c] disabled:opacity-40 transition-colors cursor-pointer shrink-0"
+            className="flex items-center gap-1 px-2 py-1 rounded-[6px] bg-white dark:bg-[#1A1A1A] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] text-xs text-[#737373] dark:text-[#A1A1A1] hover:text-[#171717] dark:hover:text-[#EDEDED] border border-[#E5E5E5] dark:border-[#2A2A2A] disabled:opacity-30 transition-colors cursor-pointer shrink-0"
             title="Duplicate Clip (Ctrl+D)"
           >
-            <Copy className="w-3.5 h-3.5 text-violet-400" />
+            <Copy className="w-3.5 h-3.5" strokeWidth={1.5} />
             <span className="hidden sm:inline">Duplicate</span>
           </button>
 
@@ -301,10 +316,10 @@ export const Timeline = () => {
           <button
             onClick={() => selectedClipIds.length > 0 && freezeFrame(selectedClipIds[0])}
             disabled={selectedClipIds.length === 0}
-            className="flex items-center gap-1 px-2 py-1 rounded bg-[#1a1d29] hover:bg-[#232738] text-xs text-slate-300 border border-[#272b3c] disabled:opacity-40 transition-colors cursor-pointer shrink-0"
+            className="flex items-center gap-1 px-2 py-1 rounded-[6px] bg-white dark:bg-[#1A1A1A] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] text-xs text-[#737373] dark:text-[#A1A1A1] hover:text-[#171717] dark:hover:text-[#EDEDED] border border-[#E5E5E5] dark:border-[#2A2A2A] disabled:opacity-30 transition-colors cursor-pointer shrink-0"
             title="Freeze Frame (F)"
           >
-            <Snowflake className="w-3.5 h-3.5 text-sky-400" />
+            <Snowflake className="w-3.5 h-3.5" strokeWidth={1.5} />
             <span className="hidden sm:inline">Freeze</span>
           </button>
 
@@ -312,33 +327,32 @@ export const Timeline = () => {
           <button
             onClick={() => selectedClipIds.length > 0 && deleteSelectedClips(true)}
             disabled={selectedClipIds.length === 0}
-            className="flex items-center gap-1 px-2 py-1 rounded bg-[#1a1d29] hover:bg-rose-950 hover:border-rose-500 text-xs text-slate-300 border border-[#272b3c] disabled:opacity-40 transition-colors cursor-pointer shrink-0"
+            className="flex items-center gap-1 px-2 py-1 rounded-[6px] bg-white dark:bg-[#1A1A1A] hover:bg-red-50 dark:hover:bg-red-950/30 text-xs text-[#737373] dark:text-[#A1A1A1] hover:text-red-600 dark:hover:text-red-400 border border-[#E5E5E5] dark:border-[#2A2A2A] disabled:opacity-30 transition-colors cursor-pointer shrink-0"
             title="Ripple Delete [Shift+Del]"
           >
-            <ArrowLeftRight className="w-3.5 h-3.5 text-rose-400" />
+            <ArrowLeftRight className="w-3.5 h-3.5" strokeWidth={1.5} />
             <span className="hidden sm:inline">Ripple</span>
           </button>
 
           {/* Add Marker */}
           <button
             onClick={() => addMarker(currentTime, 'Marker')}
-            className="p-1 rounded bg-[#1a1d29] hover:bg-[#232738] text-slate-300 border border-[#272b3c] transition-colors cursor-pointer shrink-0"
+            className="p-1 rounded-[6px] bg-white dark:bg-[#1A1A1A] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] text-[#737373] dark:text-[#A1A1A1] hover:text-[#171717] dark:hover:text-[#EDEDED] border border-[#E5E5E5] dark:border-[#2A2A2A] transition-colors cursor-pointer shrink-0"
             title="Add Marker at Playhead"
           >
-            <Bookmark className="w-3.5 h-3.5 text-cyan-400" />
+            <Bookmark className="w-3.5 h-3.5" strokeWidth={1.5} />
           </button>
         </div>
 
         {/* Right Tools: Zoom Slider & Controls */}
         <div className="flex items-center gap-2 shrink-0">
-          {/* Zoom In / Out Buttons */}
           <div className="flex items-center gap-1">
             <button
               onClick={() => setZoom(Math.max(10, zoom - 15))}
-              className="p-1 hover:text-white text-slate-400 cursor-pointer"
+              className="p-1 text-[#737373] dark:text-[#A1A1A1] hover:text-[#171717] dark:hover:text-[#EDEDED] cursor-pointer"
               title="Zoom Out"
             >
-              <ZoomOut className="w-3.5 h-3.5" />
+              <ZoomOut className="w-3.5 h-3.5" strokeWidth={1.5} />
             </button>
             {!isMobile && (
               <input
@@ -353,10 +367,10 @@ export const Timeline = () => {
             )}
             <button
               onClick={() => setZoom(Math.min(200, zoom + 15))}
-              className="p-1 hover:text-white text-slate-400 cursor-pointer"
+              className="p-1 text-[#737373] dark:text-[#A1A1A1] hover:text-[#171717] dark:hover:text-[#EDEDED] cursor-pointer"
               title="Zoom In"
             >
-              <ZoomIn className="w-3.5 h-3.5" />
+              <ZoomIn className="w-3.5 h-3.5" strokeWidth={1.5} />
             </button>
           </div>
         </div>
@@ -364,7 +378,7 @@ export const Timeline = () => {
 
       {/* Multi-Track Body: Left Headers + Right Timeline Canvas */}
       <div className="flex-1 flex overflow-hidden min-h-0">
-        {/* Left Track Headers Column (Compact icon on mobile) */}
+        {/* Left Track Headers Column */}
         <div
           ref={trackHeadersRef}
           onScroll={(e) => {
@@ -373,13 +387,13 @@ export const Timeline = () => {
             }
           }}
           className={`${
-            isMobile ? 'w-12 sm:w-16' : 'w-48 md:w-56'
-          } border-r border-[#222638] bg-[#12141c] flex flex-col shrink-0 z-20 overflow-y-auto min-h-0 select-none`}
+            isMobile ? 'w-12 sm:w-16' : 'w-44 md:w-48'
+          } border-r border-[#E5E5E5] dark:border-[#2A2A2A] bg-white dark:bg-[#1A1A1A] flex flex-col shrink-0 z-20 overflow-y-auto min-h-0 select-none transition-colors`}
         >
           {/* Header spacer matching ruler height */}
-          <div className="h-7 border-b border-[#222638] bg-[#0e1017] px-2 flex items-center justify-between text-[10px] text-slate-500 font-bold shrink-0 sticky top-0 z-10">
-            <span>{isMobile ? '#' : 'TRACKS'}</span>
-            <span className="font-mono text-[9px]">{project.tracks.length}</span>
+          <div className="h-7 border-b border-[#E5E5E5] dark:border-[#2A2A2A] bg-[#FAFAFA] dark:bg-[#111111] px-2 flex items-center justify-between text-[10px] text-[#737373] dark:text-[#A1A1A1] font-normal shrink-0 sticky top-0 z-10">
+            <span>{isMobile ? '#' : 'Tracks'}</span>
+            <span className="tabular-nums font-normal text-[10px]">{project.tracks.length}</span>
           </div>
 
           {/* Track Header Rows */}
@@ -387,13 +401,13 @@ export const Timeline = () => {
             {project.tracks.map((track) => (
               <div
                 key={track.id}
-                className="h-14 px-1 rounded-lg bg-[#181b26] border border-[#232738] flex flex-col justify-between py-1 transition-colors group"
+                className="h-14 px-1 rounded-[6px] bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] flex flex-col justify-between py-1 transition-colors group"
               >
                 <div className="flex items-center justify-center sm:justify-between min-w-0">
                   <div className="flex items-center gap-1 min-w-0" title={track.name}>
                     {getTrackIcon(track.type)}
                     {!isMobile && (
-                      <span className="text-xs font-semibold text-slate-300 truncate">
+                      <span className="text-xs font-normal text-[#171717] dark:text-[#EDEDED] truncate">
                         {track.name}
                       </span>
                     )}
@@ -401,30 +415,30 @@ export const Timeline = () => {
                   {!isMobile && project.tracks.length > 2 && (
                     <button
                       onClick={() => removeTrack(track.id)}
-                      className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-rose-400 p-0.5"
+                      className="opacity-0 group-hover:opacity-100 text-[#A3A3A3] hover:text-red-500 p-0.5 cursor-pointer"
                       title="Remove Track"
                     >
-                      <Trash2 className="w-3 h-3" />
+                      <Trash2 className="w-3 h-3" strokeWidth={1.5} />
                     </button>
                   )}
                 </div>
 
                 {/* Track controls: Lock, Hide, Mute */}
-                <div className="flex items-center justify-center sm:justify-start gap-1 pt-0.5 border-t border-[#232738]/60 text-slate-400">
+                <div className="flex items-center justify-center sm:justify-start gap-1 pt-0.5 border-t border-[#E5E5E5] dark:border-[#2A2A2A] text-[#737373] dark:text-[#A1A1A1]">
                   <button
                     onClick={() => toggleTrackLock(track.id)}
-                    className={`hover:text-white p-0.5 ${track.locked ? 'text-amber-400' : ''}`}
+                    className={`hover:text-[#171717] dark:hover:text-[#EDEDED] p-0.5 cursor-pointer ${track.locked ? 'text-[#3B82F6]' : ''}`}
                     title={track.locked ? 'Unlock' : 'Lock'}
                   >
-                    {track.locked ? <Lock className="w-3 h-3" /> : <Unlock className="w-3 h-3" />}
+                    {track.locked ? <Lock className="w-3 h-3" strokeWidth={1.5} /> : <Unlock className="w-3 h-3" strokeWidth={1.5} />}
                   </button>
 
                   <button
                     onClick={() => toggleTrackMute(track.id)}
-                    className={`hover:text-white p-0.5 ${track.muted ? 'text-rose-400' : ''}`}
+                    className={`hover:text-[#171717] dark:hover:text-[#EDEDED] p-0.5 cursor-pointer ${track.muted ? 'text-red-500' : ''}`}
                     title={track.muted ? 'Unmute' : 'Mute'}
                   >
-                    {track.muted ? <VolumeX className="w-3 h-3" /> : <Volume2 className="w-3 h-3" />}
+                    {track.muted ? <VolumeX className="w-3 h-3" strokeWidth={1.5} /> : <Volume2 className="w-3 h-3" strokeWidth={1.5} />}
                   </button>
                 </div>
               </div>
@@ -451,7 +465,7 @@ export const Timeline = () => {
               timelineTracksRef.current.scrollLeft += e.deltaY;
             }
           }}
-          className="flex-1 overflow-x-auto overflow-y-auto relative bg-[#0b0c10] min-h-0 touch-pan-x touch-pan-y"
+           className="flex-1 overflow-x-auto overflow-y-auto relative bg-[#FAFAFA] dark:bg-[#111111] min-h-0 touch-pan-x touch-pan-y transition-colors"
         >
           <div style={{ width: `${totalWidth}px` }} className="relative min-h-full">
             {/* Timeline Ruler */}
@@ -459,7 +473,7 @@ export const Timeline = () => {
               ref={rulerRef}
               onMouseDown={handleRulerMouseDown}
               onTouchStart={handleRulerTouchStart}
-              className="h-7 border-b border-[#222638] bg-[#12141c] sticky top-0 cursor-pointer relative z-10 touch-none"
+              className="h-7 border-b border-[#E5E5E5] dark:border-[#2A2A2A] bg-white dark:bg-[#1A1A1A] sticky top-0 cursor-pointer relative z-10 touch-none transition-colors"
             >
               {/* Ruler ticks every 1 second */}
               {Array.from({ length: Math.ceil(project.duration) + 15 }).map((_, sec) => {
@@ -467,7 +481,7 @@ export const Timeline = () => {
                 return (
                   <div key={sec} style={{ left: `${posX}px` }} className="absolute top-0 h-full">
                     <div className="timeline-tick-major" />
-                    <span className="absolute top-2 left-1 text-[9px] font-mono text-slate-500">
+                    <span className="absolute top-2 left-1 text-[9px] tabular-nums font-normal text-[#737373] dark:text-[#A1A1A1]">
                       {formatRulerTime(sec)}
                     </span>
                   </div>
@@ -483,24 +497,24 @@ export const Timeline = () => {
                   title={`${marker.label} (${marker.time.toFixed(2)}s)`}
                 >
                   <div
-                    className="w-2.5 h-3 rounded-b-sm shadow-md"
+                    className="w-2.5 h-3 rounded-b-sm shadow-sm"
                     style={{ backgroundColor: marker.color }}
                   />
                 </div>
               ))])}
             </div>
 
-            {/* Playhead Scrubber Line Spanning All Tracks */}
+            {/* Playhead Scrubber Line Spanning All Tracks - Single soft accent #3B82F6 without glow */}
             <div
               style={{ left: `${currentTime * zoom}px` }}
-              className="absolute top-0 bottom-0 w-[2px] bg-cyan-400 z-30 pointer-events-none shadow-[0_0_8px_rgba(6,182,212,0.8)]"
+              className="absolute top-0 bottom-0 w-[1.5px] bg-[#3B82F6] z-30 pointer-events-none"
             >
               {/* Playhead Needle Head */}
               <div
                 onMouseDown={handleRulerMouseDown}
                 onTouchStart={handleRulerTouchStart}
-                style={{ marginLeft: currentTime * zoom < 6 ? '0px' : '-6px' }}
-                className="w-3.5 h-3.5 bg-cyan-400 rotate-45 -mt-1 shadow-lg pointer-events-auto cursor-ew-resize touch-none"
+                style={{ marginLeft: currentTime * zoom < 6 ? '0px' : '-5px' }}
+                className="w-3 h-3 bg-[#3B82F6] rotate-45 -mt-1 shadow-sm pointer-events-auto cursor-ew-resize touch-none"
               />
             </div>
 
@@ -509,7 +523,7 @@ export const Timeline = () => {
               {project.tracks.map((track) => (
                 <div
                   key={track.id}
-                  className={`h-14 relative bg-[#12141c]/50 border-y border-r border-[#1e2233] border-l-0 rounded-r-lg transition-colors ${
+                  className={`h-14 relative bg-white/70 dark:bg-[#1A1A1A]/70 border-y border-r border-[#E5E5E5] dark:border-[#2A2A2A] border-l-0 rounded-r-[6px] transition-colors ${
                     track.locked ? 'opacity-60 pointer-events-none' : ''
                   }`}
                 >
@@ -543,12 +557,10 @@ export const Timeline = () => {
                           if (e.target !== e.currentTarget && (e.target ).dataset.handle) {
                             return;
                           }
-                          // Select clip immediately
                           selectClip(clip.id);
 
                           const touch = e.touches[0];
                           const startX = touch.clientX;
-                          // Long press timer (350ms) to begin moving clip
                           longPressTimerRef.current = setTimeout(() => {
                             setIsLongPressDragging(true);
                             useEditorStore.getState().pushHistory();
@@ -563,7 +575,6 @@ export const Timeline = () => {
                           }, 350);
                         }}
                         onTouchMove={() => {
-                          // If moved before long press, cancel so normal scroll happens
                           if (!isLongPressDragging && longPressTimerRef.current) {
                             clearTimeout(longPressTimerRef.current);
                             longPressTimerRef.current = null;
@@ -579,11 +590,11 @@ export const Timeline = () => {
                           left: `${leftPx}px`,
                           width: `${widthPx}px`,
                         }}
-                        className={`absolute top-1 bottom-1 rounded-md border text-xs px-2 py-1 flex items-center justify-between cursor-move overflow-hidden transition-shadow ${getClipBgColor(
+                        className={`absolute top-1 bottom-1 rounded-[6px] border text-xs px-2 py-1 flex items-center justify-between cursor-move overflow-hidden transition-all ${getClipBgColor(
                           clip
-                        )} ${isSelected ? 'ring-2 ring-violet-400 shadow-lg shadow-violet-500/30' : ''}`}
+                        )} ${isSelected ? 'ring-2 ring-[#3B82F6] border-[#3B82F6]' : ''}`}
                       >
-                        {/* Left Trim Handle (large 24px+ touch handle on mobile) */}
+                        {/* Left Trim Handle */}
                         <div
                           data-handle="left"
                           onMouseDown={(e) => {
@@ -612,26 +623,26 @@ export const Timeline = () => {
                           }}
                           className={`absolute left-0 top-0 bottom-0 ${
                             isMobile ? 'w-7' : 'w-2.5 hover:w-3.5'
-                          } flex items-center justify-center bg-violet-500/30 hover:bg-violet-400 cursor-ew-resize transition-all z-20 touch-none`}
+                          } flex items-center justify-center bg-black/10 dark:bg-white/10 hover:bg-[#3B82F6]/30 cursor-ew-resize transition-all z-20 touch-none`}
                           title="Drag to trim start"
                         >
-                          <div className="w-1 h-5 bg-white/90 rounded-full shadow-sm" />
+                          <div className="w-1 h-5 bg-[#737373] dark:bg-[#D4D4D4] rounded-full" />
                         </div>
 
                         {/* Clip Content Label */}
                         <div className="flex items-center gap-1.5 min-w-0 pr-2 pointer-events-none mx-auto">
-                          <span className="font-semibold truncate text-[11px] drop-shadow-sm">
+                          <span className="font-normal truncate text-[11px]">
                             {clip.type === 'sticker' && clip.stickerEmoji ? `${clip.stickerEmoji} ` : ''}
                             {clip.name}
                           </span>
                           {clip.freezeFrame && (
-                            <span className="text-[9px] bg-sky-950/90 text-sky-300 px-1 py-0.5 rounded border border-sky-400/50 shrink-0">
+                            <span className="text-[9px] bg-white/70 dark:bg-black/50 px-1 py-0.5 rounded-[4px] border border-[#CBD5E1] dark:border-[#334155] shrink-0">
                               ❄️
                             </span>
                           )}
                         </div>
 
-                        {/* Right Trim Handle (large 24px+ touch handle on mobile) */}
+                        {/* Right Trim Handle */}
                         <div
                           data-handle="right"
                           onMouseDown={(e) => {
@@ -660,11 +671,80 @@ export const Timeline = () => {
                           }}
                           className={`absolute right-0 top-0 bottom-0 ${
                             isMobile ? 'w-7' : 'w-2.5 hover:w-3.5'
-                          } flex items-center justify-center bg-violet-500/30 hover:bg-violet-400 cursor-ew-resize transition-all z-20 touch-none`}
+                          } flex items-center justify-center bg-black/10 dark:bg-white/10 hover:bg-[#3B82F6]/30 cursor-ew-resize transition-all z-20 touch-none`}
                           title="Drag to trim end"
                         >
-                          <div className="w-1 h-5 bg-white/90 rounded-full shadow-sm" />
+                          <div className="w-1 h-5 bg-[#737373] dark:bg-[#D4D4D4] rounded-full" />
                         </div>
+
+                        {/* Keyframe Markers on Selected Clip */}
+                        {isSelected && clip.keyframes && clip.keyframes.length > 0 && (() => {
+                          const kfMap = new Map();
+                          clip.keyframes.forEach((kf) => {
+                            const timeKey = Math.round(kf.time * 100) / 100;
+                            if (!kfMap.has(timeKey)) {
+                              kfMap.set(timeKey, []);
+                            }
+                            kfMap.get(timeKey).push(kf);
+                          });
+                          return Array.from(kfMap.entries()).map(([timeKey, kfs]) => {
+                            const time = Number(timeKey);
+                            const kfLeftPx = time * zoom;
+                            const isKfSelected = kfs.some((k) => k.id === selectedKeyframeId);
+                            return (
+                              <div
+                                key={`kf-marker-${clip.id}-${timeKey}`}
+                                data-handle="keyframe"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedKeyframeId(kfs[0].id);
+                                  seek(clip.start + time);
+                                }}
+                                onMouseDown={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedKeyframeId(kfs[0].id);
+                                  seek(clip.start + time);
+                                  setDraggingKeyframe({
+                                    clipId: clip.id,
+                                    keyframeIds: kfs.map((k) => k.id),
+                                    startX: e.clientX,
+                                    origTime: time,
+                                    clipDuration: clip.duration,
+                                    clipStart: clip.start,
+                                  });
+                                }}
+                                onTouchStart={(e) => {
+                                  e.stopPropagation();
+                                  if (e.touches.length > 0) {
+                                    setSelectedKeyframeId(kfs[0].id);
+                                    seek(clip.start + time);
+                                    setDraggingKeyframe({
+                                      clipId: clip.id,
+                                      keyframeIds: kfs.map((k) => k.id),
+                                      startX: e.touches[0].clientX,
+                                      origTime: time,
+                                      clipDuration: clip.duration,
+                                      clipStart: clip.start,
+                                    });
+                                  }
+                                }}
+                                style={{
+                                  left: `${kfLeftPx}px`,
+                                }}
+                                className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 z-30 cursor-ew-resize flex items-center justify-center p-2 touch-none group/kf"
+                                title={`Keyframe @ ${time.toFixed(2)}s: ${kfs.map((k) => k.property).join(', ')}`}
+                              >
+                                <div
+                                  className={`w-2.5 h-2.5 rotate-45 transition-transform ${
+                                    isKfSelected
+                                      ? 'bg-[#3B82F6] ring-2 ring-white dark:ring-[#111111] scale-125 shadow-sm'
+                                      : 'bg-white dark:bg-[#1A1A1A] border border-[#737373] dark:border-[#A1A1A1] group-hover/kf:scale-125'
+                                  }`}
+                                />
+                              </div>
+                            );
+                          });
+                        })()}
                       </div>
                     );
                   })}

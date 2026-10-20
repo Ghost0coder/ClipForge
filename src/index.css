@@ -2,14 +2,111 @@
 
 @layer base {
   :root {
-    --bg-dark: #0b0c10;
-    --panel-dark: #12141c;
-    --panel-surface: #181b26;
-    --panel-hover: #222636;
-    --border-dark: #272b3c;
-    --border-subtle: #1f2331;
-    --accent-violet: #8b5cf6;
-    --accent-cyan: #06b6d4;
+    /* Clean Minimalist Theme - Light Mode (Default) */
+    --bg-app: #FAFAFA;
+    --bg-panel: #FFFFFF;
+    --bg-surface: #F5F5F5;
+    --bg-surface-hover: #EEEEEE;
+    --border-subtle: #E5E5E5;
+    --border-strong: #D4D4D4;
+    --text-primary: #171717;
+    --text-secondary: #737373;
+    --text-muted: #A3A3A3;
+    
+    /* Primary Action Button: solid charcoal */
+    --btn-primary-bg: #171717;
+    --btn-primary-text: #FFFFFF;
+    --btn-primary-hover: #262626;
+
+    /* Secondary Button: white with 1px border */
+    --btn-secondary-bg: #FFFFFF;
+    --btn-secondary-border: #E5E5E5;
+    --btn-secondary-text: #171717;
+    --btn-secondary-hover: #F5F5F5;
+
+    /* Single Soft Accent: #3B82F6 (used sparingly for playhead, selection outline, active tab) */
+    --accent-blue: #3B82F6;
+    --accent-blue-hover: #2563EB;
+    --accent-blue-subtle: #EFF6FF;
+
+    /* Video Canvas Surround (Neutral to preserve color accuracy) */
+    --preview-bg: #F0F0F0;
+
+    /* Timeline Clips - Flat Muted Solid Colors (NO GRADIENTS) */
+    --clip-video-bg: #DCE7F5;
+    --clip-video-text: #1E293B;
+    --clip-video-border: #CBD5E1;
+
+    --clip-audio-bg: #E2ECE5;
+    --clip-audio-text: #23422E;
+    --clip-audio-border: #C6DBD0;
+
+    --clip-text-bg: #F5EFE6;
+    --clip-text-text: #4F3B20;
+    --clip-text-border: #E5DAC9;
+
+    --clip-sticker-bg: #FCEAEB;
+    --clip-sticker-text: #5E282D;
+    --clip-sticker-border: #F3CDD1;
+
+    /* Scrollbar */
+    --scrollbar-track: #FAFAFA;
+    --scrollbar-thumb: #D4D4D4;
+    --scrollbar-thumb-hover: #A3A3A3;
+  }
+
+  .dark {
+    /* Clean Minimalist Theme - Dark Mode */
+    --bg-app: #111111;
+    --bg-panel: #1A1A1A;
+    --bg-surface: #222222;
+    --bg-surface-hover: #282828;
+    --border-subtle: #2A2A2A;
+    --border-strong: #383838;
+    --text-primary: #EDEDED;
+    --text-secondary: #A1A1A1;
+    --text-muted: #737373;
+
+    /* Primary Action Button: #EDEDED with #171717 text */
+    --btn-primary-bg: #EDEDED;
+    --btn-primary-text: #171717;
+    --btn-primary-hover: #FFFFFF;
+
+    /* Secondary Button: #1A1A1A with #2A2A2A border */
+    --btn-secondary-bg: #1A1A1A;
+    --btn-secondary-border: #2A2A2A;
+    --btn-secondary-text: #EDEDED;
+    --btn-secondary-hover: #242424;
+
+    /* Single Soft Accent remains identical */
+    --accent-blue: #3B82F6;
+    --accent-blue-hover: #60A5FA;
+    --accent-blue-subtle: #1E293B;
+
+    /* Video Canvas Surround (Neutral dark) */
+    --preview-bg: #0D0D0D;
+
+    /* Timeline Clips - Flat Muted Solid Colors (NO GRADIENTS) */
+    --clip-video-bg: #1E293B;
+    --clip-video-text: #E2E8F0;
+    --clip-video-border: #334155;
+
+    --clip-audio-bg: #1C3024;
+    --clip-audio-text: #D1E7D9;
+    --clip-audio-border: #2A4B38;
+
+    --clip-text-bg: #362F24;
+    --clip-text-text: #EAD9C2;
+    --clip-text-border: #4D4233;
+
+    --clip-sticker-bg: #382327;
+    --clip-sticker-text: #F2CBD2;
+    --clip-sticker-border: #543138;
+
+    /* Scrollbar */
+    --scrollbar-track: #111111;
+    --scrollbar-thumb: #333333;
+    --scrollbar-thumb-hover: #444444;
   }
 
   html, body, #root {
@@ -26,16 +123,23 @@
   }
 
   body {
-    background-color: var(--bg-dark);
-    color: #e2e4ec;
-    font-family: 'Outfit', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    background-color: var(--bg-app);
+    color: var(--text-primary);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-weight: 400;
+    line-height: 1.5;
     user-select: none;
     -webkit-user-select: none;
     -webkit-touch-callout: none;
+    transition: background-color 0.15s ease, color 0.15s ease;
+  }
+
+  button, input, select, textarea {
+    font-family: inherit;
   }
 }
 
-/* Safe area padding utilities for notched devices */
+/* Safe area padding utilities for notched mobile devices */
 .pb-safe {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
@@ -49,44 +153,44 @@
   padding-right: env(safe-area-inset-right, 0px);
 }
 
-/* Custom sleek dark scrollbars */
+/* Clean minimal scrollbars */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #0e1017;
+  background: var(--scrollbar-track);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #2a2f42;
+  background: var(--scrollbar-thumb);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #3b425d;
+  background: var(--scrollbar-thumb-hover);
 }
 
-/* Checkerboard transparent pattern for video background */
+/* Neutral checkerboard transparent pattern for video canvas */
 .canvas-checkerboard {
-  background-color: #12141c;
+  background-color: var(--preview-bg);
   background-image: 
-    linear-gradient(45deg, #181b26 25%, transparent 25%),
-    linear-gradient(-45deg, #181b26 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, #181b26 75%),
-    linear-gradient(-45deg, transparent 75%, #181b26 75%);
+    linear-gradient(45deg, rgba(128, 128, 128, 0.08) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(128, 128, 128, 0.08) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgba(128, 128, 128, 0.08) 75%),
+    linear-gradient(-45deg, transparent 75%, rgba(128, 128, 128, 0.08) 75%);
   background-size: 16px 16px;
   background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
 }
 
-/* Custom range inputs */
+/* Inspector & Timeline Sliders: thin track, small round handle in accent color */
 input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
-  background: #262b3d;
-  border-radius: 4px;
-  height: 4px;
+  background: var(--border-subtle);
+  border-radius: 9999px;
+  height: 3px;
   outline: none;
 }
 
@@ -96,23 +200,23 @@ input[type="range"]::-webkit-slider-thumb {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: #8b5cf6;
+  background: var(--accent-blue);
   cursor: pointer;
-  box-shadow: 0 0 6px rgba(139, 92, 246, 0.5);
-  transition: transform 0.1s ease, background 0.1s ease;
+  box-shadow: none;
+  border: 1.5px solid var(--bg-panel);
+  transition: transform 0.1s ease;
 }
 
 input[type="range"]::-webkit-slider-thumb:hover {
-  transform: scale(1.2);
-  background: #a78bfa;
+  transform: scale(1.15);
 }
 
 /* Timeline ruler ticks */
 .timeline-tick-major {
-  border-left: 1px solid #4a5270;
-  height: 10px;
+  border-left: 1px solid var(--border-strong);
+  height: 8px;
 }
 .timeline-tick-minor {
-  border-left: 1px solid #2a2f42;
-  height: 5px;
+  border-left: 1px solid var(--border-subtle);
+  height: 4px;
 }

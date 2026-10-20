@@ -1,9 +1,21 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <meta name="theme-color" content="#0b0c10" />
+    <meta name="theme-color" content="#FAFAFA" />
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem('clipforge_theme');
+          if (t === 'dark') {
+            document.documentElement.classList.add('dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+          }
+        } catch (e) {}
+      })();
+    </script>
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -24,11 +36,79 @@
     <script>
       // Suppress benign WebSocket/HMR disconnect errors in cloud container preview environments
       (function () {
+        // 1. Mock WebSocket for vite-hmr to prevent failed connection attempts in iframe environments
+        try {
+          var RealWebSocket = window.WebSocket;
+          if (typeof RealWebSocket === 'function') {
+            window.WebSocket = function (url, protocols) {
+              if (
+                protocols === 'vite-hmr' ||
+                (typeof url === 'string' && (url.indexOf('token=') !== -1 || url.indexOf('24678') !== -1))
+              ) {
+                var target = new EventTarget();
+                var mockWs = {
+                  url: url,
+                  readyState: 1, // OPEN
+                  send: function () {},
+                  close: function () {},
+                  addEventListener: function (type, listener, options) {
+                    target.addEventListener(type, listener, options);
+                  },
+                  removeEventListener: function (type, listener, options) {
+                    target.removeEventListener(type, listener, options);
+                  },
+                  dispatchEvent: function (event) {
+                    return target.dispatchEvent(event);
+                  },
+                };
+                setTimeout(function () {
+                  try {
+                    var ev = new Event('open');
+                    target.dispatchEvent(ev);
+                    if (typeof mockWs.onopen === 'function') mockWs.onopen(ev);
+                  } catch (e) {}
+                }, 0);
+                return mockWs;
+              }
+              return new RealWebSocket(url, protocols);
+            };
+            window.WebSocket.prototype = RealWebSocket.prototype;
+            window.WebSocket.CONNECTING = 0;
+            window.WebSocket.OPEN = 1;
+            window.WebSocket.CLOSING = 2;
+            window.WebSocket.CLOSED = 3;
+          }
+        } catch (wsErr) {}
+
+        // 2. Filter console.error and console.warn for Vite WebSocket messages
+        try {
+          var origConsoleError = console.error;
+          console.error = function () {
+            var args = Array.prototype.slice.call(arguments);
+            var msg = args.map(function (a) { return a ? (a.message || String(a)) : ''; }).join(' ');
+            if (msg.indexOf('WebSocket') !== -1 || msg.indexOf('[vite]') !== -1 || msg.indexOf('vite-hmr') !== -1) {
+              return;
+            }
+            origConsoleError.apply(console, args);
+          };
+          var origConsoleWarn = console.warn;
+          console.warn = function () {
+            var args = Array.prototype.slice.call(arguments);
+            var msg = args.map(function (a) { return a ? (a.message || String(a)) : ''; }).join(' ');
+            if (msg.indexOf('WebSocket') !== -1 || msg.indexOf('[vite]') !== -1 || msg.indexOf('vite-hmr') !== -1) {
+              return;
+            }
+            origConsoleWarn.apply(console, args);
+          };
+        } catch (cErr) {}
+
+        // 3. Error event listener & window.onerror
         function isViteWsError(val) {
           if (!val) return false;
           var str = typeof val === 'string' ? val : (val.message || String(val));
           return str.indexOf('WebSocket') !== -1 || str.indexOf('vite') !== -1 || str.indexOf('ws:') !== -1 || str.indexOf('wss:') !== -1;
         }
+
         window.addEventListener('error', function (event) {
           if (event && (isViteWsError(event.message) || isViteWsError(event.error))) {
             if (typeof event.preventDefault === 'function') event.preventDefault();
@@ -36,6 +116,7 @@
             return true;
           }
         }, true);
+
         window.addEventListener('unhandledrejection', function (event) {
           if (event && (isViteWsError(event.reason) || (event.reason && isViteWsError(event.reason.message)))) {
             if (typeof event.preventDefault === 'function') event.preventDefault();

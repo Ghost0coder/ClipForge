@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { Analytics } from '@vercel/analytics/react';
 import { TopBar } from './components/TopBar';
 import { LeftPanel } from './components/LeftPanel';
 import { CenterPreview } from './components/CenterPreview';
@@ -87,12 +88,12 @@ export default function App() {
   // MOBILE LAYOUT (< 768px or devMobilePreview)
   if (isMobile) {
     return (
-      <div className="flex flex-col h-[100dvh] max-h-[100dvh] w-screen overflow-hidden bg-[#0b0c10] text-[#e2e4ec] select-none touch-manipulation overscroll-none">
+      <div className="flex flex-col h-[100dvh] max-h-[100dvh] w-screen overflow-hidden bg-[#FAFAFA] dark:bg-[#111111] text-[#171717] dark:text-[#EDEDED] select-none touch-manipulation overscroll-none font-sans">
         {/* Compact Top Bar */}
         <TopBar />
 
         {/* Preview Player (fixed ~35-40% of screen height) */}
-        <div className="h-[38%] min-h-[190px] max-h-[42%] flex flex-col overflow-hidden shrink-0 relative bg-black/40">
+        <div className="h-[38%] min-h-[190px] max-h-[42%] flex flex-col overflow-hidden shrink-0 relative bg-[#F0F0F0] dark:bg-[#0D0D0D]">
           <CenterPreview />
         </div>
 
@@ -109,9 +110,9 @@ export default function App() {
           <div className="fixed inset-0 z-50 flex flex-col justify-end">
             <div
               onClick={() => setMobileToolDrawerOpen(false)}
-              className="absolute inset-0 bg-black/60 backdrop-blur-[2px] transition-opacity"
+              className="absolute inset-0 bg-black/40 transition-opacity"
             />
-            <div className="relative z-10 w-full h-[52vh] max-h-[80vh] bg-[#141620] border-t border-[#272b3c] rounded-t-3xl shadow-2xl flex flex-col overflow-hidden pb-safe">
+            <div className="relative z-10 w-full h-[52vh] max-h-[80vh] bg-white dark:bg-[#1A1A1A] border-t border-[#E5E5E5] dark:border-[#2A2A2A] rounded-t-xl shadow-lg flex flex-col overflow-hidden pb-safe">
               <LeftPanel mobileDrawer onClose={() => setMobileToolDrawerOpen(false)} />
             </div>
           </div>
@@ -125,9 +126,9 @@ export default function App() {
                 deselectAll();
                 setMobileInspectorOpen(false);
               }}
-              className="absolute inset-0 bg-black/60 backdrop-blur-[2px] transition-opacity"
+              className="absolute inset-0 bg-black/40 transition-opacity"
             />
-            <div className="relative z-10 w-full h-[52vh] max-h-[80vh] bg-[#141620] border-t border-violet-500/40 rounded-t-3xl shadow-2xl flex flex-col overflow-hidden pb-safe">
+            <div className="relative z-10 w-full h-[52vh] max-h-[80vh] bg-white dark:bg-[#1A1A1A] border-t border-[#E5E5E5] dark:border-[#2A2A2A] rounded-t-xl shadow-lg flex flex-col overflow-hidden pb-safe">
               <RightInspector
                 mobileDrawer
                 onClose={() => {
@@ -146,13 +147,16 @@ export default function App() {
 
         {/* Global Error & Notification Toasts */}
         <ToastContainer />
+
+        {/* Vercel Web Analytics */}
+        <Analytics />
       </div>
     );
   }
 
   // DESKTOP & TABLET LAYOUT (>= 1024px desktop unchanged)
   return (
-    <div className="flex flex-col h-[100dvh] h-screen max-h-[100dvh] w-screen overflow-hidden bg-[#0b0c10] text-[#e2e4ec]">
+    <div className="flex flex-col h-[100dvh] h-screen max-h-[100dvh] w-screen overflow-hidden bg-[#FAFAFA] dark:bg-[#111111] text-[#171717] dark:text-[#EDEDED] font-sans">
       {/* Top Bar */}
       <TopBar />
 
@@ -163,7 +167,7 @@ export default function App() {
         {/* Left panel collapse toggle tab */}
         <button
           onClick={toggleLeftPanel}
-          className="absolute left-0 top-1/2 -translate-y-1/2 z-40 bg-[#1e2233] hover:bg-violet-600 text-slate-400 hover:text-white p-1 rounded-r-md border-r border-y border-[#2a2f46] text-[10px] shadow-md transition-all cursor-pointer opacity-70 hover:opacity-100"
+          className="absolute left-0 top-1/2 -translate-y-1/2 z-40 bg-white dark:bg-[#1A1A1A] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] text-[#737373] dark:text-[#A1A1A1] hover:text-[#171717] dark:hover:text-[#EDEDED] p-1 rounded-r-[6px] border-r border-y border-[#E5E5E5] dark:border-[#2A2A2A] text-[10px] shadow-sm transition-all cursor-pointer opacity-80 hover:opacity-100"
           style={{ left: leftPanelCollapsed ? '0px' : undefined }}
           title={leftPanelCollapsed ? 'Expand Tools Panel' : 'Collapse Tools Panel'}
         >
@@ -175,7 +179,7 @@ export default function App() {
         {/* Right inspector collapse toggle tab */}
         <button
           onClick={toggleRightInspector}
-          className="absolute right-0 top-1/2 -translate-y-1/2 z-40 bg-[#1e2233] hover:bg-violet-600 text-slate-400 hover:text-white p-1 rounded-l-md border-l border-y border-[#2a2f46] text-[10px] shadow-md transition-all cursor-pointer opacity-70 hover:opacity-100"
+          className="absolute right-0 top-1/2 -translate-y-1/2 z-40 bg-white dark:bg-[#1A1A1A] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] text-[#737373] dark:text-[#A1A1A1] hover:text-[#171717] dark:hover:text-[#EDEDED] p-1 rounded-l-[6px] border-l border-y border-[#E5E5E5] dark:border-[#2A2A2A] text-[10px] shadow-sm transition-all cursor-pointer opacity-80 hover:opacity-100"
           style={{ right: rightInspectorCollapsed ? '0px' : undefined }}
           title={rightInspectorCollapsed ? 'Expand Inspector' : 'Collapse Inspector'}
         >
@@ -195,6 +199,9 @@ export default function App() {
 
       {/* Global Error & Notification Toasts */}
       <ToastContainer />
+
+      {/* Vercel Web Analytics */}
+      <Analytics />
     </div>
   );
 }

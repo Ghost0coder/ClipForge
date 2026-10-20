@@ -1,13 +1,11 @@
- function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   X,
   FolderOpen,
   Plus,
   Trash2,
-
   Download,
   Upload,
-
   Clock,
   Check,
 } from 'lucide-react';
@@ -18,7 +16,6 @@ import {
   exportProjectToJson,
   parseProjectJson,
 } from '../utils/storage';
-
 import { createDefaultProject } from '../utils/sampleData';
 
 export const ProjectManagerModal = () => {
@@ -66,7 +63,7 @@ export const ProjectManagerModal = () => {
   };
 
   const handleImportJson = async (e) => {
-    const file = _optionalChain([e, 'access', _ => _.target, 'access', _2 => _2.files, 'optionalAccess', _3 => _3[0]]);
+    const file = e?.target?.files?.[0];
     if (!file) return;
     try {
       const parsed = await parseProjectJson(file);
@@ -87,37 +84,37 @@ export const ProjectManagerModal = () => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 select-none">
-      <div className="bg-[#141620] border border-[#272b3c] rounded-2xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[80vh] overflow-hidden">
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4 select-none">
+      <div className="bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] w-full max-w-2xl shadow-lg flex flex-col max-h-[80vh] overflow-hidden text-[#171717] dark:text-[#EDEDED] transition-colors">
         {/* Header */}
-        <div className="h-12 px-5 border-b border-[#222638] flex items-center justify-between bg-[#10121a] shrink-0">
+        <div className="h-11 px-4 border-b border-[#E5E5E5] dark:border-[#2A2A2A] flex items-center justify-between bg-[#FAFAFA] dark:bg-[#151515] shrink-0">
           <div className="flex items-center gap-2">
-            <FolderOpen className="w-4 h-4 text-violet-400" />
-            <h2 className="text-sm font-bold text-white">Project Manager</h2>
+            <FolderOpen className="w-4 h-4 text-[#737373] dark:text-[#A1A1A1]" strokeWidth={1.5} />
+            <h2 className="text-xs font-medium text-[#171717] dark:text-[#EDEDED]">Project Manager</h2>
           </div>
           <button
             onClick={() => setProjectManagerOpen(false)}
-            className="p-1 text-slate-400 hover:text-white rounded transition-colors"
+            className="p-1 text-[#737373] dark:text-[#A1A1A1] hover:text-[#171717] dark:hover:text-[#EDEDED] rounded-[4px] transition-colors cursor-pointer"
           >
-            <X className="w-4 h-4" />
+            <X className="w-4 h-4" strokeWidth={1.5} />
           </button>
         </div>
 
         {/* Toolbar */}
-        <div className="px-5 py-3 border-b border-[#222638] bg-[#12141c] flex items-center justify-between shrink-0 gap-2">
+        <div className="px-4 py-2.5 border-b border-[#E5E5E5] dark:border-[#2A2A2A] bg-white dark:bg-[#1A1A1A] flex items-center justify-between shrink-0 gap-2">
           <button
             onClick={handleCreateNewProject}
-            className="px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-violet-600 to-cyan-500 hover:opacity-95 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm shadow-violet-500/20"
+            className="px-3 py-1.5 rounded-[6px] bg-[#171717] hover:bg-[#262626] text-white dark:bg-[#EDEDED] dark:hover:bg-white dark:text-[#171717] text-xs font-normal flex items-center gap-1.5 transition-colors cursor-pointer"
           >
-            <Plus className="w-3.5 h-3.5" /> New Project
+            <Plus className="w-3.5 h-3.5" strokeWidth={1.5} /> New Project
           </button>
 
           <div className="flex items-center gap-2">
             <button
               onClick={() => exportProjectToJson(activeProject)}
-              className="px-3 py-1.5 rounded-lg bg-[#1a1d29] hover:bg-[#232738] border border-[#272b3c] text-xs font-medium text-slate-300 flex items-center gap-1.5"
+              className="px-2.5 py-1.5 rounded-[6px] bg-white dark:bg-[#1A1A1A] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] border border-[#E5E5E5] dark:border-[#2A2A2A] text-xs font-normal text-[#171717] dark:text-[#EDEDED] flex items-center gap-1.5 transition-colors cursor-pointer"
             >
-              <Download className="w-3.5 h-3.5 text-cyan-400" /> Save JSON
+              <Download className="w-3.5 h-3.5 text-[#737373] dark:text-[#A1A1A1]" strokeWidth={1.5} /> Save JSON
             </button>
 
             <input
@@ -128,37 +125,37 @@ export const ProjectManagerModal = () => {
               className="hidden"
             />
             <button
-              onClick={() => _optionalChain([fileInputRef, 'access', _4 => _4.current, 'optionalAccess', _5 => _5.click, 'call', _6 => _6()])}
-              className="px-3 py-1.5 rounded-lg bg-[#1a1d29] hover:bg-[#232738] border border-[#272b3c] text-xs font-medium text-slate-300 flex items-center gap-1.5"
+              onClick={() => fileInputRef.current?.click()}
+              className="px-2.5 py-1.5 rounded-[6px] bg-white dark:bg-[#1A1A1A] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] border border-[#E5E5E5] dark:border-[#2A2A2A] text-xs font-normal text-[#171717] dark:text-[#EDEDED] flex items-center gap-1.5 transition-colors cursor-pointer"
             >
-              <Upload className="w-3.5 h-3.5 text-violet-400" /> Load JSON
+              <Upload className="w-3.5 h-3.5 text-[#737373] dark:text-[#A1A1A1]" strokeWidth={1.5} /> Load JSON
             </button>
           </div>
         </div>
 
         {/* Projects Grid */}
-        <div className="flex-1 overflow-y-auto p-5">
+        <div className="flex-1 overflow-y-auto p-4 bg-[#FAFAFA] dark:bg-[#111111]">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {/* Active project card */}
-            <div className="p-3.5 rounded-xl border-2 border-violet-500/60 bg-[#1a1733] flex flex-col justify-between gap-3 shadow-lg shadow-violet-500/10">
+            <div className="p-3.5 rounded-[6px] border border-[#3B82F6] bg-white dark:bg-[#1A1A1A] flex flex-col justify-between gap-3 shadow-xs">
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-1">
-                    <Check className="w-3 h-3" /> Currently Active
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[10px] font-normal text-[#3B82F6] flex items-center gap-1">
+                    <Check className="w-3 h-3" strokeWidth={1.5} /> Currently Active
                   </span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-900/60 text-violet-200 border border-violet-500/30">
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-[4px] bg-[#F5F5F5] dark:bg-[#222222] text-[#737373] dark:text-[#A1A1A1] border border-[#E5E5E5] dark:border-[#2A2A2A]">
                     {activeProject.aspectRatio}
                   </span>
                 </div>
-                <h3 className="text-sm font-bold text-white truncate">{activeProject.name}</h3>
-                <p className="text-[11px] text-slate-400 mt-1 flex items-center gap-1.5">
-                  <Clock className="w-3 h-3" /> {activeProject.duration.toFixed(1)}s duration
+                <h3 className="text-xs font-medium text-[#171717] dark:text-[#EDEDED] truncate">{activeProject.name}</h3>
+                <p className="text-[11px] text-[#737373] dark:text-[#A1A1A1] mt-1 flex items-center gap-1.5 tabular-nums">
+                  <Clock className="w-3 h-3" strokeWidth={1.5} /> {activeProject.duration.toFixed(1)}s duration
                 </p>
               </div>
 
-              <div className="pt-2 border-t border-violet-500/30 flex items-center justify-between text-[11px] text-slate-400">
-                <span>{activeProject.tracks.length} tracks</span>
-                <span className="text-slate-300">Autosaved</span>
+              <div className="pt-2 border-t border-[#E5E5E5] dark:border-[#2A2A2A] flex items-center justify-between text-[11px] text-[#737373] dark:text-[#A1A1A1]">
+                <span className="tabular-nums">{activeProject.tracks.length} tracks</span>
+                <span className="text-[#A3A3A3] dark:text-[#737373]">Autosaved</span>
               </div>
             </div>
 
@@ -169,33 +166,33 @@ export const ProjectManagerModal = () => {
                 <div
                   key={proj.id}
                   onClick={() => handleOpenProject(proj)}
-                  className="p-3.5 rounded-xl border border-[#272b3c] hover:border-slate-500 bg-[#181b26] flex flex-col justify-between gap-3 cursor-pointer group transition-all"
+                  className="p-3.5 rounded-[6px] border border-[#E5E5E5] dark:border-[#2A2A2A] hover:border-[#171717] dark:hover:border-[#EDEDED] bg-white dark:bg-[#1A1A1A] flex flex-col justify-between gap-3 cursor-pointer group transition-colors shadow-xs"
                 >
                   <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-[10px] font-mono text-slate-500">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-[10px] text-[#737373] dark:text-[#A1A1A1] tabular-nums">
                         {formatDate(proj.updatedAt)}
                       </span>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#222738] text-slate-300">
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-[4px] bg-[#F5F5F5] dark:bg-[#222222] text-[#737373] dark:text-[#A1A1A1] border border-[#E5E5E5] dark:border-[#2A2A2A]">
                         {proj.aspectRatio}
                       </span>
                     </div>
-                    <h3 className="text-sm font-bold text-slate-200 group-hover:text-white truncate">
+                    <h3 className="text-xs font-medium text-[#171717] dark:text-[#EDEDED] group-hover:text-[#3B82F6] truncate">
                       {proj.name}
                     </h3>
-                    <p className="text-[11px] text-slate-400 mt-1 flex items-center gap-1.5">
-                      <Clock className="w-3 h-3" /> {proj.duration.toFixed(1)}s duration
+                    <p className="text-[11px] text-[#737373] dark:text-[#A1A1A1] mt-1 flex items-center gap-1.5 tabular-nums">
+                      <Clock className="w-3 h-3" strokeWidth={1.5} /> {proj.duration.toFixed(1)}s duration
                     </p>
                   </div>
 
-                  <div className="pt-2 border-t border-[#232738] flex items-center justify-between text-[11px] text-slate-500">
-                    <span>{proj.tracks.length} tracks</span>
+                  <div className="pt-2 border-t border-[#E5E5E5] dark:border-[#2A2A2A] flex items-center justify-between text-[11px] text-[#737373] dark:text-[#A1A1A1]">
+                    <span className="tabular-nums">{proj.tracks.length} tracks</span>
                     <button
                       onClick={(e) => handleDeleteProject(proj.id, e)}
-                      className="p-1 hover:text-rose-400 text-slate-500 transition-colors"
+                      className="p-1 hover:text-red-500 text-[#737373] dark:text-[#A1A1A1] transition-colors cursor-pointer"
                       title="Delete Project"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <Trash2 className="w-3.5 h-3.5" strokeWidth={1.5} />
                     </button>
                   </div>
                 </div>

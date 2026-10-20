@@ -13,14 +13,6 @@ import {
 } from 'lucide-react';
 import { useEditorStore } from '../store/editorStore';
 
-
-
-
-
-
-
-
-
 export const MobileBottomToolbar = () => {
   const {
     activeLeftTab,
@@ -30,24 +22,23 @@ export const MobileBottomToolbar = () => {
   } = useEditorStore();
 
   const toolTabs = [
-    { id: 'media', label: 'Media', icon: Video, color: 'text-violet-400' },
-    { id: 'audio', label: 'Audio', icon: Music, color: 'text-cyan-400' },
-    { id: 'text', label: 'Text', icon: Type, color: 'text-pink-400' },
-    { id: 'stickers', label: 'Stickers', icon: Smile, color: 'text-amber-400' },
-    { id: 'effects', label: 'Effects', icon: Zap, color: 'text-indigo-400' },
-    { id: 'filters', label: 'Filters', icon: Palette, color: 'text-emerald-400' },
-    { id: 'transitions', label: 'Transitions', icon: Shuffle, color: 'text-purple-400' },
-    { id: 'captions', label: 'Captions', icon: Subtitles, color: 'text-blue-400' },
-    { id: 'templates', label: 'Templates', icon: LayoutTemplate, color: 'text-teal-400' },
-    { id: 'ai', label: 'AI Studio', icon: Sparkles, color: 'text-rose-400', highlight: true },
+    { id: 'media', label: 'Media', icon: Video },
+    { id: 'audio', label: 'Audio', icon: Music },
+    { id: 'text', label: 'Text', icon: Type },
+    { id: 'stickers', label: 'Stickers', icon: Smile },
+    { id: 'effects', label: 'Effects', icon: Zap },
+    { id: 'filters', label: 'Filters', icon: Palette },
+    { id: 'transitions', label: 'Transitions', icon: Shuffle },
+    { id: 'captions', label: 'Captions', icon: Subtitles },
+    { id: 'templates', label: 'Templates', icon: LayoutTemplate },
+    { id: 'ai', label: 'AI Studio', icon: Sparkles },
   ];
 
   const handleTabClick = (tabId) => {
     if (activeLeftTab === tabId && isMobileToolDrawerOpen) {
-      // Toggle close if already open
       setMobileToolDrawerOpen(false);
     } else {
-      setActiveLeftTab(tabId );
+      setActiveLeftTab(tabId);
       setMobileToolDrawerOpen(true);
     }
   };
@@ -55,10 +46,10 @@ export const MobileBottomToolbar = () => {
   return (
     <nav
       aria-label="Mobile Editing Tools"
-      className="bg-[#12141c] border-t border-[#222638] flex items-center overflow-x-auto px-2 py-1 shrink-0 z-30 pb-safe select-none no-scrollbar touch-pan-x"
+      className="bg-white dark:bg-[#1A1A1A] border-t border-[#E5E5E5] dark:border-[#2A2A2A] flex items-center overflow-x-auto px-2 py-1 shrink-0 z-30 pb-safe select-none no-scrollbar touch-pan-x transition-colors"
       style={{ minHeight: '56px' }}
     >
-      <div className="flex items-center gap-1.5 min-w-full">
+      <div className="flex items-center gap-1 min-w-full">
         {toolTabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeLeftTab === tab.id && isMobileToolDrawerOpen;
@@ -67,21 +58,24 @@ export const MobileBottomToolbar = () => {
             <button
               key={tab.id}
               onClick={() => handleTabClick(tab.id)}
-              className={`flex flex-col items-center justify-center min-w-[56px] min-h-[48px] px-2.5 py-1.5 rounded-xl transition-all cursor-pointer ${
+              className={`flex flex-col items-center justify-center min-w-[54px] min-h-[44px] px-2 py-1 rounded-[6px] transition-colors cursor-pointer relative ${
                 isActive
-                  ? 'bg-violet-950/70 border border-violet-500/50 text-white shadow-md'
-                  : 'text-slate-400 hover:text-slate-200 active:bg-[#1a1d2b]'
-              } ${tab.highlight ? 'relative' : ''}`}
+                  ? 'bg-[#F5F5F5] dark:bg-[#262626] text-[#171717] dark:text-[#EDEDED]'
+                  : 'text-[#737373] dark:text-[#A1A1A1] hover:text-[#171717] dark:hover:text-[#EDEDED] hover:bg-[#FAFAFA] dark:hover:bg-[#222222]'
+              }`}
             >
-              <div className="relative">
-                <Icon className={`w-5 h-5 mb-0.5 ${isActive ? 'text-violet-300 scale-110' : tab.color} transition-transform`} />
-                {tab.highlight && !isActive && (
-                  <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
-                )}
-              </div>
-              <span className="text-[10px] font-medium tracking-tight whitespace-nowrap">
+              <Icon
+                className={`w-4 h-4 mb-0.5 ${
+                  isActive ? 'text-[#3B82F6]' : 'text-[#737373] dark:text-[#A1A1A1]'
+                }`}
+                strokeWidth={1.5}
+              />
+              <span className="text-[10px] font-normal tracking-normal whitespace-nowrap">
                 {tab.label}
               </span>
+              {isActive && (
+                <span className="absolute bottom-0.5 left-3 right-3 h-[1.5px] bg-[#3B82F6] rounded-full" />
+              )}
             </button>
           );
         })}

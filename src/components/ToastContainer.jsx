@@ -1,6 +1,6 @@
 import React from 'react';
 import { AlertCircle, CheckCircle2, AlertTriangle, Info, X } from 'lucide-react';
-import { useToastStore, } from '../store/toastStore';
+import { useToastStore } from '../store/toastStore';
 
 export const ToastContainer = () => {
   const { toasts, removeToast } = useToastStore();
@@ -10,7 +10,7 @@ export const ToastContainer = () => {
   return (
     <div
       aria-live="polite"
-      className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-2.5 max-w-sm w-full pointer-events-none select-none"
+      className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-2 max-w-sm w-full pointer-events-none select-none"
     >
       {toasts.map((toast) => {
         const isError = toast.type === 'error';
@@ -21,48 +21,30 @@ export const ToastContainer = () => {
           <div
             key={toast.id}
             role="alert"
-            className={`pointer-events-auto flex items-start gap-3 p-3.5 rounded-xl border shadow-2xl backdrop-blur-md transition-all duration-200 transform translate-y-0 opacity-100 ${
-              isError
-                ? 'bg-[#181014]/95 border-red-500/40 text-red-100 shadow-red-950/40'
-                : isSuccess
-                ? 'bg-[#0e1a14]/95 border-emerald-500/40 text-emerald-100 shadow-emerald-950/40'
-                : isWarning
-                ? 'bg-[#1b170f]/95 border-amber-500/40 text-amber-100 shadow-amber-950/40'
-                : 'bg-[#101422]/95 border-cyan-500/40 text-cyan-100 shadow-cyan-950/40'
-            }`}
+            className="pointer-events-auto flex items-start gap-2.5 p-3 rounded-[6px] border border-[#E5E5E5] dark:border-[#2A2A2A] bg-white dark:bg-[#1A1A1A] text-[#171717] dark:text-[#EDEDED] shadow-md transition-all duration-200"
           >
             <div className="shrink-0 mt-0.5">
-              {isError && <AlertCircle className="w-5 h-5 text-red-400" />}
-              {isSuccess && <CheckCircle2 className="w-5 h-5 text-emerald-400" />}
-              {isWarning && <AlertTriangle className="w-5 h-5 text-amber-400" />}
-              {!isError && !isSuccess && !isWarning && <Info className="w-5 h-5 text-cyan-400" />}
+              {isError && <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400" strokeWidth={1.5} />}
+              {isSuccess && <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" strokeWidth={1.5} />}
+              {isWarning && <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400" strokeWidth={1.5} />}
+              {!isError && !isSuccess && !isWarning && <Info className="w-4 h-4 text-[#3B82F6]" strokeWidth={1.5} />}
             </div>
 
             <div className="flex-1 min-w-0 pr-1">
               {toast.title && (
-                <h4
-                  className={`text-xs font-bold mb-0.5 ${
-                    isError
-                      ? 'text-red-300'
-                      : isSuccess
-                      ? 'text-emerald-300'
-                      : isWarning
-                      ? 'text-amber-300'
-                      : 'text-cyan-300'
-                  }`}
-                >
+                <h4 className="text-xs font-medium mb-0.5 text-[#171717] dark:text-[#EDEDED]">
                   {toast.title}
                 </h4>
               )}
-              <p className="text-xs leading-relaxed text-slate-200 break-words">{toast.message}</p>
+              <p className="text-xs leading-relaxed text-[#737373] dark:text-[#A1A1A1] break-words">{toast.message}</p>
             </div>
 
             <button
               onClick={() => removeToast(toast.id)}
-              className="shrink-0 text-slate-400 hover:text-white transition-colors p-0.5 rounded cursor-pointer"
+              className="shrink-0 text-[#737373] dark:text-[#A1A1A1] hover:text-[#171717] dark:hover:text-[#EDEDED] transition-colors p-0.5 rounded cursor-pointer"
               title="Dismiss notification"
             >
-              <X className="w-4 h-4" />
+              <X className="w-3.5 h-3.5" strokeWidth={1.5} />
             </button>
           </div>
         );

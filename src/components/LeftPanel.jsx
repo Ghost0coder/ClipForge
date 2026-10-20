@@ -896,7 +896,7 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
   ];
 
   const tabContent = (
-    <div className="flex-1 overflow-y-auto p-3 space-y-4 min-h-0">
+    <div className="flex-1 overflow-y-auto p-3 space-y-4 min-h-0 bg-white dark:bg-[#1A1A1A] text-[#171717] dark:text-[#EDEDED] transition-colors">
       {/* TAB: MEDIA */}
           {activeLeftTab === 'media' && (
             <div className="space-y-4">
@@ -912,47 +912,47 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
                 />
                 <button
                   onClick={() => _optionalChain([fileInputRef, 'access', _3 => _3.current, 'optionalAccess', _4 => _4.click, 'call', _5 => _5()])}
-                  className="w-full py-4 px-3 rounded-xl border-2 border-dashed border-[#2f354c] hover:border-violet-500/70 bg-[#181b26] hover:bg-[#1c202e] flex flex-col items-center justify-center gap-1.5 transition-all text-slate-300 group cursor-pointer"
+                  className="w-full py-4 px-3 rounded-[6px] border border-dashed border-[#D4D4D4] dark:border-[#383838] hover:border-[#171717] dark:hover:border-[#EDEDED] bg-[#FAFAFA] dark:bg-[#151515] hover:bg-[#F5F5F5] dark:hover:bg-[#1E1E1E] flex flex-col items-center justify-center gap-1.5 transition-colors text-[#171717] dark:text-[#EDEDED] group cursor-pointer"
                 >
-                  <Upload className="w-5 h-5 text-violet-400 group-hover:scale-110 transition-transform" />
-                  <span className="text-xs font-semibold">Upload Videos, Audio, Images</span>
-                  <span className="text-[10px] text-slate-500">Drag & drop files or click to browse</span>
+                  <Upload className="w-4 h-4 text-[#737373] dark:text-[#A1A1A1]" strokeWidth={1.5} />
+                  <span className="text-xs font-normal">Upload Videos, Audio, Images</span>
+                  <span className="text-[10px] text-[#A3A3A3] dark:text-[#737373]">Drag & drop files or click to browse</span>
                 </button>
 
                 {/* Built-in Sample Video Loader Button */}
                 <button
                   onClick={handleLoadSampleVideo}
                   disabled={isLoadingSample}
-                  className="w-full mt-2 py-2 px-3 rounded-xl border border-violet-500/30 hover:border-violet-400 bg-gradient-to-r from-violet-950/70 to-indigo-950/80 hover:from-violet-900/80 hover:to-indigo-900/90 text-violet-200 flex items-center justify-center gap-2 text-xs font-semibold transition-all shadow-sm group cursor-pointer disabled:opacity-50"
+                  className="w-full mt-2 py-2 px-3 rounded-[6px] border border-[#E5E5E5] dark:border-[#2A2A2A] bg-white dark:bg-[#1A1A1A] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] text-[#171717] dark:text-[#EDEDED] flex items-center justify-center gap-2 text-xs font-normal transition-colors cursor-pointer disabled:opacity-40"
                   title="Load short built-in test video into timeline"
                 >
                   {isLoadingSample ? (
-                    <Loader2 className="w-4 h-4 animate-spin text-violet-400" />
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-[#737373] dark:text-[#A1A1A1]" />
                   ) : (
-                    <Film className="w-4 h-4 text-violet-400 group-hover:scale-110 transition-transform" />
+                    <Film className="w-3.5 h-3.5 text-[#737373] dark:text-[#A1A1A1]" strokeWidth={1.5} />
                   )}
-                  <span>{isLoadingSample ? 'Generating Test Clip...' : 'Load sample video'}</span>
+                  <span>{isLoadingSample ? 'Generating Test Clip...' : 'Load Sample Video'}</span>
                 </button>
               </div>
 
               {/* Voiceover Recorder */}
-              <div className="bg-[#181b26] border border-[#232738] rounded-xl p-3">
+              <div className="bg-[#FAFAFA] dark:bg-[#151515] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] p-3">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
-                    <Mic className="w-3.5 h-3.5 text-rose-400" /> Voiceover Recorder
+                  <span className="text-xs font-normal text-[#171717] dark:text-[#EDEDED] flex items-center gap-1.5">
+                    <Mic className="w-3.5 h-3.5 text-[#737373] dark:text-[#A1A1A1]" strokeWidth={1.5} /> Voiceover Recorder
                   </span>
                   {isRecording && (
-                    <span className="text-xs font-mono text-rose-400 font-bold animate-pulse">
+                    <span className="text-xs tabular-nums text-red-500 font-normal">
                       {recordSeconds}s REC
                     </span>
                   )}
                 </div>
                 <button
                   onClick={handleToggleRecord}
-                  className={`w-full py-2 px-3 rounded-lg flex items-center justify-center gap-2 text-xs font-bold transition-all ${
+                  className={`w-full py-2 px-3 rounded-[6px] flex items-center justify-center gap-2 text-xs font-normal transition-colors cursor-pointer ${
                     isRecording
-                      ? 'bg-rose-600 hover:bg-rose-700 text-white animate-pulse'
-                      : 'bg-[#222738] hover:bg-[#2c3247] text-slate-200'
+                      ? 'bg-red-600 text-white'
+                      : 'bg-[#171717] hover:bg-[#262626] text-white dark:bg-[#EDEDED] dark:hover:bg-white dark:text-[#171717]'
                   }`}
                 >
                   {isRecording ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4 text-rose-400" />}
@@ -962,30 +962,30 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
 
               {/* Color Backdrops */}
               <div>
-                <span className="text-xs font-bold text-slate-400 mb-2 block uppercase tracking-wider">
+                <span className="text-xs font-normal text-[#737373] dark:text-[#A1A1A1] mb-2 block">
                   Color Backdrops
                 </span>
                 <div className="grid grid-cols-4 gap-2">
                   {[
                     { name: 'Obsidian', color: '#090a0f' },
                     { name: 'Deep Violet', color: '#1e103c' },
-                    { name: 'Neon Cyan', color: '#042f2e' },
-                    { name: 'Sunset Amber', color: '#451a03' },
-                    { name: 'Crimson Night', color: '#3f0713' },
-                    { name: 'Emerald Forest', color: '#022c22' },
+                    { name: 'Muted Cyan', color: '#042f2e' },
+                    { name: 'Warm Amber', color: '#451a03' },
+                    { name: 'Crimson', color: '#3f0713' },
+                    { name: 'Forest', color: '#022c22' },
                     { name: 'Pure White', color: '#ffffff' },
                     { name: 'Studio Grey', color: '#1e293b' },
                   ].map((c) => (
                     <button
                       key={c.name}
                       onClick={() => handleAddColorClip(c.color, c.name)}
-                      className="group relative flex flex-col items-center gap-1 p-1.5 rounded-lg bg-[#181b26] border border-[#232738] hover:border-violet-500/50 transition-all text-left"
+                      className="group relative flex flex-col items-center gap-1 p-1.5 rounded-[6px] bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] hover:border-[#171717] dark:hover:border-[#EDEDED] transition-colors text-left cursor-pointer"
                     >
                       <div
-                        className="w-full h-10 rounded border border-white/10"
+                        className="w-full h-10 rounded-[4px] border border-[#E5E5E5] dark:border-[#2A2A2A]"
                         style={{ backgroundColor: c.color }}
                       />
-                      <span className="text-[10px] text-slate-300 truncate w-full text-center">
+                      <span className="text-[10px] text-[#737373] dark:text-[#A1A1A1] truncate w-full text-center">
                         {c.name}
                       </span>
                     </button>
@@ -1001,45 +1001,45 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
               {/* Beat sync feature button */}
               <button
                 onClick={handleAutoBeatDetect}
-                className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-violet-900/60 to-cyan-900/60 border border-cyan-500/30 hover:border-cyan-400 flex items-center justify-between text-xs text-white font-semibold transition-all shadow-sm"
+                className="w-full py-2 px-3 rounded-[6px] border border-[#E5E5E5] dark:border-[#2A2A2A] bg-white dark:bg-[#1A1A1A] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] flex items-center justify-between text-xs text-[#171717] dark:text-[#EDEDED] font-normal transition-colors cursor-pointer"
               >
                 <div className="flex items-center gap-2">
-                  <Bookmark className="w-4 h-4 text-cyan-400" />
+                  <Bookmark className="w-3.5 h-3.5 text-[#737373] dark:text-[#A1A1A1]" strokeWidth={1.5} />
                   <span>Auto Beat-Sync Markers</span>
                 </div>
-                <span className="text-[10px] text-cyan-300 bg-cyan-950 px-2 py-0.5 rounded border border-cyan-500/40">
+                <span className="text-[10px] text-[#737373] dark:text-[#A1A1A1] bg-[#F5F5F5] dark:bg-[#222222] px-1.5 py-0.5 rounded-[4px] border border-[#E5E5E5] dark:border-[#2A2A2A] tabular-nums font-normal">
                   128 BPM
                 </span>
               </button>
 
               {/* Music Library */}
               <div>
-                <span className="text-xs font-bold text-slate-400 mb-2 block uppercase tracking-wider">
+                <span className="text-xs font-normal text-[#737373] dark:text-[#A1A1A1] mb-2 block">
                   Royalty-Free Music
                 </span>
                 <div className="space-y-1.5">
                   {MUSIC_PRESETS.map((m) => (
                     <div
                       key={m.id}
-                      className="flex items-center justify-between p-2 rounded-lg bg-[#181b26] border border-[#232738] hover:border-violet-500/40 transition-colors"
+                      className="flex items-center justify-between p-2 rounded-[6px] bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] transition-colors"
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-8 h-8 rounded-lg bg-violet-950 flex items-center justify-center shrink-0 border border-violet-500/20">
-                          <Music className="w-4 h-4 text-violet-400" />
+                        <div className="w-7 h-7 rounded-[4px] bg-[#F5F5F5] dark:bg-[#222222] flex items-center justify-center shrink-0 border border-[#E5E5E5] dark:border-[#2A2A2A]">
+                          <Music className="w-3.5 h-3.5 text-[#737373] dark:text-[#A1A1A1]" strokeWidth={1.5} />
                         </div>
                         <div className="min-w-0">
-                          <p className="text-xs font-semibold text-slate-200 truncate">{m.name}</p>
-                          <p className="text-[10px] text-slate-400">
+                          <p className="text-xs font-normal text-[#171717] dark:text-[#EDEDED] truncate">{m.name}</p>
+                          <p className="text-[10px] text-[#A3A3A3] dark:text-[#737373] tabular-nums">
                             {m.genre} · {m.bpm} BPM
                           </p>
                         </div>
                       </div>
                       <button
                         onClick={() => handleAddMusic(m)}
-                        className="p-1.5 rounded-md bg-[#222738] hover:bg-violet-600 text-slate-300 hover:text-white transition-colors shrink-0"
+                        className="p-1 rounded-[4px] border border-[#E5E5E5] dark:border-[#2A2A2A] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] text-[#171717] dark:text-[#EDEDED] transition-colors shrink-0 cursor-pointer"
                         title="Add to timeline"
                       >
-                        <Plus className="w-3.5 h-3.5" />
+                        <Plus className="w-3.5 h-3.5" strokeWidth={1.5} />
                       </button>
                     </div>
                   ))}
@@ -1048,7 +1048,7 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
 
               {/* Sound Effects */}
               <div>
-                <span className="text-xs font-bold text-slate-400 mb-2 block uppercase tracking-wider">
+                <span className="text-xs font-normal text-[#737373] dark:text-[#A1A1A1] mb-2 block">
                   Sound Effects (SFX)
                 </span>
                 <div className="grid grid-cols-2 gap-2">
@@ -1056,13 +1056,13 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
                     <button
                       key={sfx.id}
                       onClick={() => handleAddSFX(sfx)}
-                      className="flex items-center justify-between p-2 rounded-lg bg-[#181b26] border border-[#232738] hover:border-cyan-500/40 transition-colors text-left group"
+                      className="flex items-center justify-between p-2 rounded-[6px] bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] hover:border-[#D4D4D4] dark:hover:border-[#383838] transition-colors text-left group cursor-pointer"
                     >
                       <div className="min-w-0">
-                        <p className="text-xs font-medium text-slate-200 truncate">{sfx.name}</p>
-                        <p className="text-[9px] text-slate-500">{sfx.category}</p>
+                        <p className="text-xs font-normal text-[#171717] dark:text-[#EDEDED] truncate">{sfx.name}</p>
+                        <p className="text-[9px] text-[#A3A3A3] dark:text-[#737373]">{sfx.category}</p>
                       </div>
-                      <Volume2 className="w-3.5 h-3.5 text-slate-500 group-hover:text-cyan-400 shrink-0" />
+                      <Volume2 className="w-3.5 h-3.5 text-[#737373] dark:text-[#A1A1A1] group-hover:text-[#171717] dark:group-hover:text-[#EDEDED] shrink-0" strokeWidth={1.5} />
                     </button>
                   ))}
                 </div>
@@ -1075,30 +1075,30 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
             <div className="space-y-4">
               <button
                 onClick={() => handleAddText('default')}
-                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md shadow-violet-600/20"
+                className="w-full py-2 rounded-[6px] bg-[#171717] hover:bg-[#262626] text-white dark:bg-[#EDEDED] dark:hover:bg-white dark:text-[#171717] font-medium text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer"
               >
-                <Plus className="w-4 h-4" /> Add Standard Title
+                <Plus className="w-3.5 h-3.5" strokeWidth={1.5} /> Add Standard Title
               </button>
 
               {/* Text Templates */}
               <div>
-                <span className="text-xs font-bold text-slate-400 mb-2 block uppercase tracking-wider">
+                <span className="text-xs font-normal text-[#737373] dark:text-[#A1A1A1] mb-2 block">
                   Stylized Typography
                 </span>
                 <div className="grid grid-cols-2 gap-2">
                   {[
-                    { label: 'Cyber Neon', style: 'neon', preview: 'NEON', bg: 'bg-rose-950/40 text-rose-400' },
-                    { label: 'Comic Impact', style: 'comic', preview: 'BOOM!', bg: 'bg-amber-950/40 text-amber-300' },
-                    { label: 'Vibrant Wave', style: 'gradient', preview: 'WAVE', bg: 'bg-violet-950/40 text-cyan-300' },
-                    { label: 'Subtitle Box', style: 'sub', preview: 'Sub Box', bg: 'bg-slate-900 text-white' },
+                    { label: 'Minimal Clean', style: 'default', preview: 'CLEAN', bg: 'bg-[#F5F5F5] dark:bg-[#222222] text-[#171717] dark:text-[#EDEDED]' },
+                    { label: 'Headline Heavy', style: 'comic', preview: 'HEADLINE', bg: 'bg-[#F5F5F5] dark:bg-[#222222] text-[#171717] dark:text-[#EDEDED]' },
+                    { label: 'Soft Accent', style: 'gradient', preview: 'ACCENT', bg: 'bg-blue-50 dark:bg-blue-950/40 text-[#3B82F6]' },
+                    { label: 'Subtitle Box', style: 'sub', preview: 'SUBTITLE', bg: 'bg-[#171717] text-white dark:bg-[#EDEDED] dark:text-[#171717]' },
                   ].map((t) => (
                     <button
                       key={t.label}
                       onClick={() => handleAddText(t.style)}
-                      className={`h-16 rounded-xl border border-[#232738] hover:border-violet-500/60 p-2 flex flex-col justify-between items-center transition-all ${t.bg}`}
+                      className={`h-14 rounded-[6px] border border-[#E5E5E5] dark:border-[#2A2A2A] hover:border-[#3B82F6] p-2 flex flex-col justify-between items-center transition-colors cursor-pointer ${t.bg}`}
                     >
-                      <span className="font-bold text-sm tracking-wide">{t.preview}</span>
-                      <span className="text-[10px] text-slate-400 font-normal">{t.label}</span>
+                      <span className="font-medium text-xs tracking-wide">{t.preview}</span>
+                      <span className="text-[10px] opacity-75 font-normal">{t.label}</span>
                     </button>
                   ))}
                 </div>
@@ -1106,7 +1106,7 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
 
               {/* 50+ Google Fonts Quick Add */}
               <div>
-                <span className="text-xs font-bold text-slate-400 mb-2 block uppercase tracking-wider">
+                <span className="text-xs font-normal text-[#737373] dark:text-[#A1A1A1] mb-2 block">
                   Google Fonts Collection
                 </span>
                 <div className="space-y-1 max-h-56 overflow-y-auto pr-1">
@@ -1114,15 +1114,15 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
                     <button
                       key={font.name}
                       onClick={() => handleAddText('default', font.name)}
-                      className="w-full flex items-center justify-between p-2 rounded-lg bg-[#181b26] border border-[#232738] hover:border-violet-500/40 text-left transition-colors"
+                      className="w-full flex items-center justify-between p-2 rounded-[6px] bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] text-left transition-colors cursor-pointer"
                     >
                       <span
-                        className="text-sm text-slate-200 truncate"
+                        className="text-xs text-[#171717] dark:text-[#EDEDED] truncate font-normal"
                         style={{ fontFamily: font.name }}
                       >
                         {font.name}
                       </span>
-                      <span className="text-[10px] text-slate-500">{font.category}</span>
+                      <span className="text-[10px] text-[#A3A3A3] dark:text-[#737373]">{font.category}</span>
                     </button>
                   ))}
                 </div>
@@ -1135,7 +1135,7 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
             <div className="space-y-3">
               {STICKER_PACKS.map((pack) => (
                 <div key={pack.category}>
-                  <span className="text-xs font-bold text-slate-400 mb-1.5 block uppercase tracking-wider">
+                  <span className="text-xs font-normal text-[#737373] dark:text-[#A1A1A1] mb-1.5 block">
                     {pack.category}
                   </span>
                   <div className="grid grid-cols-4 gap-1.5">
@@ -1143,7 +1143,7 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
                       <button
                         key={emoji}
                         onClick={() => handleAddSticker(emoji)}
-                        className="h-11 rounded-lg bg-[#181b26] border border-[#232738] hover:border-violet-500/50 hover:bg-[#202433] flex items-center justify-center text-xl transition-all cursor-pointer"
+                        className="h-10 rounded-[6px] bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] flex items-center justify-center text-lg transition-colors cursor-pointer"
                         title={`Add ${emoji}`}
                       >
                         {emoji}
@@ -1158,10 +1158,10 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
           {/* TAB: EFFECTS */}
           {activeLeftTab === 'effects' && (
             <div className="space-y-2">
-              <span className="text-xs font-bold text-slate-400 block uppercase tracking-wider">
+              <span className="text-xs font-normal text-[#737373] dark:text-[#A1A1A1] block">
                 Visual Effects ({EFFECTS_LIST.length})
               </span>
-              <p className="text-[11px] text-slate-500 mb-2">
+              <p className="text-[11px] text-[#A3A3A3] dark:text-[#737373] mb-2 font-normal">
                 Select a clip on the timeline to apply effect
               </p>
               <div className="grid grid-cols-2 gap-2">
@@ -1169,13 +1169,13 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
                   <button
                     key={fx.id}
                     onClick={() => handleApplyEffect(fx.id)}
-                    className="p-2.5 rounded-xl bg-[#181b26] border border-[#232738] hover:border-violet-500/60 hover:bg-[#1e2233] text-left transition-all group"
+                    className="p-2.5 rounded-[6px] bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] hover:border-[#3B82F6] text-left transition-colors group cursor-pointer"
                   >
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs font-bold text-slate-200">{fx.name}</span>
-                      <Zap className="w-3.5 h-3.5 text-violet-400 group-hover:scale-125 transition-transform" />
+                      <span className="text-xs font-medium text-[#171717] dark:text-[#EDEDED]">{fx.name}</span>
+                      <Zap className="w-3.5 h-3.5 text-[#737373] dark:text-[#A1A1A1] group-hover:text-[#171717] dark:group-hover:text-[#EDEDED] transition-colors" strokeWidth={1.5} />
                     </div>
-                    <p className="text-[10px] text-slate-500 line-clamp-2">{fx.description}</p>
+                    <p className="text-[10px] text-[#737373] dark:text-[#A1A1A1] line-clamp-2">{fx.description}</p>
                   </button>
                 ))}
               </div>
@@ -1185,10 +1185,10 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
           {/* TAB: TRANSITIONS */}
           {activeLeftTab === 'transitions' && (
             <div className="space-y-2">
-              <span className="text-xs font-bold text-slate-400 block uppercase tracking-wider">
+              <span className="text-xs font-normal text-[#737373] dark:text-[#A1A1A1] block">
                 Transitions
               </span>
-              <p className="text-[11px] text-slate-500 mb-2">
+              <p className="text-[11px] text-[#A3A3A3] dark:text-[#737373] mb-2 font-normal">
                 Select a clip to apply an in-transition cut
               </p>
               <div className="grid grid-cols-2 gap-2">
@@ -1196,11 +1196,11 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
                   <button
                     key={t.id}
                     onClick={() => handleApplyTransition(t.id)}
-                    className="p-3 rounded-xl bg-[#181b26] border border-[#232738] hover:border-cyan-500/60 hover:bg-[#1e2233] flex flex-col items-center justify-center gap-1.5 transition-all text-center"
+                    className="p-3 rounded-[6px] bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] hover:border-[#3B82F6] flex flex-col items-center justify-center gap-1.5 transition-colors text-center cursor-pointer"
                   >
-                    <Shuffle className="w-4 h-4 text-cyan-400" />
-                    <span className="text-xs font-bold text-slate-200">{t.name}</span>
-                    <span className="text-[10px] text-slate-500">{t.duration}s</span>
+                    <Shuffle className="w-4 h-4 text-[#737373] dark:text-[#A1A1A1]" strokeWidth={1.5} />
+                    <span className="text-xs font-medium text-[#171717] dark:text-[#EDEDED]">{t.name}</span>
+                    <span className="text-[10px] text-[#737373] dark:text-[#A1A1A1] tabular-nums">{t.duration}s</span>
                   </button>
                 ))}
               </div>
@@ -1210,10 +1210,10 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
           {/* TAB: FILTERS */}
           {activeLeftTab === 'filters' && (
             <div className="space-y-2">
-              <span className="text-xs font-bold text-slate-400 block uppercase tracking-wider">
+              <span className="text-xs font-normal text-[#737373] dark:text-[#A1A1A1] block">
                 Color Grading Filters ({FILTERS_LIST.length})
               </span>
-              <p className="text-[11px] text-slate-500 mb-2">
+              <p className="text-[11px] text-[#A3A3A3] dark:text-[#737373] mb-2 font-normal">
                 Select a clip on timeline to apply filter
               </p>
               <div className="grid grid-cols-2 gap-2">
@@ -1221,16 +1221,16 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
                   <button
                     key={f.id}
                     onClick={() => handleApplyFilter(f.id)}
-                    className="p-2 rounded-xl bg-[#181b26] border border-[#232738] hover:border-violet-500/60 transition-all text-left group"
+                    className="p-2 rounded-[6px] bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] hover:border-[#3B82F6] transition-colors text-left group cursor-pointer"
                   >
                     <div
-                      className="w-full h-12 rounded-lg mb-1.5 border border-white/10 flex items-center justify-center text-xs font-bold text-white shadow-inner"
+                      className="w-full h-10 rounded-[4px] mb-1.5 border border-[#E5E5E5] dark:border-[#2A2A2A] flex items-center justify-center text-[11px] font-medium text-white shadow-xs"
                       style={{ backgroundColor: f.previewColor }}
                     >
                       {f.name}
                     </div>
-                    <p className="text-[11px] font-semibold text-slate-300 truncate">{f.name}</p>
-                    <p className="text-[9px] text-slate-500">{f.category}</p>
+                    <p className="text-[11px] font-medium text-[#171717] dark:text-[#EDEDED] truncate">{f.name}</p>
+                    <p className="text-[9px] text-[#737373] dark:text-[#A1A1A1]">{f.category}</p>
                   </button>
                 ))}
               </div>
@@ -1240,19 +1240,19 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
           {/* TAB: CAPTIONS */}
           {activeLeftTab === 'captions' && (
             <div className="space-y-4">
-              <div className="bg-[#181b26] border border-[#232738] rounded-xl p-3 space-y-2.5">
-                <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
-                  <Subtitles className="w-3.5 h-3.5 text-cyan-400" /> Auto Captions Generator
+              <div className="bg-[#FAFAFA] dark:bg-[#151515] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] p-3 space-y-2.5">
+                <span className="text-xs font-medium text-[#171717] dark:text-[#EDEDED] flex items-center gap-1.5">
+                  <Subtitles className="w-3.5 h-3.5 text-[#737373] dark:text-[#A1A1A1]" strokeWidth={1.5} /> Auto Captions Generator
                 </span>
-                <p className="text-[11px] text-slate-400">
-                  Generate rhythmic, viral TikTok/Reels karaoke subtitles from script text or audio.
+                <p className="text-[11px] text-[#737373] dark:text-[#A1A1A1]">
+                  Generate rhythmic, viral TikTok/Reels subtitles from script text or audio.
                 </p>
 
                 <textarea
                   value={captionInput}
                   onChange={(e) => setCaptionInput(e.target.value)}
                   placeholder="Paste script speech or lyrics here..."
-                  className="w-full h-20 bg-[#12141c] border border-[#2a2f42] rounded-lg p-2 text-xs text-slate-200 outline-none resize-none focus:border-cyan-500/50"
+                  className="w-full h-20 bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] p-2 text-xs text-[#171717] dark:text-[#EDEDED] outline-none resize-none focus:border-[#171717] dark:focus:border-[#EDEDED]"
                 />
 
                 <button
@@ -1322,7 +1322,7 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
                       setTimeout(() => setAiMessage(''), 4000);
                     }
                   }}
-                  className="w-full py-2 rounded-lg bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold text-xs transition-all shadow-sm"
+                  className="w-full py-2 rounded-[6px] bg-[#171717] hover:bg-[#262626] text-white dark:bg-[#EDEDED] dark:hover:bg-white dark:text-[#171717] font-medium text-xs transition-colors cursor-pointer"
                 >
                   Create Auto-Captions
                 </button>
@@ -1332,7 +1332,6 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
               <div className="flex gap-2">
                 <button
                   onClick={() => {
-                    // Export all text clips as SRT format
                     let srtContent = '';
                     let idx = 1;
                     project.tracks.forEach((t) => {
@@ -1359,9 +1358,9 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
                     a.download = `${project.name}_subtitles.srt`;
                     a.click();
                   }}
-                  className="flex-1 py-2 px-2 rounded-lg bg-[#181b26] border border-[#232738] hover:border-slate-500 text-[11px] text-slate-300 flex items-center justify-center gap-1.5"
+                  className="flex-1 py-2 px-2 rounded-[6px] border border-[#E5E5E5] dark:border-[#2A2A2A] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] text-xs text-[#171717] dark:text-[#EDEDED] flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
                 >
-                  <Download className="w-3.5 h-3.5 text-cyan-400" /> Export .SRT
+                  <Download className="w-3.5 h-3.5 text-[#737373] dark:text-[#A1A1A1]" strokeWidth={1.5} /> Export .SRT
                 </button>
               </div>
             </div>
@@ -1370,24 +1369,24 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
           {/* TAB: TEMPLATES */}
           {activeLeftTab === 'templates' && (
             <div className="space-y-3">
-              <span className="text-xs font-bold text-slate-400 block uppercase tracking-wider">
+              <span className="text-xs font-normal text-[#737373] dark:text-[#A1A1A1] block">
                 1-Click Templates
               </span>
               <div className="space-y-2">
                 {TEMPLATES_LIST.map((tpl) => (
                   <div
                     key={tpl.id}
-                    className="p-3 rounded-xl bg-[#181b26] border border-[#232738] hover:border-violet-500/50 transition-all flex flex-col gap-2"
+                    className="p-3 rounded-[6px] bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] hover:border-[#3B82F6] transition-colors flex flex-col gap-2"
                   >
                     <div className="flex items-center justify-between">
-                      <h3 className="text-xs font-bold text-white">{tpl.title}</h3>
-                      <span className="text-[10px] bg-violet-950 text-violet-300 px-1.5 py-0.5 rounded border border-violet-500/30">
+                      <h3 className="text-xs font-medium text-[#171717] dark:text-[#EDEDED]">{tpl.title}</h3>
+                      <span className="text-[10px] text-[#737373] dark:text-[#A1A1A1] bg-[#F5F5F5] dark:bg-[#222222] px-1.5 py-0.5 rounded-[4px] border border-[#E5E5E5] dark:border-[#2A2A2A]">
                         {tpl.aspectRatio}
                       </span>
                     </div>
-                    <p className="text-[11px] text-slate-400">{tpl.description}</p>
-                    <div className="flex items-center justify-between pt-1 border-t border-[#232738]">
-                      <span className="text-[10px] text-slate-500">{tpl.duration}s length</span>
+                    <p className="text-[11px] text-[#737373] dark:text-[#A1A1A1]">{tpl.description}</p>
+                    <div className="flex items-center justify-between pt-1 border-t border-[#E5E5E5] dark:border-[#2A2A2A]">
+                      <span className="text-[10px] text-[#A3A3A3] dark:text-[#737373] tabular-nums">{tpl.duration}s length</span>
                       <button
                         onClick={() => {
                           const newProj = createDefaultProject();
@@ -1395,7 +1394,7 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
                           newProj.aspectRatio = tpl.aspectRatio;
                           setProject(newProj);
                         }}
-                        className="px-2.5 py-1 rounded bg-violet-600 hover:bg-violet-500 text-white text-[11px] font-semibold transition-colors"
+                        className="px-2.5 py-1 rounded-[6px] bg-[#171717] hover:bg-[#262626] text-white dark:bg-[#EDEDED] dark:hover:bg-white dark:text-[#171717] text-[11px] font-medium transition-colors cursor-pointer"
                       >
                         Load Template
                       </button>
@@ -1410,48 +1409,48 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
           {activeLeftTab === 'ai' && (
             <div className="space-y-4">
               {/* Feature 1: Script-to-Video */}
-              <div className="p-3 rounded-xl bg-gradient-to-br from-[#1c1836] to-[#12141c] border border-violet-500/40 space-y-2.5 shadow-md">
+              <div className="p-3 rounded-[6px] bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] space-y-2.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-violet-200 flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-cyan-400" /> AI Script-to-Video
+                  <span className="text-xs font-medium text-[#171717] dark:text-[#EDEDED] flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-[#737373] dark:text-[#A1A1A1]" strokeWidth={1.5} /> AI Script-to-Video
                   </span>
-                  <span className="text-[9px] bg-violet-900/60 text-violet-300 px-1.5 py-0.5 rounded font-mono">
-                    Gemini 3.8
+                  <span className="text-[9px] text-[#737373] dark:text-[#A1A1A1] bg-[#F5F5F5] dark:bg-[#222222] px-1.5 py-0.5 rounded-[4px] border border-[#E5E5E5] dark:border-[#2A2A2A]">
+                    Gemini
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-400">
+                <p className="text-[11px] text-[#737373] dark:text-[#A1A1A1]">
                   Enter a topic or script; AI builds a multi-track sequence with titles, cuts, and filters.
                 </p>
                 <textarea
                   value={aiPrompt}
                   onChange={(e) => setAiPrompt(e.target.value)}
                   placeholder="e.g. 5 Tech Gadgets of 2026 That Feel Like Magic"
-                  className="w-full h-16 bg-[#0f111a] border border-[#2a2f46] rounded-lg p-2 text-xs text-white outline-none resize-none focus:border-violet-500/60"
+                  className="w-full h-16 bg-[#FAFAFA] dark:bg-[#151515] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] p-2 text-xs text-[#171717] dark:text-[#EDEDED] outline-none resize-none focus:border-[#171717] dark:focus:border-[#EDEDED]"
                 />
                 <button
                   onClick={handleGenerateScriptToVideo}
                   disabled={aiLoading}
-                  className="w-full py-2 rounded-lg bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
+                  className="w-full py-2 rounded-[6px] bg-[#171717] hover:bg-[#262626] text-white dark:bg-[#EDEDED] dark:hover:bg-white dark:text-[#171717] font-medium text-xs flex items-center justify-center gap-2 transition-colors disabled:opacity-50 cursor-pointer"
                 >
                   {aiLoading ? (
                     <span className="animate-spin text-sm">✦</span>
                   ) : (
-                    <Sparkles className="w-3.5 h-3.5 text-cyan-300" />
+                    <Sparkles className="w-3.5 h-3.5" strokeWidth={1.5} />
                   )}
                   {aiLoading ? 'Generating Scenes...' : 'Generate Scenes on Timeline'}
                 </button>
               </div>
 
               {/* Feature 2: Studio AI Voiceover */}
-              <div className="p-3 rounded-xl bg-[#181b26] border border-[#232738] space-y-2.5">
+              <div className="p-3 rounded-[6px] bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] space-y-2.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
-                    <Mic className="w-3.5 h-3.5 text-emerald-400" /> Studio Voiceover (TTS)
+                  <span className="text-xs font-medium text-[#171717] dark:text-[#EDEDED] flex items-center gap-1.5">
+                    <Mic className="w-3.5 h-3.5 text-[#737373] dark:text-[#A1A1A1]" strokeWidth={1.5} /> Studio Voiceover (TTS)
                   </span>
                   <select
                     value={aiVoice}
                     onChange={(e) => setAiVoice(e.target.value)}
-                    className="bg-[#12141c] text-[11px] text-slate-300 border border-[#272b3c] rounded px-1.5 py-0.5 outline-none"
+                    className="bg-[#FAFAFA] dark:bg-[#151515] text-[11px] text-[#171717] dark:text-[#EDEDED] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[4px] px-1.5 py-0.5 outline-none"
                   >
                     <option value="Kore">Kore (Clear Female)</option>
                     <option value="Puck">Puck (Energetic Male)</option>
@@ -1464,36 +1463,36 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
                   value={aiTtsText}
                   onChange={(e) => setAiTtsText(e.target.value)}
                   placeholder="Type speech for realistic AI voiceover narration..."
-                  className="w-full h-16 bg-[#12141c] border border-[#2a2f42] rounded-lg p-2 text-xs text-slate-200 outline-none resize-none focus:border-emerald-500/50"
+                  className="w-full h-16 bg-[#FAFAFA] dark:bg-[#151515] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] p-2 text-xs text-[#171717] dark:text-[#EDEDED] outline-none resize-none focus:border-[#171717] dark:focus:border-[#EDEDED]"
                 />
                 <button
                   onClick={handleGenerateTTS}
                   disabled={aiLoading}
-                  className="w-full py-2 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                  className="w-full py-2 rounded-[6px] bg-[#171717] hover:bg-[#262626] text-white dark:bg-[#EDEDED] dark:hover:bg-white dark:text-[#171717] font-medium text-xs flex items-center justify-center gap-2 transition-colors disabled:opacity-50 cursor-pointer"
                 >
-                  <Volume2 className="w-3.5 h-3.5" />
+                  <Volume2 className="w-3.5 h-3.5" strokeWidth={1.5} />
                   Generate AI Voice Clip
                 </button>
               </div>
 
               {/* Feature 3: AI Overlay Asset Generator */}
-              <div className="p-3 rounded-xl bg-[#181b26] border border-[#232738] space-y-2.5">
-                <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
-                  <Flame className="w-3.5 h-3.5 text-cyan-400" /> AI Visual Overlay Generator
+              <div className="p-3 rounded-[6px] bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] space-y-2.5">
+                <span className="text-xs font-medium text-[#171717] dark:text-[#EDEDED] flex items-center gap-1.5">
+                  <Flame className="w-3.5 h-3.5 text-[#737373] dark:text-[#A1A1A1]" strokeWidth={1.5} /> AI Visual Overlay Generator
                 </span>
                 <input
                   type="text"
                   value={aiOverlayPrompt}
                   onChange={(e) => setAiOverlayPrompt(e.target.value)}
-                  placeholder="e.g. Glowing holographic gaming skull badge"
-                  className="w-full bg-[#12141c] border border-[#2a2f42] rounded-lg px-2.5 py-1.5 text-xs text-slate-200 outline-none focus:border-cyan-500/50"
+                  placeholder="e.g. Camera lens flare, border accent badge"
+                  className="w-full bg-[#FAFAFA] dark:bg-[#151515] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] px-2.5 py-1.5 text-xs text-[#171717] dark:text-[#EDEDED] outline-none focus:border-[#171717] dark:focus:border-[#EDEDED]"
                 />
                 <button
                   onClick={handleGenerateOverlay}
                   disabled={aiLoading}
-                  className="w-full py-2 rounded-lg bg-cyan-700 hover:bg-cyan-600 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                  className="w-full py-2 rounded-[6px] bg-[#171717] hover:bg-[#262626] text-white dark:bg-[#EDEDED] dark:hover:bg-white dark:text-[#171717] font-medium text-xs flex items-center justify-center gap-2 transition-colors disabled:opacity-50 cursor-pointer"
                 >
-                  <Sparkles className="w-3.5 h-3.5" />
+                  <Sparkles className="w-3.5 h-3.5" strokeWidth={1.5} />
                   Generate & Insert Graphic
                 </button>
               </div>
@@ -1504,30 +1503,30 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
 
   if (mobileDrawer) {
     return (
-      <div className="w-full flex flex-col h-full overflow-hidden min-h-0 bg-[#141620] select-none">
+      <div className="w-full flex flex-col h-full overflow-hidden min-h-0 bg-white dark:bg-[#1A1A1A] text-[#171717] dark:text-[#EDEDED] select-none transition-colors">
         {/* Mobile Drag Handle */}
-        <div className="w-10 h-1 bg-slate-600/80 rounded-full mx-auto my-2 shrink-0 cursor-grab" />
+        <div className="w-8 h-1 bg-[#D4D4D4] dark:bg-[#383838] rounded-full mx-auto my-2 shrink-0" />
 
         {/* Drawer Header */}
-        <div className="h-11 px-4 border-b border-[#222638] flex items-center justify-between shrink-0 bg-[#12141c]">
+        <div className="h-10 px-4 border-b border-[#E5E5E5] dark:border-[#2A2A2A] flex items-center justify-between shrink-0 bg-white dark:bg-[#1A1A1A]">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-200">
+            <span className="text-xs font-medium text-[#171717] dark:text-[#EDEDED]">
               {_optionalChain([navTabs, 'access', _6 => _6.find, 'call', _7 => _7((t) => t.id === activeLeftTab), 'optionalAccess', _8 => _8.label])}
             </span>
           </div>
           <div className="flex items-center gap-2">
             {aiMessage && (
-              <span className="text-[11px] text-cyan-400 font-medium truncate max-w-[140px]">
+              <span className="text-[11px] text-[#3B82F6] font-normal truncate max-w-[140px]">
                 {aiMessage}
               </span>
             )}
             {onClose && (
               <button
                 onClick={onClose}
-                className="flex items-center justify-center min-w-[36px] min-h-[36px] text-slate-400 hover:text-white rounded-lg transition-colors cursor-pointer"
+                className="flex items-center justify-center min-w-[44px] min-h-[44px] text-[#737373] dark:text-[#A1A1A1] hover:text-[#171717] dark:hover:text-[#EDEDED] rounded-[6px] transition-colors cursor-pointer"
                 title="Close Drawer"
               >
-                <X className="w-4 h-4" />
+                <X className="w-4 h-4" strokeWidth={1.5} />
               </button>
             )}
           </div>
@@ -1540,30 +1539,30 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
   }
 
   return (
-    <aside className="w-80 md:w-96 border-r border-[#222638] bg-[#12141c] flex h-full select-none shrink-0 overflow-hidden">
-      {/* CapCut Vertical Tab Strip */}
-      <nav className="w-16 border-r border-[#222638] bg-[#0e1017] flex flex-col items-center py-2 gap-1.5 shrink-0 z-10 overflow-y-auto">
+    <aside className="w-80 md:w-96 border-r border-[#E5E5E5] dark:border-[#2A2A2A] bg-white dark:bg-[#1A1A1A] flex h-full select-none shrink-0 overflow-hidden transition-colors">
+      {/* Vertical Tab Strip */}
+      <nav className="w-16 border-r border-[#E5E5E5] dark:border-[#2A2A2A] bg-[#FAFAFA] dark:bg-[#111111] flex flex-col items-center py-2 gap-1 shrink-0 z-10 overflow-y-auto transition-colors">
         {navTabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeLeftTab === tab.id;
           return (
             <button
               key={tab.id}
-              onClick={() => setActiveLeftTab(tab.id )}
-              className={`flex flex-col items-center justify-center w-13 py-2 rounded-xl text-[10px] font-medium transition-all group ${
+              onClick={() => setActiveLeftTab(tab.id)}
+              className={`flex flex-col items-center justify-center w-13 py-2 rounded-[6px] text-[10px] font-normal transition-colors relative cursor-pointer ${
                 isActive
-                  ? 'bg-[#1e2233] text-white shadow-sm shadow-violet-500/10 border border-violet-500/40'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-[#151824]'
-              } ${tab.highlight ? 'text-violet-400 hover:text-cyan-300' : ''}`}
+                  ? 'bg-white dark:bg-[#1A1A1A] text-[#171717] dark:text-[#EDEDED] shadow-sm'
+                  : 'text-[#737373] dark:text-[#A1A1A1] hover:text-[#171717] dark:hover:text-[#EDEDED] hover:bg-[#F5F5F5] dark:hover:bg-[#262626]'
+              }`}
             >
+              {isActive && (
+                <div className="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-[#3B82F6] rounded-r" />
+              )}
               <Icon
-                className={`w-4 h-4 mb-1 transition-transform group-hover:scale-110 ${
-                  isActive
-                    ? 'text-violet-400'
-                    : tab.highlight
-                    ? 'text-cyan-400'
-                    : 'text-slate-400'
+                className={`w-4 h-4 mb-1 ${
+                  isActive ? 'text-[#3B82F6]' : 'text-[#737373] dark:text-[#A1A1A1]'
                 }`}
+                strokeWidth={1.5}
               />
               <span className="truncate max-w-[48px]">{tab.label}</span>
             </button>
@@ -1572,14 +1571,14 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
       </nav>
 
       {/* Tab Drawer Content */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden min-h-0 bg-[#141620]">
+      <div className="flex-1 flex flex-col h-full overflow-hidden min-h-0 bg-white dark:bg-[#1A1A1A]">
         {/* Drawer Header */}
-        <div className="h-10 px-4 border-b border-[#222638] flex items-center justify-between shrink-0 bg-[#12141c]">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-300">
+        <div className="h-9 px-4 border-b border-[#E5E5E5] dark:border-[#2A2A2A] flex items-center justify-between shrink-0 bg-white dark:bg-[#1A1A1A]">
+          <h2 className="text-xs font-normal text-[#171717] dark:text-[#EDEDED]">
             {_optionalChain([navTabs, 'access', _9 => _9.find, 'call', _10 => _10((t) => t.id === activeLeftTab), 'optionalAccess', _11 => _11.label])}
           </h2>
           {aiMessage && (
-            <span className="text-[11px] text-cyan-400 font-medium truncate max-w-[180px]">
+            <span className="text-[11px] text-[#3B82F6] font-normal truncate max-w-[180px]">
               {aiMessage}
             </span>
           )}
