@@ -174,6 +174,19 @@ export const useEditorStore = create((set, get) => {
     selectedKeyframeId: null,
     setSelectedKeyframeId: (selectedKeyframeId) => set({ selectedKeyframeId }),
 
+    isDrawingMode: false,
+    setIsDrawingMode: (isDrawingMode) => set({ isDrawingMode }),
+    toggleDrawingMode: () => set((state) => ({ isDrawingMode: !state.isDrawingMode })),
+    snapToBeats: false,
+    toggleSnapToBeats: () => set((state) => ({ snapToBeats: !state.snapToBeats })),
+    eyedropperActive: false,
+    setEyedropperActive: (eyedropperActive) => set({ eyedropperActive }),
+
+    isTemplateModalOpen: false,
+    templateModalData: null,
+    openTemplateModal: (templateModalData) => set({ isTemplateModalOpen: true, templateModalData }),
+    closeTemplateModal: () => set({ isTemplateModalOpen: false, templateModalData: null }),
+
     theme: typeof window !== 'undefined' ? (localStorage.getItem('clipforge_theme') || 'light') : 'light',
     toggleTheme: () => {
       const nextTheme = get().theme === 'dark' ? 'light' : 'dark';
@@ -886,6 +899,101 @@ export const useEditorStore = create((set, get) => {
         return track;
       });
       set({ project: { ...project, tracks: updatedTracks } });
+    },
+
+    extractAudioFromClip: (clipId) => {
+      const { project, selectedClipIds } = get();
+      const targetId = clipId || selectedClipIds[0];
+      if (!targetId) return;
+
+      pushHistory();
+      let targetClip = null;
+      for (const track of project.tracks) {
+        const found = track.clips.find((c) => c.id === targetId);
+        if (found) {
+          targetClip = found;
+          break;
+        }
+      }
+      if (!targetClip) return;
+
+      let audioTrack = project.tracks.find((t) => t.type === 'audio');
+      let updatedTracks = [...project.tracks];
+      if (!audioTrack) {
+        audioTrack = {
+          id: `track_audio_${Date.now()}`,
+          name: 'Audio Track',
+          type: 'audio',
+          locked: false,
+          hidden: false,
+          muted: false,
+          volume: 1,
+          clips: [],
+        };
+        updatedTracks.push(audioTrack);
+      }
+
+      const extractedClipId = `clip_audio_${Date.now()}_extracted`;
+      const newAudioClip = {
+        id: extractedClipId,
+        trackId: audioTrack.id,
+        type: 'audio',
+        name: `${targetClip.name} (Audio)`,
+        mediaUrl: targetClip.mediaUrl,
+        start: targetClip.start,
+        duration: targetClip.duration,
+        sourceStart: targetClip.sourceStart || 0,
+        sourceDuration: targetClip.sourceDuration || targetClip.duration,
+        speed: targetClip.speed || 1,
+        audioProps: {
+          volume: (targetClip.audioProps && targetClip.audioProps.volume != null) ? targetClip.audioProps.volume : 1,
+          fadeIn: 0,
+          fadeOut: 0,
+          mute: false,
+          pitchShift: 0,
+          noiseReduction: false,
+          noiseStrength: 50,
+          equalizer: { bass: 0, mid: 0, treble: 0, preset: 'normal' },
+          voiceChanger: 'none',
+        },
+        keyframes: [],
+      };
+
+      updatedTracks = updatedTracks.map((track) => {
+        if (track.id === audioTrack.id) {
+          return {
+            ...track,
+            clips: [...track.clips, newAudioClip],
+          };
+        }
+        return {
+          ...track,
+          clips: track.clips.map((c) => {
+            if (c.id === targetId) {
+              return {
+                ...c,
+                audioProps: {
+                  ...(c.audioProps || {}),
+                  mute: true,
+                },
+              };
+            }
+            return c;
+          }),
+        };
+      });
+
+      const updatedProject = {
+        ...project,
+        tracks: updatedTracks,
+        duration: recalculateDuration({ ...project, tracks: updatedTracks }),
+        updatedAt: Date.now(),
+      };
+
+      set({ project: updatedProject, selectedClipIds: [extractedClipId] });
+      saveProjectToDB(updatedProject);
+      toastSuccess('Audio extracted to independent audio track', 'Audio Extracted');
+      window.dispatchEvent(new CustomEvent('clipforge:redraw'));
     },
 
     addKeyframe: (clipId, prop, value, easing = 'easeInOut', targetTime = null) => {

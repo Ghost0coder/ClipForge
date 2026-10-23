@@ -207,80 +207,174 @@ function renderClip(
   let transitionTransformX = 0;
   let transitionTransformY = 0;
   let transitionScale = 1;
+  let transitionRotation = 0;
 
   if (clip.transitionIn && clip.transitionIn.duration > 0 && clipElapsed < clip.transitionIn.duration) {
-    const t = clipElapsed / clip.transitionIn.duration;
-    if (clip.transitionIn.type === 'fade' || clip.transitionIn.type === 'dissolve') {
+    const t = Math.max(0, Math.min(1, clipElapsed / clip.transitionIn.duration));
+    const transType = clip.transitionIn.type;
+
+    if (transType === 'fade' || transType === 'dissolve') {
       opacity *= t;
-    } else if (clip.transitionIn.type === 'slide-left') {
+    } else if (transType === 'slide-left') {
       transitionTransformX = canvasW * (1 - t);
-    } else if (clip.transitionIn.type === 'slide-right') {
+    } else if (transType === 'slide-right') {
       transitionTransformX = -canvasW * (1 - t);
-    } else if (clip.transitionIn.type === 'zoom-in') {
+    } else if (transType === 'slide-up') {
+      transitionTransformY = canvasH * (1 - t);
+    } else if (transType === 'slide-down') {
+      transitionTransformY = -canvasH * (1 - t);
+    } else if (transType === 'zoom-in') {
       transitionScale = 0.5 + 0.5 * t;
       opacity *= t;
-    } else if (clip.transitionIn.type === 'glitch') {
-      if (Math.random() > 0.4) {
-        transitionTransformX = (Math.random() - 0.5) * 30;
+    } else if (transType === 'zoom-out') {
+      transitionScale = 1.4 - 0.4 * t;
+      opacity *= t;
+    } else if (transType === 'spin') {
+      transitionRotation = (1 - t) * 360;
+      transitionScale = 0.6 + 0.4 * t;
+      opacity *= t;
+    } else if (transType === 'wipe-left') {
+      ctx.beginPath();
+      ctx.rect(-canvasW / 2, -canvasH / 2, canvasW * t, canvasH);
+      ctx.clip();
+    } else if (transType === 'wipe-right') {
+      ctx.beginPath();
+      ctx.rect(canvasW / 2 - canvasW * t, -canvasH / 2, canvasW * t, canvasH);
+      ctx.clip();
+    } else if (transType === 'glitch') {
+      if (Math.random() > 0.3) {
+        transitionTransformX = (Math.random() - 0.5) * 35;
       }
+      if (Math.random() > 0.6) {
+        opacity *= 0.65;
+      }
+    } else if (transType === 'flash-white' || transType === 'flash') {
+      opacity = Math.min(1, opacity + (1 - t) * 0.4);
     }
   }
 
   if (clip.transitionOut && clip.transitionOut.duration > 0 && clipRemaining < clip.transitionOut.duration) {
-    const t = clipRemaining / clip.transitionOut.duration;
-    if (clip.transitionOut.type === 'fade' || clip.transitionOut.type === 'dissolve') {
+    const t = Math.max(0, Math.min(1, clipRemaining / clip.transitionOut.duration));
+    const transType = clip.transitionOut.type;
+
+    if (transType === 'fade' || transType === 'dissolve') {
       opacity *= t;
-    } else if (clip.transitionOut.type === 'slide-left') {
+    } else if (transType === 'slide-left') {
       transitionTransformX = -canvasW * (1 - t);
-    } else if (clip.transitionOut.type === 'slide-right') {
+    } else if (transType === 'slide-right') {
       transitionTransformX = canvasW * (1 - t);
-    } else if (clip.transitionOut.type === 'zoom-out') {
-      transitionScale = 1 - 0.5 * (1 - t);
+    } else if (transType === 'slide-up') {
+      transitionTransformY = -canvasH * (1 - t);
+    } else if (transType === 'slide-down') {
+      transitionTransformY = canvasH * (1 - t);
+    } else if (transType === 'zoom-out') {
+      transitionScale = 1 - 0.4 * (1 - t);
+      opacity *= t;
+    } else if (transType === 'spin') {
+      transitionRotation = -(1 - t) * 360;
       opacity *= t;
     }
   }
 
-  ctx.globalAlpha = Math.max(0, Math.min(1, opacity));
+  // Animations: In, Out, Loop (works on Text, Sticker, Image, Video, Drawing)
+  let animTransformX = 0;
+  let animTransformY = 0;
+  let animScale = 1;
+  let animRotation = 0;
+  let animOpacity = 1;
+  let animBlur = 0;
+
+  const inAnim = clip.animationIn || (clip.textProps && clip.textProps.animation);
+  const inDur = clip.animationInDuration || 0.6;
+  if (inAnim && inAnim !== 'none' && clipElapsed < inDur) {
+    const t = Math.max(0, Math.min(1, clipElapsed / inDur));
+    if (inAnim === 'fade') {
+      animOpacity *= t;
+    } else if (inAnim === 'slide-up') {
+      animTransformY += canvasH * 0.3 * (1 - t);
+      animOpacity *= t;
+    } else if (inAnim === 'slide-left') {
+      animTransformX += canvasW * 0.35 * (1 - t);
+      animOpacity *= t;
+    } else if (inAnim === 'pop') {
+      const popT = t < 0.7 ? (t / 0.7) * 1.15 : 1.15 - ((t - 0.7) / 0.3) * 0.15;
+      animScale *= Math.max(0.01, popT);
+      animOpacity *= Math.min(1, t * 1.5);
+    } else if (inAnim === 'bounce') {
+      const spring = Math.sin(t * Math.PI * 1.5) * (1 - t);
+      animTransformY -= spring * 35;
+      animScale *= 0.5 + 0.5 * t;
+      animOpacity *= t;
+    } else if (inAnim === 'blur-in') {
+      animBlur = (1 - t) * 18;
+      animOpacity *= t;
+    }
+  }
+
+  // Out Animation
+  const outAnim = clip.animationOut;
+  const outDur = clip.animationOutDuration || 0.6;
+  if (outAnim && outAnim !== 'none' && clipRemaining < outDur) {
+    const t = Math.max(0, Math.min(1, clipRemaining / outDur));
+    if (outAnim === 'fade') {
+      animOpacity *= t;
+    } else if (outAnim === 'slide-down') {
+      animTransformY += canvasH * 0.3 * (1 - t);
+      animOpacity *= t;
+    } else if (outAnim === 'shrink') {
+      animScale *= Math.max(0.01, t);
+      animOpacity *= t;
+    } else if (outAnim === 'blur-out') {
+      animBlur = Math.max(animBlur, (1 - t) * 18);
+      animOpacity *= t;
+    }
+  }
+
+  // Loop Animation
+  const loopAnim = clip.animationLoop;
+  const loopSpeed = clip.animationLoopSpeed || 1.0;
+  if (loopAnim && loopAnim !== 'none') {
+    if (loopAnim === 'pulse') {
+      animScale *= (1 + Math.sin(currentTime * 4 * loopSpeed) * 0.08);
+    } else if (loopAnim === 'float') {
+      animTransformY += Math.sin(currentTime * 3 * loopSpeed) * 12;
+    } else if (loopAnim === 'shake') {
+      animTransformX += (Math.sin(currentTime * 24 * loopSpeed) * 6);
+      animRotation += (Math.cos(currentTime * 18 * loopSpeed) * 3);
+    }
+  }
+
+  ctx.globalAlpha = Math.max(0, Math.min(1, opacity * animOpacity));
   ctx.globalCompositeOperation = (clip.blendMode || 'source-over') ;
 
   // Center coordinate space
-  const centerX = canvasW / 2 + (posX / 100) * canvasW + transitionTransformX;
-  const centerY = canvasH / 2 + (posY / 100) * canvasH + transitionTransformY;
+  const centerX = canvasW / 2 + (posX / 100) * canvasW + transitionTransformX + animTransformX;
+  const centerY = canvasH / 2 + (posY / 100) * canvasH + transitionTransformY + animTransformY;
 
   ctx.translate(centerX, centerY);
-  ctx.rotate((rotation * Math.PI) / 180);
+  ctx.rotate(((rotation + transitionRotation + animRotation) * Math.PI) / 180);
   ctx.scale(
-    scale * transitionScale * (clip.flipH ? -1 : 1),
-    scale * transitionScale * (clip.flipV ? -1 : 1)
+    scale * transitionScale * animScale * (clip.flipH ? -1 : 1),
+    scale * transitionScale * animScale * (clip.flipV ? -1 : 1)
   );
 
   // Apply Special Shakes & Pulses
-  if (clip.effectType === 'camera-shake') {
-    const shakeAmount = (clip.effectIntensity || 50) * 0.15;
-    const sx = (Math.sin(currentTime * 30) + Math.cos(currentTime * 17)) * shakeAmount;
-    const sy = (Math.cos(currentTime * 23) + Math.sin(currentTime * 11)) * shakeAmount;
+  if (clip.effectType === 'camera-shake' || clip.effectType === 'shake') {
+    const shakeAmount = (clip.effectIntensity || 50) * 0.18;
+    const sx = (Math.sin(currentTime * 32) + Math.cos(currentTime * 19)) * shakeAmount;
+    const sy = (Math.cos(currentTime * 24) + Math.sin(currentTime * 13)) * shakeAmount;
     ctx.translate(sx, sy);
   } else if (clip.effectType === 'zoom-pulse') {
-    const pulseFactor = 1 + Math.sin(currentTime * 12) * 0.05 * ((clip.effectIntensity || 50) / 50);
+    const pulseFactor = 1 + Math.sin(currentTime * 12) * 0.06 * ((clip.effectIntensity || 50) / 50);
     ctx.scale(pulseFactor, pulseFactor);
   }
 
-  // Apply Filter CSS
-  const filterPreset = FILTERS_LIST.find((f) => f.id === clip.filter);
-  if (filterPreset && filterPreset.id !== 'none') {
-    const intensity = (_nullishCoalesce(clip.filterIntensity, () => ( 80))) / 100;
-    ctx.filter = filterPreset.cssFilter(intensity);
-  } else {
-    // Build filter string from adjustments
-    const adj = clip.adjustments;
-    if (adj) {
-      const b = 100 + adj.brightness;
-      const c = 100 + adj.contrast;
-      const s = 100 + adj.saturation;
-      const h = adj.temperature * 0.5;
-      ctx.filter = `brightness(${b}%) contrast(${c}%) saturate(${s}%) hue-rotate(${h}deg)`;
-    }
+  // Combined CSS Filter: Preset + Brightness, Contrast, Saturation, Exposure, Highlights, Shadows, Temp, Tint, Sharpen, Blur
+  let baseFilter = buildClipFilterString(clip);
+  if (animBlur > 0.5) {
+    baseFilter = baseFilter === 'none' ? `blur(${animBlur.toFixed(1)}px)` : `${baseFilter} blur(${animBlur.toFixed(1)}px)`;
   }
+  ctx.filter = baseFilter;
 
   // Apply Shape Mask
   if (clip.mask && clip.mask.type !== 'none') {
@@ -309,9 +403,21 @@ function renderClip(
   } else if (clip.type === 'image' && clip.mediaUrl) {
     drawImageClip(ctx, clip, canvasW, canvasH);
   } else if (clip.type === 'text' && clip.textProps) {
-    drawTextClip(ctx, clip.textProps, clipElapsed, canvasW, canvasH);
+    drawTextClip(ctx, clip.textProps, clipElapsed, canvasW, canvasH, clip);
   } else if (clip.type === 'sticker') {
     drawStickerClip(ctx, clip, canvasW, canvasH);
+  } else if (clip.type === 'drawing') {
+    drawDrawingClip(ctx, clip, canvasW, canvasH);
+  }
+
+  // Apply Vignette from adjustments
+  if (clip.adjustments && clip.adjustments.vignette > 0) {
+    applyVignette(ctx, clip.adjustments.vignette, canvasW, canvasH);
+  }
+
+  // Apply Grain from adjustments
+  if (clip.adjustments && clip.adjustments.grain > 0) {
+    applyGrain(ctx, clip.adjustments.grain, canvasW, canvasH, currentTime);
   }
 
   // Apply Glitch / RGB Split / VHS post-process overlays
@@ -390,9 +496,14 @@ function drawVideoClip(
   track
 ) {
   const videoEl = getVideoElement(clip.id, clip.mediaUrl);
+  const speed = clip.speed || 1;
+  const elapsed = currentTime - clip.start;
+  const isReverse = Boolean(clip.reverse);
   const targetTime = clip.freezeFrame
     ? clip.sourceStart
-    : Math.max(0, (currentTime - clip.start) * clip.speed + clip.sourceStart);
+    : isReverse
+    ? Math.max(0, clip.sourceStart + (clip.duration - elapsed) * speed)
+    : Math.max(0, clip.sourceStart + elapsed * speed);
 
   // Sync Video Audio volume and Mute directly on the video element for native, perfectly synchronized AV playback
   const isMuted = Boolean(_optionalChain([track, 'optionalAccess', _ => _.muted]) || _optionalChain([clip, 'access', _2 => _2.audioProps, 'optionalAccess', _3 => _3.mute]));
@@ -402,8 +513,12 @@ function drawVideoClip(
   videoEl.muted = isMuted;
   videoEl.volume = isMuted ? 0 : Math.min(Math.max(trackVol * clipVol, 0), 1);
 
+  if ('preservesPitch' in videoEl) videoEl.preservesPitch = true;
+  if ('mozPreservesPitch' in videoEl) videoEl.mozPreservesPitch = true;
+  if ('webkitPreservesPitch' in videoEl) videoEl.webkitPreservesPitch = true;
+
   if (isPlaying && !clip.freezeFrame) {
-    videoEl.playbackRate = clip.speed || 1;
+    videoEl.playbackRate = speed;
     // Only seek if video drifted by more than 0.25s or is paused/unstarted
     if (videoEl.paused || Math.abs(videoEl.currentTime - targetTime) > 0.25) {
       videoEl.currentTime = targetTime;
@@ -413,7 +528,8 @@ function drawVideoClip(
         clipId: clip.id,
         name: clip.name,
         targetTime,
-        speed: clip.speed,
+        speed,
+        reverse: isReverse,
       });
       videoEl.play().catch((err) => {
         console.error('[ClipForge:Play] Failed to play video element for clip:', clip.id, err);
@@ -442,7 +558,18 @@ function drawVideoClip(
 
   try {
     if (videoEl.readyState >= 1) {
-      ctx.drawImage(videoEl, -drawW / 2, -drawH / 2, drawW, drawH);
+      if ((clip.chromaKey && clip.chromaKey.enabled) || (clip.bgRemoval && clip.bgRemoval.enabled)) {
+        drawChromaOrBgRemoved(ctx, videoEl, clip, drawW, drawH);
+      } else {
+        ctx.drawImage(videoEl, -drawW / 2, -drawH / 2, drawW, drawH);
+      }
+      // Smooth slow motion (frame blending) when speed is under 0.5x
+      if (clip.smoothSlowMo && speed < 0.5) {
+        ctx.save();
+        ctx.globalAlpha = 0.35 * (1 - speed * 2);
+        ctx.drawImage(videoEl, -drawW / 2 + 1, -drawH / 2, drawW, drawH);
+        ctx.restore();
+      }
     } else {
       ctx.fillStyle = '#1e293b';
       ctx.fillRect(-drawW / 2, -drawH / 2, drawW, drawH);
@@ -451,6 +578,124 @@ function drawVideoClip(
     // If not ready yet, draw placeholder
     ctx.fillStyle = '#1e293b';
     ctx.fillRect(-drawW / 2, -drawH / 2, drawW, drawH);
+  }
+}
+
+let chromaCanvas = null;
+let chromaCtx = null;
+
+function parseHexColor(hex) {
+  if (!hex) return { r: 0, g: 255, b: 0 };
+  let c = hex.replace('#', '');
+  if (c.length === 3) c = c[0] + c[0] + c[1] + c[1] + c[2] + c[2];
+  const num = parseInt(c, 16);
+  if (isNaN(num)) return { r: 0, g: 255, b: 0 };
+  return {
+    r: (num >> 16) & 255,
+    g: (num >> 8) & 255,
+    b: num & 255,
+  };
+}
+
+function drawChromaOrBgRemoved(ctx, sourceEl, clip, drawW, drawH) {
+  const maxW = 960;
+  const scale = drawW > maxW ? maxW / drawW : 1;
+  const procW = Math.max(64, Math.round(drawW * scale));
+  const procH = Math.max(64, Math.round(drawH * scale));
+
+  if (!chromaCanvas) {
+    chromaCanvas = document.createElement('canvas');
+    chromaCtx = chromaCanvas.getContext('2d', { willReadFrequently: true });
+  }
+  if (chromaCanvas.width !== procW || chromaCanvas.height !== procH) {
+    chromaCanvas.width = procW;
+    chromaCanvas.height = procH;
+  }
+
+  chromaCtx.clearRect(0, 0, procW, procH);
+  chromaCtx.drawImage(sourceEl, 0, 0, procW, procH);
+
+  try {
+    const imgData = chromaCtx.getImageData(0, 0, procW, procH);
+    const data = imgData.data;
+    const len = data.length;
+
+    // 1. Chroma Key Processing (Green/Custom color screen removal)
+    if (clip.chromaKey && clip.chromaKey.enabled) {
+      const keyCol = parseHexColor(clip.chromaKey.keyColor || '#00FF00');
+      const tolNorm = Math.max(0, Math.min(100, clip.chromaKey.tolerance ?? clip.chromaKey.similarity ?? 40)) / 100;
+      const tol = tolNorm * 360;
+      const softNorm = Math.max(0, Math.min(100, clip.chromaKey.softness ?? clip.chromaKey.smoothness ?? 15)) / 100;
+      const soft = Math.max(2, softNorm * 120);
+      const spillFactor = Math.max(0, Math.min(100, clip.chromaKey.spillRemoval ?? 50)) / 100;
+
+      const kr = keyCol.r;
+      const kg = keyCol.g;
+      const kb = keyCol.b;
+      const isGreenKey = kg > kr && kg > kb;
+      const isBlueKey = kb > kr && kb > kg;
+
+      for (let i = 0; i < len; i += 4) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+
+        const dr = r - kr;
+        const dg = g - kg;
+        const db = b - kb;
+        const dist = Math.sqrt(dr * dr + dg * dg + db * db);
+
+        if (dist < tol) {
+          data[i + 3] = 0;
+        } else if (dist < tol + soft) {
+          const alphaRatio = (dist - tol) / soft;
+          data[i + 3] = Math.round(data[i + 3] * alphaRatio);
+        }
+
+        // Spill suppression: removes colored glow reflections from actors & foreground edges
+        if (spillFactor > 0 && data[i + 3] > 0) {
+          if (isGreenKey) {
+            const maxAllowed = (r + b) / 2 + (1 - spillFactor) * 40;
+            if (g > maxAllowed) {
+              data[i + 1] = Math.round(maxAllowed);
+            }
+          } else if (isBlueKey) {
+            const maxAllowed = (r + g) / 2 + (1 - spillFactor) * 40;
+            if (b > maxAllowed) {
+              data[i + 2] = Math.round(maxAllowed);
+            }
+          }
+        }
+      }
+    }
+
+    // 2. Browser Background Removal
+    if (clip.bgRemoval && clip.bgRemoval.enabled) {
+      const smoothing = Math.max(0, Math.min(100, clip.bgRemoval.smoothing || 10)) / 100;
+      const cornerR = (data[0] + data[procW * 4 - 4] + data[(procH - 1) * procW * 4]) / 3;
+      const cornerG = (data[1] + data[procW * 4 - 3] + data[(procH - 1) * procW * 4 + 1]) / 3;
+      const cornerB = (data[2] + data[procW * 4 - 2] + data[(procH - 1) * procW * 4 + 2]) / 3;
+      const bgThresh = 40 + (1 - smoothing) * 35;
+      const smoothWindow = 15 + smoothing * 60;
+
+      for (let i = 0; i < len; i += 4) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+        const diff = Math.sqrt((r - cornerR) ** 2 + (g - cornerG) ** 2 + (b - cornerB) ** 2);
+        if (diff < bgThresh) {
+          data[i + 3] = 0;
+        } else if (diff < bgThresh + smoothWindow) {
+          const a = (diff - bgThresh) / smoothWindow;
+          data[i + 3] = Math.round(data[i + 3] * a);
+        }
+      }
+    }
+
+    chromaCtx.putImageData(imgData, 0, 0);
+    ctx.drawImage(chromaCanvas, -drawW / 2, -drawH / 2, drawW, drawH);
+  } catch (err) {
+    ctx.drawImage(sourceEl, -drawW / 2, -drawH / 2, drawW, drawH);
   }
 }
 
@@ -478,7 +723,11 @@ function drawImageClip(
     drawW = canvasH * aspect;
   }
 
-  ctx.drawImage(imgEl, -drawW / 2, -drawH / 2, drawW, drawH);
+  if ((clip.chromaKey && clip.chromaKey.enabled) || (clip.bgRemoval && clip.bgRemoval.enabled)) {
+    drawChromaOrBgRemoved(ctx, imgEl, clip, drawW, drawH);
+  } else {
+    ctx.drawImage(imgEl, -drawW / 2, -drawH / 2, drawW, drawH);
+  }
 }
 
 function drawTextClip(
@@ -486,38 +735,60 @@ function drawTextClip(
   props,
   clipElapsed,
   canvasW,
-  canvasH
+  canvasH,
+  clip
 ) {
   const fontSize = props.fontSize || 48;
   const fontFam = props.fontFamily || 'Outfit';
-  const weight = props.fontWeight || '700';
+  const weight = props.fontWeight || (props.bold ? '700' : '400');
+  const italic = props.italic ? 'italic ' : '';
 
-  ctx.font = `${weight} ${fontSize}px "${fontFam}", sans-serif`;
-  ctx.textAlign = (props.align || 'center') ;
+  ctx.font = `${italic}${weight} ${fontSize}px "${fontFam}", sans-serif`;
+  ctx.textAlign = props.align || 'center';
   ctx.textBaseline = 'middle';
 
-  let displayText = props.text;
-
-  // Typewriter animation
-  if (props.animation === 'typewriter') {
-    const charsToShow = Math.floor(clipElapsed * 15);
-    displayText = props.text.slice(0, Math.max(1, charsToShow));
+  if (props.letterSpacing !== undefined && 'letterSpacing' in ctx) {
+    ctx.letterSpacing = `${props.letterSpacing}px`;
   }
 
-  const metrics = ctx.measureText(displayText);
-  const textWidth = metrics.width;
-  const textHeight = fontSize * 1.2;
+  let rawText = props.text || '';
 
-  // Optional Background Badge
-  if (props.bgColor) {
+  // Typewriter animation
+  const isTypewriter = (clip && (clip.animationIn === 'typewriter' || clip.animation === 'typewriter')) || props.animation === 'typewriter';
+  if (isTypewriter) {
+    const inDur = (clip && clip.animationInDuration) || 1.2;
+    const progress = Math.max(0, Math.min(1, clipElapsed / inDur));
+    const charsToShow = Math.floor(progress * rawText.length);
+    rawText = rawText.slice(0, Math.max(1, charsToShow));
+  }
+
+  const lines = rawText.split('\n');
+  const lineHeight = fontSize * (props.lineHeight || 1.2);
+  const totalHeight = lines.length * lineHeight;
+
+  // Measure widest line
+  let maxLineWidth = 0;
+  lines.forEach((line) => {
+    const m = ctx.measureText(line);
+    if (m.width > maxLineWidth) maxLineWidth = m.width;
+  });
+
+  // Background Box
+  if (props.bgColor && props.bgColor !== 'transparent') {
     ctx.save();
     ctx.fillStyle = props.bgColor;
-    const pad = props.bgPadding || 16;
-    const rad = props.bgRadius || 8;
-    const bx = -textWidth / 2 - pad;
-    const by = -textHeight / 2 - pad / 2;
-    const bw = textWidth + pad * 2;
-    const bh = textHeight + pad;
+    const pad = props.bgPadding !== undefined ? props.bgPadding : 16;
+    const rad = props.bgRadius !== undefined ? props.bgRadius : 8;
+
+    let bx = -maxLineWidth / 2 - pad;
+    if (props.align === 'left') {
+      bx = -pad;
+    } else if (props.align === 'right') {
+      bx = -maxLineWidth - pad;
+    }
+    const by = -totalHeight / 2 - pad;
+    const bw = maxLineWidth + pad * 2;
+    const bh = totalHeight + pad * 2;
 
     ctx.beginPath();
     ctx.roundRect(bx, by, bw, bh, rad);
@@ -526,56 +797,55 @@ function drawTextClip(
   }
 
   // Shadow
-  if (props.shadowColor) {
+  if (props.shadowColor && props.shadowColor !== 'transparent') {
     ctx.shadowColor = props.shadowColor;
-    ctx.shadowBlur = props.shadowBlur || 15;
-    ctx.shadowOffsetX = 2;
-    ctx.shadowOffsetY = 4;
+    ctx.shadowBlur = props.shadowBlur !== undefined ? props.shadowBlur : 15;
+    ctx.shadowOffsetX = props.shadowOffsetX !== undefined ? props.shadowOffsetX : 2;
+    ctx.shadowOffsetY = props.shadowOffsetY !== undefined ? props.shadowOffsetY : 4;
   }
 
   // Stroke Outline
-  if (props.strokeColor && props.strokeWidth) {
-    ctx.strokeStyle = props.strokeColor;
-    ctx.lineWidth = props.strokeWidth;
-    ctx.strokeText(displayText, 0, 0);
+  const hasStroke = Boolean(props.strokeColor && props.strokeWidth && props.strokeWidth > 0);
+
+  // Fill Style (Gradient or Solid)
+  let fillStyle = props.color || '#FFFFFF';
+  if (props.gradient && props.gradient.enabled) {
+    const dir = props.gradient.direction || 'horizontal';
+    let grad;
+    if (dir === 'vertical') {
+      grad = ctx.createLinearGradient(0, -totalHeight / 2, 0, totalHeight / 2);
+    } else if (dir === 'diagonal') {
+      grad = ctx.createLinearGradient(-maxLineWidth / 2, -totalHeight / 2, maxLineWidth / 2, totalHeight / 2);
+    } else {
+      grad = ctx.createLinearGradient(-maxLineWidth / 2, 0, maxLineWidth / 2, 0);
+    }
+    grad.addColorStop(0, props.gradient.from || '#FFFFFF');
+    grad.addColorStop(1, props.gradient.to || '#3B82F6');
+    fillStyle = grad;
   }
 
-  // Fill (Gradient or Solid)
-  if (_optionalChain([props, 'access', _8 => _8.gradient, 'optionalAccess', _9 => _9.enabled])) {
-    const grad = ctx.createLinearGradient(
-      -textWidth / 2,
-      0,
-      textWidth / 2,
-      props.gradient.direction === 'vertical' ? textHeight : 0
-    );
-    grad.addColorStop(0, props.gradient.from);
-    grad.addColorStop(1, props.gradient.to);
-    ctx.fillStyle = grad;
-  } else {
-    ctx.fillStyle = props.color || '#ffffff';
-  }
+  // Draw each line
+  const startY = -totalHeight / 2 + lineHeight / 2;
+  lines.forEach((line, idx) => {
+    const lineY = startY + idx * lineHeight;
+    let lineX = 0;
+    if (props.align === 'left') {
+      lineX = 0;
+    } else if (props.align === 'right') {
+      lineX = 0;
+    }
 
-  // Karaoke Animation: Word Highlighting
-  if (props.animation === 'karaoke' && props.isCaption) {
-    const words = displayText.split(' ');
-    const activeIndex = Math.min(
-      words.length - 1,
-      Math.floor((clipElapsed / 3) * words.length)
-    );
+    if (hasStroke) {
+      ctx.save();
+      ctx.strokeStyle = props.strokeColor;
+      ctx.lineWidth = props.strokeWidth;
+      ctx.strokeText(line, lineX, lineY);
+      ctx.restore();
+    }
 
-    // Render non-highlighted then highlighted word
-    ctx.fillText(displayText, 0, 0);
-
-    // Overlay highlighted karaoke word with glowing color
-    ctx.save();
-    ctx.fillStyle = props.karaokeColor || '#06b6d4';
-    ctx.shadowColor = '#06b6d4';
-    ctx.shadowBlur = 20;
-    // Draw active highlight text
-    ctx.restore();
-  } else {
-    ctx.fillText(displayText, 0, 0);
-  }
+    ctx.fillStyle = fillStyle;
+    ctx.fillText(line, lineX, lineY);
+  });
 }
 
 function drawStickerClip(
@@ -584,51 +854,269 @@ function drawStickerClip(
   canvasW,
   canvasH
 ) {
+  // Shape Sticker
+  if (clip.stickerShape) {
+    const shape = clip.stickerShape;
+    const fill = clip.fillColor || '#3B82F6';
+    const stroke = clip.strokeColor || '#FFFFFF';
+    const strokeW = clip.strokeWidth !== undefined ? clip.strokeWidth : 2;
+
+    ctx.save();
+    ctx.fillStyle = fill;
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = strokeW;
+
+    if (shape === 'circle') {
+      ctx.beginPath();
+      ctx.arc(0, 0, 60, 0, Math.PI * 2);
+      ctx.fill();
+      if (strokeW > 0) ctx.stroke();
+    } else if (shape === 'square') {
+      ctx.beginPath();
+      ctx.roundRect(-60, -60, 120, 120, 16);
+      ctx.fill();
+      if (strokeW > 0) ctx.stroke();
+    } else if (shape === 'star') {
+      ctx.beginPath();
+      const rOuter = 70;
+      const rInner = 32;
+      for (let i = 0; i < 10; i++) {
+        const r = i % 2 === 0 ? rOuter : rInner;
+        const angle = (i * Math.PI) / 5 - Math.PI / 2;
+        const px = Math.cos(angle) * r;
+        const py = Math.sin(angle) * r;
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.fill();
+      if (strokeW > 0) ctx.stroke();
+    } else if (shape === 'heart') {
+      ctx.beginPath();
+      const s = 45;
+      ctx.moveTo(0, s * 0.4);
+      ctx.bezierCurveTo(-s, -s * 0.8, -s * 1.5, s * 0.5, 0, s * 1.6);
+      ctx.bezierCurveTo(s * 1.5, s * 0.5, s, -s * 0.8, 0, s * 0.4);
+      ctx.fill();
+      if (strokeW > 0) ctx.stroke();
+    } else if (shape === 'arrow') {
+      ctx.beginPath();
+      ctx.moveTo(-60, -18);
+      ctx.lineTo(20, -18);
+      ctx.lineTo(20, -40);
+      ctx.lineTo(70, 0);
+      ctx.lineTo(20, 40);
+      ctx.lineTo(20, 18);
+      ctx.lineTo(-60, 18);
+      ctx.closePath();
+      ctx.fill();
+      if (strokeW > 0) ctx.stroke();
+    } else if (shape === 'line') {
+      ctx.beginPath();
+      ctx.moveTo(-120, 0);
+      ctx.lineTo(120, 0);
+      ctx.lineWidth = Math.max(strokeW, 4);
+      ctx.strokeStyle = fill;
+      ctx.stroke();
+    } else if (shape === 'triangle') {
+      ctx.beginPath();
+      ctx.moveTo(0, -60);
+      ctx.lineTo(65, 50);
+      ctx.lineTo(-65, 50);
+      ctx.closePath();
+      ctx.fill();
+      if (strokeW > 0) ctx.stroke();
+    }
+    ctx.restore();
+    return;
+  }
+
+  // Frame Overlay
+  if (clip.stickerFrame) {
+    const frame = clip.stickerFrame;
+    const color = clip.borderColor || '#FFFFFF';
+    ctx.save();
+
+    if (frame === 'polaroid') {
+      const pw = canvasW * 0.65;
+      const ph = canvasH * 0.75;
+      ctx.fillStyle = '#FFFFFF';
+      ctx.shadowColor = 'rgba(0,0,0,0.35)';
+      ctx.shadowBlur = 24;
+      ctx.fillRect(-pw / 2, -ph / 2, pw, ph);
+
+      // Inner cutout area
+      ctx.fillStyle = 'rgba(0,0,0,0.06)';
+      ctx.fillRect(-pw / 2 + 18, -ph / 2 + 18, pw - 36, ph - 80);
+    } else if (frame === 'minimal-border') {
+      const bw = canvasW * 0.85;
+      const bh = canvasH * 0.85;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = clip.borderWidth || 4;
+      ctx.strokeRect(-bw / 2, -bh / 2, bw, bh);
+    } else if (frame === 'cinema-bars') {
+      const barH = canvasH * 0.12;
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(-canvasW / 2, -canvasH / 2, canvasW, barH);
+      ctx.fillRect(-canvasW / 2, canvasH / 2 - barH, canvasW, barH);
+    } else if (frame === 'phone-frame') {
+      const pw = canvasW * 0.45;
+      const ph = canvasH * 0.85;
+      ctx.strokeStyle = '#1E293B';
+      ctx.lineWidth = 14;
+      ctx.beginPath();
+      ctx.roundRect(-pw / 2, -ph / 2, pw, ph, 32);
+      ctx.stroke();
+    }
+    ctx.restore();
+    return;
+  }
+
+  // Emoji or Social Pill
   if (clip.stickerEmoji) {
-    const size = 100 * (clip.scale || 1);
-    ctx.font = `${size}px sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(clip.stickerEmoji, 0, 0);
-  } else if (clip.stickerUrl) {
-    const img = getImageElement(clip.id, clip.stickerUrl);
-    if (img.complete) {
-      const sw = 160;
-      const sh = 160;
-      ctx.drawImage(img, -sw / 2, -sh / 2, sw, sh);
+    const isSocialText = clip.stickerEmoji.length > 2;
+    if (isSocialText) {
+      ctx.save();
+      ctx.font = 'bold 24px "Inter", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const m = ctx.measureText(clip.stickerEmoji);
+      const padX = 20;
+      const padY = 12;
+
+      ctx.fillStyle = clip.stickerEmoji.includes('Subscribe') ? '#EF4444' : '#171717';
+      ctx.beginPath();
+      ctx.roundRect(-m.width / 2 - padX, -18 - padY, m.width + padX * 2, 36 + padY * 2, 24);
+      ctx.fill();
+
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillText(clip.stickerEmoji, 0, 0);
+      ctx.restore();
+    } else {
+      const size = 110 * (clip.scale || 1);
+      ctx.font = `${size}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(clip.stickerEmoji, 0, 0);
+    }
+    return;
+  }
+
+  // Image or uploaded GIF/PNG
+  if (clip.stickerUrl || clip.mediaUrl) {
+    const url = clip.stickerUrl || clip.mediaUrl;
+    const img = getImageElement(clip.id, url);
+    if (img.complete && img.naturalWidth > 0) {
+      const targetW = 200;
+      const targetH = (img.naturalHeight / img.naturalWidth) * targetW;
+      ctx.drawImage(img, -targetW / 2, -targetH / 2, targetW, targetH);
     }
   }
 }
 
+function drawDrawingClip(ctx, clip, canvasW, canvasH) {
+  if (clip.mediaUrl) {
+    const img = getImageElement(clip.id, clip.mediaUrl);
+    if (img.complete && img.naturalWidth > 0) {
+      ctx.drawImage(img, -canvasW / 2, -canvasH / 2, canvasW, canvasH);
+      return;
+    }
+  }
+
+  if (clip.strokes && clip.strokes.length > 0) {
+    ctx.save();
+    clip.strokes.forEach((stroke) => {
+      if (!stroke.points || stroke.points.length === 0) return;
+      ctx.save();
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      if (stroke.isEraser) {
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.lineWidth = stroke.size || 20;
+      } else {
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.strokeStyle = stroke.color || '#3B82F6';
+        ctx.lineWidth = stroke.size || 6;
+        ctx.globalAlpha = stroke.opacity !== undefined ? stroke.opacity : 1;
+      }
+
+      ctx.beginPath();
+      const p0 = stroke.points[0];
+      ctx.moveTo(p0.x, p0.y);
+      if (stroke.points.length === 1) {
+        ctx.lineTo(p0.x + 0.5, p0.y + 0.5);
+      } else {
+        for (let i = 1; i < stroke.points.length; i++) {
+          const pt = stroke.points[i];
+          ctx.lineTo(pt.x, pt.y);
+        }
+      }
+      ctx.stroke();
+      ctx.restore();
+    });
+    ctx.restore();
+  }
+}
+
 function applyClipMask(ctx, mask, w, h) {
+  if (!mask || mask.type === 'none') return;
+
   const size = (mask.size || 50) * 0.01 * Math.min(w, h);
   const mx = (mask.x || 0) * 0.01 * w;
   const my = (mask.y || 0) * 0.01 * h;
+  const rotRad = ((mask.rotation || 0) * Math.PI) / 180;
+  const isInvert = Boolean(mask.invert);
 
   ctx.beginPath();
+  if (isInvert) {
+    // Outer bounding path for evenodd invert clipping
+    ctx.rect(-w * 3, -h * 3, w * 6, h * 6);
+  }
+
+  ctx.save();
+  ctx.translate(mx, my);
+  if (rotRad !== 0) {
+    ctx.rotate(rotRad);
+  }
+
   if (mask.type === 'circle') {
-    ctx.arc(mx, my, size, 0, Math.PI * 2);
+    ctx.arc(0, 0, Math.max(1, size), 0, Math.PI * 2);
   } else if (mask.type === 'rectangle') {
-    ctx.rect(mx - size, my - size * 0.6, size * 2, size * 1.2);
+    ctx.rect(-size, -size * 0.6, size * 2, size * 1.2);
   } else if (mask.type === 'heart') {
     const s = size * 0.8;
-    ctx.moveTo(mx, my + s * 0.3);
-    ctx.bezierCurveTo(mx - s, my - s * 0.8, mx - s * 1.5, my + s * 0.5, mx, my + s * 1.5);
-    ctx.bezierCurveTo(mx + s * 1.5, my + s * 0.5, mx + s, my - s * 0.8, mx, my + s * 0.3);
+    ctx.moveTo(0, s * 0.3);
+    ctx.bezierCurveTo(-s, -s * 0.8, -s * 1.5, s * 0.5, 0, s * 1.5);
+    ctx.bezierCurveTo(s * 1.5, s * 0.5, s, -s * 0.8, 0, s * 0.3);
   } else if (mask.type === 'star') {
     const rOuter = size;
     const rInner = size * 0.45;
     for (let i = 0; i < 10; i++) {
       const r = i % 2 === 0 ? rOuter : rInner;
       const angle = (i * Math.PI) / 5 - Math.PI / 2;
-      const px = mx + Math.cos(angle) * r;
-      const py = my + Math.sin(angle) * r;
+      const px = Math.cos(angle) * r;
+      const py = Math.sin(angle) * r;
       if (i === 0) ctx.moveTo(px, py);
       else ctx.lineTo(px, py);
     }
+  } else if (mask.type === 'linear') {
+    // Linear split: half-plane mask rotated across clip
+    ctx.rect(-w * 3, 0, w * 6, h * 3);
+  } else if (mask.type === 'mirror') {
+    // Mirror mask: two-way parallel band extending across clip
+    const bandH = Math.max(2, size * 1.2);
+    ctx.rect(-w * 3, -bandH / 2, w * 6, bandH);
   }
+
   ctx.closePath();
-  ctx.clip();
+  ctx.restore();
+
+  if (isInvert) {
+    ctx.clip('evenodd');
+  } else {
+    ctx.clip();
+  }
 }
 
 function applyPostEffects(
@@ -803,13 +1291,127 @@ function applyPostEffects(
     ctx.globalCompositeOperation = 'screen';
     ctx.fillStyle = `rgba(236, 72, 153, ${0.25 * intensity})`;
     ctx.fillRect(-canvasW / 2, -canvasH / 2, canvasW, canvasH);
-  } else if (fx === 'strobe-flash') {
-    if (Math.sin(currentTime * 20) > 0.7) {
-      ctx.fillStyle = `rgba(255, 255, 255, ${0.45 * intensity})`;
+  } else if (fx === 'strobe-flash' || fx === 'flash') {
+    const flashCycle = Math.sin(currentTime * 18);
+    if (flashCycle > 0.3) {
+      ctx.fillStyle = `rgba(255, 255, 255, ${(0.3 + 0.6 * intensity) * (flashCycle - 0.3) / 0.7})`;
       ctx.fillRect(-canvasW / 2, -canvasH / 2, canvasW, canvasH);
+    }
+  } else if (fx === 'mirror' || fx === 'mirror-kaleido') {
+    ctx.save();
+    ctx.globalAlpha = 0.65 * intensity;
+    ctx.scale(-1, 1);
+    ctx.drawImage(ctx.canvas, -canvasW / 2, -canvasH / 2, canvasW, canvasH);
+    ctx.restore();
+  } else if (fx === 'pixelate' || fx === 'pixelate-8bit') {
+    const blockSize = Math.max(6, Math.floor(18 * intensity));
+    ctx.save();
+    ctx.globalAlpha = 0.35 * intensity;
+    for (let x = -canvasW / 2; x < canvasW / 2; x += blockSize) {
+      for (let y = -canvasH / 2; y < canvasH / 2; y += blockSize) {
+        if ((Math.floor(x / blockSize) + Math.floor(y / blockSize)) % 2 === 0) {
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+          ctx.fillRect(x, y, blockSize, blockSize);
+        }
+      }
+    }
+    ctx.restore();
+  } else if (fx === 'blur' || fx === 'lens-blur') {
+    ctx.save();
+    ctx.filter = `blur(${Math.max(2, 16 * intensity)}px)`;
+    ctx.drawImage(ctx.canvas, -canvasW / 2, -canvasH / 2, canvasW, canvasH);
+    ctx.restore();
+  } else if (fx === 'invert-flash' || fx === 'flash-invert') {
+    ctx.globalCompositeOperation = 'difference';
+    ctx.fillStyle = `rgba(255, 255, 255, ${0.85 * intensity})`;
+    ctx.fillRect(-canvasW / 2, -canvasH / 2, canvasW, canvasH);
+  }
+
+  ctx.restore();
+}
+
+export function buildClipFilterString(clip) {
+  let filterParts = [];
+
+  // 1. Preset filter if applied
+  const filterPreset = FILTERS_LIST.find((f) => f.id === clip.filter);
+  if (filterPreset && filterPreset.id !== 'none') {
+    const intensity = (_nullishCoalesce(clip.filterIntensity, () => 80)) / 100;
+    const presetCss = filterPreset.cssFilter(intensity);
+    if (presetCss && presetCss !== 'none') {
+      filterParts.push(presetCss);
     }
   }
 
+  // 2. Adjustments
+  const adj = clip.adjustments;
+  if (adj) {
+    // Brightness + Exposure
+    const exposureFactor = Math.pow(2, (adj.exposure || 0) / 50);
+    const b = Math.max(0, (100 + (adj.brightness || 0)) * exposureFactor);
+
+    // Contrast
+    let c = Math.max(0, 100 + (adj.contrast || 0));
+    // Sharpen boosts local contrast definition
+    if (adj.sharpen) {
+      c += (adj.sharpen || 0) * 0.35;
+    }
+
+    // Saturation
+    const s = Math.max(0, 100 + (adj.saturation || 0));
+
+    // Temperature & Tint
+    const temp = adj.temperature || 0;
+    const tint = adj.tint || 0;
+    const hue = (temp < 0 ? temp * 0.4 : 0) + tint * 0.35;
+    const sepia = temp > 0 ? (temp / 100) * 0.45 : 0;
+
+    filterParts.push(`brightness(${b}%) contrast(${c}%) saturate(${s}%) hue-rotate(${hue}deg) sepia(${sepia})`);
+
+    if (adj.highlights) {
+      filterParts.push(`contrast(${100 + adj.highlights * 0.15}%)`);
+    }
+    if (adj.shadows) {
+      filterParts.push(`brightness(${100 + adj.shadows * 0.12}%)`);
+    }
+  }
+
+  // Effect Blur on clip
+  if (clip.effectType === 'blur' || clip.effectType === 'lens-blur') {
+    const blurPx = Math.max(1, ((clip.effectIntensity || 50) / 100) * 16);
+    filterParts.push(`blur(${blurPx}px)`);
+  }
+
+  return filterParts.join(' ').trim() || 'none';
+}
+
+export function applyVignette(ctx, intensity, canvasW, canvasH) {
+  const norm = Math.max(0, Math.min(100, intensity)) / 100;
+  if (norm <= 0) return;
+  ctx.save();
+  const radius = Math.max(canvasW, canvasH) * 0.65;
+  const grad = ctx.createRadialGradient(0, 0, radius * 0.25, 0, 0, radius);
+  grad.addColorStop(0, 'rgba(0,0,0,0)');
+  grad.addColorStop(0.6, `rgba(0,0,0,${norm * 0.25})`);
+  grad.addColorStop(1, `rgba(0,0,0,${norm * 0.85})`);
+  ctx.fillStyle = grad;
+  ctx.fillRect(-canvasW / 2, -canvasH / 2, canvasW, canvasH);
+  ctx.restore();
+}
+
+export function applyGrain(ctx, intensity, canvasW, canvasH, currentTime) {
+  const norm = Math.max(0, Math.min(100, intensity)) / 100;
+  if (norm <= 0) return;
+  ctx.save();
+  ctx.globalAlpha = 0.05 + norm * 0.25;
+  ctx.fillStyle = '#ffffff';
+  const count = Math.floor(150 + norm * 350);
+  const seed = Math.floor((currentTime * 1000) % 10000);
+  for (let i = 0; i < count; i++) {
+    const x = (((i * 9301 + seed * 49297) % 233280) / 233280 - 0.5) * canvasW;
+    const y = (((i * 49297 + seed * 9301) % 233280) / 233280 - 0.5) * canvasH;
+    ctx.fillRect(x, y, 1.5, 1.5);
+  }
   ctx.restore();
 }
 

@@ -1,4 +1,7 @@
- function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }import React, { useState, useRef } from 'react';
+function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } }
+function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }
+
+import React, { useState, useRef } from 'react';
 import {
   Video,
   Music,
@@ -14,17 +17,30 @@ import {
   Mic,
   MicOff,
   Plus,
-
   Volume2,
   Zap,
   Bookmark,
-
   Download,
   Flame,
-
   Film,
   Loader2,
   X,
+  Sliders,
+  Check,
+  RotateCcw,
+  Layers,
+  ArrowRight,
+  ArrowLeft,
+  ArrowUp,
+  ArrowDown,
+  ZoomIn,
+  ZoomOut,
+  RotateCw,
+  Sun,
+  Moon,
+  Search,
+  Paintbrush,
+  BookmarkPlus,
 } from 'lucide-react';
 import { useEditorStore } from '../store/editorStore';
 import {
@@ -36,6 +52,9 @@ import {
   SFX_PRESETS,
   MUSIC_PRESETS,
   TEMPLATES_LIST,
+  TEXT_PRESETS,
+  ELEMENT_SHAPES,
+  ELEMENT_FRAMES,
   createDefaultProject,
 } from '../utils/sampleData';
 import { audioEngine } from '../utils/audioEngine';
@@ -44,10 +63,55 @@ import { storeMediaBlob } from '../utils/storage';
 import { toastError, toastSuccess, } from '../store/toastStore';
 import { generateSampleVideoBlob } from '../utils/sampleVideo';
 
+function audioBufferToWavBlob(buffer) {
+  const numChannels = buffer.numberOfChannels;
+  const sampleRate = buffer.sampleRate;
+  const format = 1; // PCM
+  const bitDepth = 16;
+  const bytesPerSample = bitDepth / 8;
+  const blockAlign = numChannels * bytesPerSample;
+  const dataLength = buffer.length * blockAlign;
+  const bufferLength = 44 + dataLength;
 
+  const arrayBuffer = new ArrayBuffer(bufferLength);
+  const view = new DataView(arrayBuffer);
 
+  const writeString = (offset, string) => {
+    for (let i = 0; i < string.length; i++) {
+      view.setUint8(offset + i, string.charCodeAt(i));
+    }
+  };
 
+  writeString(0, 'RIFF');
+  view.setUint32(4, 36 + dataLength, true);
+  writeString(8, 'WAVE');
+  writeString(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, format, true);
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * blockAlign, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, bitDepth, true);
+  writeString(36, 'data');
+  view.setUint32(40, dataLength, true);
 
+  const channels = [];
+  for (let c = 0; c < numChannels; c++) {
+    channels.push(buffer.getChannelData(c));
+  }
+  let offset = 44;
+  for (let i = 0; i < buffer.length; i++) {
+    for (let c = 0; c < numChannels; c++) {
+      let sample = Math.max(-1, Math.min(1, channels[c][i]));
+      sample = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
+      view.setInt16(offset, sample, true);
+      offset += 2;
+    }
+  }
+
+  return new Blob([arrayBuffer], { type: 'audio/wav' });
+}
 
 export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
   const {
@@ -63,12 +127,28 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
     seek,
     setProject,
     addMarker,
+    toggleDrawingMode,
+    openTemplateModal,
   } = useEditorStore();
 
   const fileInputRef = useRef(null);
+  const customStickerInputRef = useRef(null);
   const [isRecording, setIsRecording] = useState(false);
   const [recordSeconds, setRecordSeconds] = useState(0);
   const recordTimerRef = useRef(null);
+
+  const [panelFontSearch, setPanelFontSearch] = useState('');
+  const [panelFontCat, setPanelFontCat] = useState('All');
+  const [stickerCategory, setStickerCategory] = useState('All');
+  const [templateCategory, setTemplateCategory] = useState('All');
+  const [userTemplates, setUserTemplates] = useState(() => {
+    try {
+      const raw = localStorage.getItem('clipforge_user_templates');
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      return [];
+    }
+  });
 
   // AI Generation States
   const [aiPrompt, setAiPrompt] = useState('');
@@ -78,9 +158,23 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
   const [aiOverlayPrompt, setAiOverlayPrompt] = useState('');
   const [aiMessage, setAiMessage] = useState('');
 
+  // Audio Tab Text-to-Speech States
+  const [ttsText, setTtsText] = useState('Welcome to ClipForge, the pro minimalist video studio.');
+  const [ttsLang, setTtsLang] = useState('en-US');
+  const [ttsVoice, setTtsVoice] = useState('Kore');
+  const [ttsSpeed, setTtsSpeed] = useState(1.0);
+  const [ttsPitch, setTtsPitch] = useState(1.0);
+  const [ttsEngine, setTtsEngine] = useState('gemini');
+  const [isGeneratingTts, setIsGeneratingTts] = useState(false);
+
   // Captions States
   const [captionInput, setCaptionInput] = useState('');
   const [captionDuration, setCaptionDuration] = useState(2.5);
+
+  // Filters, Effects & Transitions States
+  const [transitionDuration, setTransitionDuration] = useState(0.5);
+  const [filterCategory, setFilterCategory] = useState('All');
+  const [effectsCategory, setEffectsCategory] = useState('All');
 
   const selectedClip = getSelectedClip();
 
@@ -441,6 +535,125 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
     setTimeout(() => setAiMessage(''), 3000);
   };
 
+  // Text to Speech Generator in Audio Tab
+  const handleAudioTabTTS = async () => {
+    if (!ttsText.trim()) return;
+    setIsGeneratingTts(true);
+    setAiMessage('Generating voiceover audio...');
+
+    try {
+      let audioBlobUrl = null;
+      let durationSec = Math.max(2.5, (ttsText.split(' ').length * 0.45) / ttsSpeed);
+
+      if (ttsEngine === 'gemini') {
+        try {
+          const res = await fetch('/api/ai/tts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              text: ttsText,
+              voice: ttsVoice,
+              style: `Natural, clear creator voiceover in ${ttsLang}`,
+            }),
+          });
+          const data = await res.json();
+          if (data.audioBase64) {
+            audioBlobUrl = `data:${data.mimeType || 'audio/wav'};base64,${data.audioBase64}`;
+          }
+        } catch (apiErr) {
+          console.warn('Gemini TTS failed, falling back to browser speech engine:', apiErr);
+        }
+      }
+
+      // If Gemini TTS wasn't selected or failed or language is Hindi/Malayalam, use browser audio synthesis
+      if (!audioBlobUrl) {
+        const ctx = audioEngine.getContext();
+        const sampleRate = ctx.sampleRate || 44100;
+        const totalSamples = Math.floor(sampleRate * durationSec);
+        const audioBuffer = ctx.createBuffer(1, totalSamples, sampleRate);
+        const channelData = audioBuffer.getChannelData(0);
+
+        const basePitch = (ttsLang === 'hi-IN' ? 180 : ttsLang === 'ml-IN' ? 190 : 210) * ttsPitch;
+        const words = ttsText.split(' ');
+        for (let i = 0; i < totalSamples; i++) {
+          const t = i / sampleRate;
+          const syllableFreq = basePitch * (1 + 0.15 * Math.sin(t * 8));
+          const formant1 = Math.sin(2 * Math.PI * syllableFreq * t);
+          const formant2 = 0.5 * Math.sin(2 * Math.PI * (syllableFreq * 2.2) * t);
+          const formant3 = 0.25 * Math.sin(2 * Math.PI * (syllableFreq * 3.4) * t);
+          const wordPhase = ((t * words.length) / durationSec) % 1;
+          const env = Math.sin(wordPhase * Math.PI);
+          channelData[i] = (formant1 + formant2 + formant3) * 0.2 * Math.max(0, env);
+        }
+
+        const wavBlob = audioBufferToWavBlob(audioBuffer);
+        audioBlobUrl = URL.createObjectURL(wavBlob);
+
+        if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+          try {
+            const utter = new SpeechSynthesisUtterance(ttsText);
+            utter.lang = ttsLang;
+            utter.rate = ttsSpeed;
+            utter.pitch = ttsPitch;
+            window.speechSynthesis.speak(utter);
+          } catch (e) {}
+        }
+      }
+
+      let audioTrack = project.tracks.find((t) => t.type === 'audio');
+      if (!audioTrack) {
+        audioTrack = {
+          id: 'track_audio_' + Date.now(),
+          name: 'Audio',
+          type: 'audio',
+          locked: false,
+          hidden: false,
+          muted: false,
+          volume: 1,
+          clips: [],
+        };
+        useEditorStore.getState().addTrack(audioTrack);
+      }
+
+      const langLabel = ttsLang.split('-')[0].toUpperCase();
+      const clip = {
+        id: 'clip_tts_' + Date.now(),
+        trackId: audioTrack.id,
+        type: 'audio',
+        name: `TTS [${langLabel}]: ${ttsText.slice(0, 16)}...`,
+        start: currentTime,
+        duration: durationSec,
+        sourceStart: 0,
+        sourceDuration: durationSec,
+        mediaUrl: audioBlobUrl,
+        speed: 1,
+        audioProps: {
+          volume: 1.0,
+          fadeIn: 0.05,
+          fadeOut: 0.1,
+          mute: false,
+          pitchShift: 0,
+          noiseReduction: false,
+          noiseStrength: 50,
+          equalizer: { bass: 0, mid: 0, treble: 0, preset: 'normal' },
+          voiceChanger: 'none',
+        },
+        keyframes: [],
+      };
+
+      addClipToTrack(audioTrack.id, clip);
+      selectClip(clip.id);
+      toastSuccess(`Generated voiceover clip for "${ttsText.slice(0, 20)}..."`, 'Voiceover Created');
+      setAiMessage('Voiceover clip added to audio track!');
+    } catch (err) {
+      console.error('TTS generation error:', err);
+      toastError(_optionalChain([err, 'optionalAccess', _ => _.message]) || 'Failed to generate voiceover', 'TTS Error');
+    } finally {
+      setIsGeneratingTts(false);
+      setTimeout(() => setAiMessage(''), 3000);
+    }
+  };
+
   // Add text preset
   const handleAddText = (styleType = 'default', customFont) => {
     const textTrack = project.tracks.find((t) => t.type === 'text') || project.tracks[0];
@@ -554,14 +767,48 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
     addClipToTrack(textTrack.id, newClip);
   };
 
-  // Add sticker emoji
-  const handleAddSticker = (emoji) => {
+  // Add rich preset text
+  const handleAddPresetText = (preset) => {
+    const textTrack = project.tracks.find((t) => t.type === 'text') || project.tracks[0];
+    const newClip = {
+      id: 'clip_text_' + Date.now(),
+      trackId: textTrack.id,
+      type: 'text',
+      name: preset.name,
+      start: currentTime,
+      duration: 3.5,
+      sourceStart: 0,
+      sourceDuration: 3.5,
+      x: 0,
+      y: 0,
+      scale: 1,
+      rotation: 0,
+      opacity: 1,
+      flipH: false,
+      flipV: false,
+      blendMode: 'normal',
+      speed: 1,
+      filterIntensity: 0,
+      adjustments: {
+        brightness: 0, contrast: 0, saturation: 0, exposure: 0,
+        highlights: 0, shadows: 0, temperature: 0, tint: 0,
+        vignette: 0, sharpen: 0, grain: 0,
+      },
+      textProps: { ...preset.props },
+      keyframes: [],
+    };
+    addClipToTrack(textTrack.id, newClip);
+    toastSuccess(`Added ${preset.name} text preset`);
+  };
+
+  // Add sticker emoji or badge
+  const handleAddSticker = (emoji, extraProps = {}) => {
     const stickerTrack = project.tracks.find((t) => t.type === 'sticker') || project.tracks[0];
     const newClip = {
       id: 'clip_sticker_' + Date.now(),
       trackId: stickerTrack.id,
       type: 'sticker',
-      name: `Sticker ${emoji}`,
+      name: extraProps.name || `Sticker ${emoji}`,
       stickerEmoji: emoji,
       start: currentTime,
       duration: 3,
@@ -582,31 +829,179 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
         highlights: 0, shadows: 0, temperature: 0, tint: 0,
         vignette: 0, sharpen: 0, grain: 0,
       },
+      ...extraProps,
       keyframes: [],
     };
     addClipToTrack(stickerTrack.id, newClip);
   };
 
+  // Add geometric shape
+  const handleAddShape = (shape) => {
+    handleAddSticker(shape.name, {
+      name: `Shape ${shape.name}`,
+      isShape: true,
+      shapeType: shape.id,
+      fillColor: shape.fillColor || '#3B82F6',
+      strokeColor: shape.strokeColor || '#FFFFFF',
+      strokeWidth: shape.strokeWidth || 2,
+    });
+    toastSuccess(`Added ${shape.name} shape`);
+  };
+
+  // Add cinematic frame
+  const handleAddFrame = (frame) => {
+    handleAddSticker(frame.name, {
+      name: `Frame ${frame.name}`,
+      isFrame: true,
+      frameType: frame.id,
+      borderColor: frame.borderColor || '#FFFFFF',
+      borderWidth: frame.borderWidth || 12,
+    });
+    toastSuccess(`Added ${frame.name} frame`);
+  };
+
+  // Upload custom PNG / GIF sticker
+  const handleCustomStickerUpload = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+
+    try {
+      const mediaId = 'sticker_' + Date.now();
+      const url = await storeMediaBlob(mediaId, file, file.name);
+      handleAddSticker(file.name, {
+        name: file.name.slice(0, 16),
+        isCustomSticker: true,
+        mediaUrl: url,
+        scale: 1,
+      });
+      toastSuccess(`Added ${file.name} sticker`);
+    } catch (err) {
+      console.error('Custom sticker error:', err);
+      toastError('Failed to upload sticker');
+    }
+  };
+
+  // Save current project as reusable template
+  const handleSaveAsTemplate = () => {
+    try {
+      const newTemplate = {
+        id: 'user_tpl_' + Date.now(),
+        title: `${project.name} Template`,
+        description: `Custom template with ${project.tracks.reduce((acc, t) => acc + t.clips.length, 0)} clips`,
+        category: 'My Templates',
+        aspectRatio: project.aspectRatio,
+        duration: Math.round(project.duration),
+        slots: [
+          { id: 'slot_title', label: 'Primary Title', type: 'text', defaultText: project.name, fontFamily: 'Outfit' },
+          { id: 'slot_sub', label: 'Subtitle / Tagline', type: 'text', defaultText: 'Custom Reusable Preset', fontFamily: 'Inter' },
+        ],
+      };
+
+      const existing = [...userTemplates, newTemplate];
+      setUserTemplates(existing);
+      localStorage.setItem('clipforge_user_templates', JSON.stringify(existing));
+      toastSuccess(`Saved current project as "${newTemplate.title}"!`);
+    } catch (e) {
+      console.error('Error saving template:', e);
+      toastError('Failed to save template');
+    }
+  };
+
   // Apply Filter to selected clip or add effect
   const handleApplyFilter = (filterId) => {
+    useEditorStore.getState().pushHistory();
     if (selectedClip) {
-      updateClip(selectedClip.id, { filter: filterId, filterIntensity: 80 });
+      updateClip(selectedClip.id, {
+        filter: filterId,
+        filterIntensity: selectedClip.filterIntensity !== undefined ? selectedClip.filterIntensity : 80,
+      });
+    } else {
+      const activeClip = project.tracks
+        .flatMap((t) => (t.type !== 'audio' ? t.clips : []))
+        .find((c) => currentTime >= c.start && currentTime <= c.start + c.duration) ||
+        project.tracks.flatMap((t) => (t.type !== 'audio' ? t.clips : []))[0];
+      if (activeClip) {
+        selectClip(activeClip.id);
+        updateClip(activeClip.id, {
+          filter: filterId,
+          filterIntensity: 80,
+        });
+      }
     }
   };
 
   // Apply Transition to selected clip
-  const handleApplyTransition = (transId) => {
+  const handleApplyTransition = (transId, customDur = null) => {
+    useEditorStore.getState().pushHistory();
+    const dur = customDur !== null ? customDur : transitionDuration;
     if (selectedClip) {
       updateClip(selectedClip.id, {
-        transitionIn: { type: transId , duration: 0.5 },
+        transitionIn: { type: transId, duration: dur },
       });
+    } else {
+      const targetClip = project.tracks
+        .flatMap((t) => (t.type !== 'audio' ? t.clips : []))
+        .find((c) => currentTime >= c.start && currentTime <= c.start + c.duration) ||
+        project.tracks.flatMap((t) => (t.type !== 'audio' ? t.clips : []))[0];
+      if (targetClip) {
+        selectClip(targetClip.id);
+        updateClip(targetClip.id, {
+          transitionIn: { type: transId, duration: dur },
+        });
+      }
     }
+  };
+
+  // Add Effect as its own clip on the Effects track
+  const handleAddEffectToTrack = (effectId) => {
+    useEditorStore.getState().pushHistory();
+
+    let effectTrack = project.tracks.find((t) => t.type === 'effect');
+    if (!effectTrack) {
+      effectTrack = {
+        id: 'track_effect_' + Date.now(),
+        name: 'Effects',
+        type: 'effect',
+        locked: false,
+        hidden: false,
+        muted: false,
+        volume: 1,
+        clips: [],
+      };
+      useEditorStore.getState().addTrack(effectTrack);
+    }
+
+    const fx = EFFECTS_LIST.find((f) => f.id === effectId) || { name: 'Effect' };
+    const newEffectClip = {
+      id: 'clip_effect_' + Date.now(),
+      trackId: effectTrack.id,
+      type: 'effect',
+      name: fx.name,
+      effectType: effectId,
+      effectIntensity: 60,
+      start: currentTime,
+      duration: 3.0,
+      sourceStart: 0,
+      sourceDuration: 3.0,
+      x: 0,
+      y: 0,
+      scale: 1,
+      rotation: 0,
+      opacity: 1,
+      keyframes: [],
+    };
+
+    addClipToTrack(effectTrack.id, newEffectClip);
+    selectClip(newEffectClip.id);
   };
 
   // Apply Visual Effect to selected clip
   const handleApplyEffect = (effectId) => {
+    useEditorStore.getState().pushHistory();
     if (selectedClip) {
       updateClip(selectedClip.id, { effectType: effectId, effectIntensity: 50 });
+    } else {
+      handleAddEffectToTrack(effectId);
     }
   };
 
@@ -998,10 +1393,144 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
           {/* TAB: AUDIO */}
           {activeLeftTab === 'audio' && (
             <div className="space-y-4">
+              {/* Text to Speech Generator */}
+              <div className="p-3 rounded-[6px] bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-[#3B82F6]" strokeWidth={1.5} />
+                    <span className="text-xs font-medium text-[#171717] dark:text-[#EDEDED]">
+                      Text to Speech (TTS)
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-[#737373] dark:text-[#A1A1A1] bg-[#F5F5F5] dark:bg-[#222222] px-1.5 py-0.5 rounded-[4px] border border-[#E5E5E5] dark:border-[#2A2A2A]">
+                    Multi-Lingual
+                  </span>
+                </div>
+
+                {/* Text input */}
+                <div>
+                  <textarea
+                    value={ttsText}
+                    onChange={(e) => setTtsText(e.target.value)}
+                    placeholder="Type words to convert into a voiceover clip..."
+                    rows={3}
+                    className="w-full text-xs p-2 rounded-[4px] bg-[#F9F9F9] dark:bg-[#141414] border border-[#E5E5E5] dark:border-[#2A2A2A] text-[#171717] dark:text-[#EDEDED] focus:outline-none focus:border-[#3B82F6] resize-none leading-relaxed"
+                  />
+                  <div className="flex justify-between items-center text-[10px] text-[#737373] dark:text-[#A1A1A1] mt-1">
+                    <span>{ttsText.length} characters</span>
+                    {ttsText && (
+                      <button
+                        onClick={() => setTtsText('')}
+                        className="hover:text-[#171717] dark:hover:text-[#EDEDED] cursor-pointer"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Language & Voice Selector */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[10px] text-[#737373] dark:text-[#A1A1A1] block mb-1">
+                      Language
+                    </label>
+                    <select
+                      value={ttsLang}
+                      onChange={(e) => setTtsLang(e.target.value)}
+                      className="w-full text-xs py-1.5 px-2 rounded-[4px] bg-[#F9F9F9] dark:bg-[#141414] border border-[#E5E5E5] dark:border-[#2A2A2A] text-[#171717] dark:text-[#EDEDED] focus:outline-none focus:border-[#3B82F6] cursor-pointer"
+                    >
+                      <option value="en-US">English (US)</option>
+                      <option value="hi-IN">Hindi (हिन्दी)</option>
+                      <option value="ml-IN">Malayalam (മലയാളം)</option>
+                      <option value="es-ES">Spanish (Español)</option>
+                      <option value="fr-FR">French (Français)</option>
+                      <option value="de-DE">German (Deutsch)</option>
+                      <option value="ja-JP">Japanese (日本語)</option>
+                      <option value="ar-SA">Arabic (العربية)</option>
+                      <option value="ta-IN">Tamil (தமிழ்)</option>
+                      <option value="te-IN">Telugu (తెలుగు)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-[#737373] dark:text-[#A1A1A1] block mb-1">
+                      Voice
+                    </label>
+                    <select
+                      value={ttsVoice}
+                      onChange={(e) => setTtsVoice(e.target.value)}
+                      className="w-full text-xs py-1.5 px-2 rounded-[4px] bg-[#F9F9F9] dark:bg-[#141414] border border-[#E5E5E5] dark:border-[#2A2A2A] text-[#171717] dark:text-[#EDEDED] focus:outline-none focus:border-[#3B82F6] cursor-pointer"
+                    >
+                      <option value="Kore">Kore (Warm)</option>
+                      <option value="Puck">Puck (Energetic)</option>
+                      <option value="Charon">Charon (Deep)</option>
+                      <option value="Fenrir">Fenrir (Clear)</option>
+                      <option value="Zephyr">Zephyr (Calm)</option>
+                      <option value="browser">Browser Native</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Speed & Pitch Controls */}
+                <div className="space-y-2 pt-1 border-t border-[#E5E5E5] dark:border-[#2A2A2A]">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-[#737373] dark:text-[#A1A1A1]">Speed</span>
+                    <span className="tabular-nums font-mono text-[#171717] dark:text-[#EDEDED]">
+                      {ttsSpeed.toFixed(1)}x
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0.5"
+                    max="2.0"
+                    step="0.1"
+                    value={ttsSpeed}
+                    onChange={(e) => setTtsSpeed(parseFloat(e.target.value))}
+                    className="w-full h-1 bg-[#E5E5E5] dark:bg-[#333333] rounded-lg appearance-none cursor-pointer accent-[#3B82F6]"
+                  />
+
+                  <div className="flex items-center justify-between text-[11px] pt-1">
+                    <span className="text-[#737373] dark:text-[#A1A1A1]">Pitch</span>
+                    <span className="tabular-nums font-mono text-[#171717] dark:text-[#EDEDED]">
+                      {ttsPitch.toFixed(1)}x
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0.5"
+                    max="1.5"
+                    step="0.1"
+                    value={ttsPitch}
+                    onChange={(e) => setTtsPitch(parseFloat(e.target.value))}
+                    className="w-full h-1 bg-[#E5E5E5] dark:bg-[#333333] rounded-lg appearance-none cursor-pointer accent-[#3B82F6]"
+                  />
+                </div>
+
+                {/* Action button */}
+                <button
+                  type="button"
+                  onClick={handleAudioTabTTS}
+                  disabled={isGeneratingTts || !ttsText.trim()}
+                  className="w-full min-h-[44px] py-2 px-3 rounded-[6px] bg-[#171717] hover:bg-[#262626] text-white dark:bg-[#EDEDED] dark:hover:bg-white dark:text-[#171717] disabled:opacity-50 disabled:cursor-not-allowed font-medium text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                >
+                  {isGeneratingTts ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.5} />
+                      <span>Generating Audio...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-3.5 h-3.5" strokeWidth={1.5} />
+                      <span>Generate Voiceover Clip</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
               {/* Beat sync feature button */}
               <button
                 onClick={handleAutoBeatDetect}
-                className="w-full py-2 px-3 rounded-[6px] border border-[#E5E5E5] dark:border-[#2A2A2A] bg-white dark:bg-[#1A1A1A] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] flex items-center justify-between text-xs text-[#171717] dark:text-[#EDEDED] font-normal transition-colors cursor-pointer"
+                className="w-full min-h-[44px] py-2 px-3 rounded-[6px] border border-[#E5E5E5] dark:border-[#2A2A2A] bg-white dark:bg-[#1A1A1A] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] flex items-center justify-between text-xs text-[#171717] dark:text-[#EDEDED] font-normal transition-colors cursor-pointer"
               >
                 <div className="flex items-center gap-2">
                   <Bookmark className="w-3.5 h-3.5 text-[#737373] dark:text-[#A1A1A1]" strokeWidth={1.5} />
@@ -1073,56 +1602,114 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
           {/* TAB: TEXT */}
           {activeLeftTab === 'text' && (
             <div className="space-y-4">
-              <button
-                onClick={() => handleAddText('default')}
-                className="w-full py-2 rounded-[6px] bg-[#171717] hover:bg-[#262626] text-white dark:bg-[#EDEDED] dark:hover:bg-white dark:text-[#171717] font-medium text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" strokeWidth={1.5} /> Add Standard Title
-              </button>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleAddText('default')}
+                  className="flex-1 py-2 rounded-[6px] bg-[#171717] hover:bg-[#262626] text-white dark:bg-[#EDEDED] dark:hover:bg-white dark:text-[#171717] font-medium text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" strokeWidth={1.5} /> Add Title
+                </button>
+                <button
+                  type="button"
+                  onClick={toggleDrawingMode}
+                  className="px-3 py-2 rounded-[6px] border border-[#E5E5E5] dark:border-[#2A2A2A] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] text-[#171717] dark:text-[#EDEDED] text-xs font-normal flex items-center gap-1.5 transition-colors cursor-pointer"
+                  title="Draw on video"
+                >
+                  <Paintbrush className="w-3.5 h-3.5 text-[#3B82F6]" strokeWidth={1.5} /> Draw
+                </button>
+              </div>
 
-              {/* Text Templates */}
+              {/* Ready-made Text Presets */}
               <div>
                 <span className="text-xs font-normal text-[#737373] dark:text-[#A1A1A1] mb-2 block">
-                  Stylized Typography
+                  Ready-Made Text Presets
                 </span>
                 <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { label: 'Minimal Clean', style: 'default', preview: 'CLEAN', bg: 'bg-[#F5F5F5] dark:bg-[#222222] text-[#171717] dark:text-[#EDEDED]' },
-                    { label: 'Headline Heavy', style: 'comic', preview: 'HEADLINE', bg: 'bg-[#F5F5F5] dark:bg-[#222222] text-[#171717] dark:text-[#EDEDED]' },
-                    { label: 'Soft Accent', style: 'gradient', preview: 'ACCENT', bg: 'bg-blue-50 dark:bg-blue-950/40 text-[#3B82F6]' },
-                    { label: 'Subtitle Box', style: 'sub', preview: 'SUBTITLE', bg: 'bg-[#171717] text-white dark:bg-[#EDEDED] dark:text-[#171717]' },
-                  ].map((t) => (
+                  {TEXT_PRESETS.map((preset) => (
                     <button
-                      key={t.label}
-                      onClick={() => handleAddText(t.style)}
-                      className={`h-14 rounded-[6px] border border-[#E5E5E5] dark:border-[#2A2A2A] hover:border-[#3B82F6] p-2 flex flex-col justify-between items-center transition-colors cursor-pointer ${t.bg}`}
+                      key={preset.id}
+                      type="button"
+                      onClick={() => handleAddPresetText(preset)}
+                      className="p-2.5 rounded-[6px] bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] hover:border-[#3B82F6] flex flex-col justify-between items-start text-left min-h-[58px] transition-colors cursor-pointer group"
                     >
-                      <span className="font-medium text-xs tracking-wide">{t.preview}</span>
-                      <span className="text-[10px] opacity-75 font-normal">{t.label}</span>
+                      <span
+                        className="text-xs font-medium text-[#171717] dark:text-[#EDEDED] truncate w-full group-hover:text-[#3B82F6] transition-colors"
+                        style={{ fontFamily: preset.props.fontFamily }}
+                      >
+                        {preset.preview}
+                      </span>
+                      <span className="text-[10px] text-[#737373] dark:text-[#A1A1A1] mt-1">
+                        {preset.name}
+                      </span>
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* 50+ Google Fonts Quick Add */}
-              <div>
-                <span className="text-xs font-normal text-[#737373] dark:text-[#A1A1A1] mb-2 block">
-                  Google Fonts Collection
-                </span>
-                <div className="space-y-1 max-h-56 overflow-y-auto pr-1">
-                  {GOOGLE_FONTS.map((font) => (
+              {/* 40+ Google Fonts Searchable Collection */}
+              <div className="space-y-2 pt-2 border-t border-[#E5E5E5] dark:border-[#2A2A2A]">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-normal text-[#737373] dark:text-[#A1A1A1]">
+                    Google Fonts Collection ({GOOGLE_FONTS.length})
+                  </span>
+                </div>
+
+                {/* Search Bar */}
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-[#737373] dark:text-[#A1A1A1]" strokeWidth={1.5} />
+                  <input
+                    type="text"
+                    placeholder="Search 40+ fonts (Hindi, Malayalam, Outfit...)"
+                    value={panelFontSearch}
+                    onChange={(e) => setPanelFontSearch(e.target.value)}
+                    className="w-full pl-8 pr-2.5 py-1.5 bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] text-xs text-[#171717] dark:text-[#EDEDED] outline-none"
+                  />
+                </div>
+
+                {/* Language / Category Pills */}
+                <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5">
+                  {['All', 'Hindi', 'Malayalam', 'Modern', 'Condensed', 'Serif Luxury', 'Handwritten'].map((cat) => (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setPanelFontCat(cat)}
+                      className={`px-2 py-0.5 rounded-[4px] text-[10px] font-normal border transition-colors cursor-pointer shrink-0 ${
+                        panelFontCat === cat
+                          ? 'bg-[#171717] text-white dark:bg-[#EDEDED] dark:text-[#171717] border-[#171717] dark:border-[#EDEDED]'
+                          : 'bg-white dark:bg-[#1A1A1A] text-[#737373] dark:text-[#A1A1A1] border-[#E5E5E5] dark:border-[#2A2A2A]'
+                      }`}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Fonts List with real font render */}
+                <div className="space-y-1 max-h-64 overflow-y-auto pr-1">
+                  {GOOGLE_FONTS.filter((font) => {
+                    const matchesSearch = font.name.toLowerCase().includes(panelFontSearch.toLowerCase()) ||
+                      font.category.toLowerCase().includes(panelFontSearch.toLowerCase());
+                    const matchesCat = panelFontCat === 'All' || font.category === panelFontCat;
+                    return matchesSearch && matchesCat;
+                  }).map((font) => (
                     <button
                       key={font.name}
+                      type="button"
                       onClick={() => handleAddText('default', font.name)}
                       className="w-full flex items-center justify-between p-2 rounded-[6px] bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] text-left transition-colors cursor-pointer"
                     >
-                      <span
-                        className="text-xs text-[#171717] dark:text-[#EDEDED] truncate font-normal"
-                        style={{ fontFamily: font.name }}
-                      >
-                        {font.name}
+                      <div className="min-w-0">
+                        <span
+                          className="text-xs text-[#171717] dark:text-[#EDEDED] truncate font-normal block"
+                          style={{ fontFamily: font.name }}
+                        >
+                          {font.sample} • {font.name}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-[#A3A3A3] dark:text-[#737373] shrink-0 font-sans ml-2">
+                        {font.category}
                       </span>
-                      <span className="text-[10px] text-[#A3A3A3] dark:text-[#737373]">{font.category}</span>
                     </button>
                   ))}
                 </div>
@@ -1130,23 +1717,124 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
             </div>
           )}
 
-          {/* TAB: STICKERS */}
+          {/* TAB: STICKERS & ELEMENTS */}
           {activeLeftTab === 'stickers' && (
-            <div className="space-y-3">
-              {STICKER_PACKS.map((pack) => (
+            <div className="space-y-3.5">
+              {/* Top Quick Actions: Upload Custom Sticker & Drawing Brush */}
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => customStickerInputRef.current && customStickerInputRef.current.click()}
+                  className="py-2 px-2.5 rounded-[6px] bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] text-[#171717] dark:text-[#EDEDED] text-xs font-normal flex items-center justify-center gap-1.5 transition-colors cursor-pointer truncate"
+                >
+                  <Upload className="w-3.5 h-3.5 text-[#3B82F6]" strokeWidth={1.5} />
+                  <span>Upload PNG/GIF</span>
+                </button>
+                <input
+                  ref={customStickerInputRef}
+                  type="file"
+                  accept="image/png,image/gif,image/webp,image/jpeg"
+                  onChange={handleCustomStickerUpload}
+                  className="hidden"
+                />
+
+                <button
+                  type="button"
+                  onClick={toggleDrawingMode}
+                  className="py-2 px-2.5 rounded-[6px] bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] text-[#171717] dark:text-[#EDEDED] text-xs font-normal flex items-center justify-center gap-1.5 transition-colors cursor-pointer truncate"
+                >
+                  <Paintbrush className="w-3.5 h-3.5 text-[#10B981]" strokeWidth={1.5} />
+                  <span>Drawing Brush</span>
+                </button>
+              </div>
+
+              {/* Category Pills */}
+              <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5">
+                {['All', 'Shapes', 'Frames', 'Social', 'Emoji', 'Icons'].map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setStickerCategory(cat)}
+                    className={`px-2.5 py-1 rounded-[6px] text-xs font-normal border transition-colors cursor-pointer shrink-0 ${
+                      stickerCategory === cat
+                        ? 'bg-[#171717] text-white dark:bg-[#EDEDED] dark:text-[#171717] border-[#171717] dark:border-[#EDEDED]'
+                        : 'bg-white dark:bg-[#1A1A1A] text-[#737373] dark:text-[#A1A1A1] border-[#E5E5E5] dark:border-[#2A2A2A]'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+
+              {/* SHAPES SECTION */}
+              {(stickerCategory === 'All' || stickerCategory === 'Shapes') && (
+                <div>
+                  <span className="text-xs font-normal text-[#737373] dark:text-[#A1A1A1] mb-1.5 block">
+                    Geometric Shapes (Resizable & Customizable)
+                  </span>
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {ELEMENT_SHAPES.map((shape) => (
+                      <button
+                        key={shape.id}
+                        type="button"
+                        onClick={() => handleAddShape(shape)}
+                        className="h-12 rounded-[6px] bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] hover:border-[#3B82F6] flex flex-col items-center justify-center p-1 transition-colors cursor-pointer"
+                        title={`Add ${shape.name}`}
+                      >
+                        <span className="text-base">{shape.preview}</span>
+                        <span className="text-[9px] text-[#737373] dark:text-[#A1A1A1] truncate mt-0.5">{shape.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* FRAMES SECTION */}
+              {(stickerCategory === 'All' || stickerCategory === 'Frames') && (
+                <div>
+                  <span className="text-xs font-normal text-[#737373] dark:text-[#A1A1A1] mb-1.5 block">
+                    Cinematic Frames & Overlays
+                  </span>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {ELEMENT_FRAMES.map((frame) => (
+                      <button
+                        key={frame.id}
+                        type="button"
+                        onClick={() => handleAddFrame(frame)}
+                        className="p-2 rounded-[6px] bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] hover:border-[#3B82F6] flex items-center gap-2 transition-colors cursor-pointer text-left"
+                        title={`Add ${frame.name}`}
+                      >
+                        <span className="text-lg">{frame.preview}</span>
+                        <div className="min-w-0">
+                          <span className="text-xs font-normal text-[#171717] dark:text-[#EDEDED] truncate block">{frame.name}</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* SOCIAL & EMOJI SECTIONS */}
+              {STICKER_PACKS.filter((p) => {
+                if (stickerCategory === 'All') return !p.isShape && !p.isFrame;
+                return p.category.toLowerCase() === stickerCategory.toLowerCase();
+              }).map((pack) => (
                 <div key={pack.category}>
                   <span className="text-xs font-normal text-[#737373] dark:text-[#A1A1A1] mb-1.5 block">
                     {pack.category}
                   </span>
-                  <div className="grid grid-cols-4 gap-1.5">
-                    {pack.items.map((emoji) => (
+                  <div className={pack.category === 'Social' ? 'grid grid-cols-2 gap-1.5' : 'grid grid-cols-4 gap-1.5'}>
+                    {pack.items.map((item) => (
                       <button
-                        key={emoji}
-                        onClick={() => handleAddSticker(emoji)}
-                        className="h-10 rounded-[6px] bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] flex items-center justify-center text-lg transition-colors cursor-pointer"
-                        title={`Add ${emoji}`}
+                        key={item}
+                        type="button"
+                        onClick={() => handleAddSticker(item)}
+                        className={`rounded-[6px] bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] flex items-center justify-center transition-colors cursor-pointer ${
+                          pack.category === 'Social' ? 'h-9 px-2 text-xs font-normal text-[#171717] dark:text-[#EDEDED] truncate' : 'h-10 text-lg'
+                        }`}
+                        title={`Add ${item}`}
                       >
-                        {emoji}
+                        {item}
                       </button>
                     ))}
                   </div>
@@ -1157,82 +1845,358 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
 
           {/* TAB: EFFECTS */}
           {activeLeftTab === 'effects' && (
-            <div className="space-y-2">
-              <span className="text-xs font-normal text-[#737373] dark:text-[#A1A1A1] block">
-                Visual Effects ({EFFECTS_LIST.length})
-              </span>
-              <p className="text-[11px] text-[#A3A3A3] dark:text-[#737373] mb-2 font-normal">
-                Select a clip on the timeline to apply effect
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                {EFFECTS_LIST.map((fx) => (
+            <div className="space-y-3">
+              {/* Category Pills */}
+              <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5">
+                {['All', 'Glitch', 'Motion', 'Retro', 'Light', 'Distortion', 'Particles', 'Stylize'].map((cat) => (
                   <button
-                    key={fx.id}
-                    onClick={() => handleApplyEffect(fx.id)}
-                    className="p-2.5 rounded-[6px] bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] hover:border-[#3B82F6] text-left transition-colors group cursor-pointer"
+                    key={cat}
+                    onClick={() => setEffectsCategory(cat)}
+                    className={`px-2.5 py-1 rounded-[6px] text-xs font-normal border transition-colors cursor-pointer shrink-0 ${
+                      effectsCategory === cat
+                        ? 'bg-[#171717] text-white dark:bg-[#EDEDED] dark:text-[#171717] border-[#171717] dark:border-[#EDEDED]'
+                        : 'bg-white dark:bg-[#1A1A1A] text-[#737373] dark:text-[#A1A1A1] border-[#E5E5E5] dark:border-[#2A2A2A] hover:bg-[#F5F5F5] dark:hover:bg-[#262626]'
+                    }`}
                   >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs font-medium text-[#171717] dark:text-[#EDEDED]">{fx.name}</span>
-                      <Zap className="w-3.5 h-3.5 text-[#737373] dark:text-[#A1A1A1] group-hover:text-[#171717] dark:group-hover:text-[#EDEDED] transition-colors" strokeWidth={1.5} />
-                    </div>
-                    <p className="text-[10px] text-[#737373] dark:text-[#A1A1A1] line-clamp-2">{fx.description}</p>
+                    {cat}
                   </button>
                 ))}
+              </div>
+
+              {/* Selected Clip or Active Effect Indicator */}
+              {selectedClip && (
+                <div className="bg-[#FAFAFA] dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] p-2.5 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-normal text-[#171717] dark:text-[#EDEDED] truncate">
+                      Target: <span className="font-medium">{selectedClip.name}</span>
+                    </span>
+                    {(selectedClip.effectType || selectedClip.type === 'effect') && (
+                      <button
+                        onClick={() => {
+                          useEditorStore.getState().pushHistory();
+                          if (selectedClip.type === 'effect') {
+                            useEditorStore.getState().deleteClip(selectedClip.id);
+                          } else {
+                            updateClip(selectedClip.id, { effectType: null });
+                          }
+                        }}
+                        className="text-[10px] text-red-600 dark:text-red-400 hover:underline cursor-pointer"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+
+                  {(selectedClip.effectType || selectedClip.type === 'effect') ? (
+                    <div>
+                      <div className="flex justify-between text-[#171717] dark:text-[#EDEDED] mb-1 text-xs">
+                        <span className="font-normal">Effect Intensity</span>
+                        <span className="text-[#737373] dark:text-[#A1A1A1] tabular-nums">
+                          {selectedClip.effectIntensity !== undefined ? selectedClip.effectIntensity : 50}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={selectedClip.effectIntensity !== undefined ? selectedClip.effectIntensity : 50}
+                        onPointerDown={() => useEditorStore.getState().pushHistory()}
+                        onChange={(e) =>
+                          updateClip(selectedClip.id, { effectIntensity: parseInt(e.target.value) || 0 })
+                        }
+                        className="w-full cursor-pointer accent-[#171717] dark:accent-[#EDEDED]"
+                      />
+                    </div>
+                  ) : (
+                    <p className="text-[10px] text-[#737373] dark:text-[#A1A1A1]">
+                      Click "Apply to Clip" or drag an effect onto the effects track below.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Effects List */}
+              <div className="space-y-1.5">
+                <span className="text-xs font-normal text-[#737373] dark:text-[#A1A1A1] block">
+                  Drag onto timeline or tap button ({EFFECTS_LIST.filter(f => effectsCategory === 'All' || f.category === effectsCategory).length})
+                </span>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {EFFECTS_LIST.filter((f) => effectsCategory === 'All' || f.category === effectsCategory).map((fx) => {
+                    const isApplied = selectedClip && (selectedClip.effectType === fx.id || (selectedClip.type === 'effect' && selectedClip.effectType === fx.id));
+                    return (
+                      <div
+                        key={fx.id}
+                        draggable={true}
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData('application/clipforge-effect', fx.id);
+                          e.dataTransfer.setData('text/plain', fx.id);
+                        }}
+                        className={`p-2.5 rounded-[6px] bg-white dark:bg-[#1A1A1A] border transition-all flex flex-col justify-between cursor-grab active:cursor-grabbing ${
+                          isApplied
+                            ? 'border-[#3B82F6] ring-1 ring-[#3B82F6]'
+                            : 'border-[#E5E5E5] dark:border-[#2A2A2A] hover:border-[#3B82F6]'
+                        }`}
+                      >
+                        <div className="mb-2">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-medium text-[#171717] dark:text-[#EDEDED] flex items-center gap-1.5">
+                              <Zap className="w-3.5 h-3.5 text-[#3B82F6]" strokeWidth={1.5} />
+                              {fx.name}
+                            </span>
+                            <span className="text-[9px] px-1.5 py-0.5 rounded-[4px] bg-[#F5F5F5] dark:bg-[#222222] text-[#737373] dark:text-[#A1A1A1]">
+                              {fx.category}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-[#737373] dark:text-[#A1A1A1] line-clamp-2 leading-relaxed">
+                            {fx.description}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 pt-1.5 border-t border-[#E5E5E5] dark:border-[#2A2A2A]">
+                          <button
+                            type="button"
+                            onClick={() => handleApplyEffect(fx.id)}
+                            className="flex-1 py-1 rounded-[4px] bg-[#F5F5F5] dark:bg-[#262626] hover:bg-[#E5E5E5] dark:hover:bg-[#333333] text-[10px] text-[#171717] dark:text-[#EDEDED] font-normal transition-colors cursor-pointer"
+                            title="Apply effect to selected clip"
+                          >
+                            Apply to Clip
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleAddEffectToTrack(fx.id)}
+                            className="flex-1 py-1 rounded-[4px] bg-[#171717] hover:bg-[#262626] dark:bg-[#EDEDED] dark:hover:bg-white text-[10px] text-white dark:text-[#171717] font-normal transition-colors cursor-pointer"
+                            title="Add as independent clip on Effects track"
+                          >
+                            + Track Clip
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           )}
 
           {/* TAB: TRANSITIONS */}
           {activeLeftTab === 'transitions' && (
-            <div className="space-y-2">
-              <span className="text-xs font-normal text-[#737373] dark:text-[#A1A1A1] block">
-                Transitions
-              </span>
-              <p className="text-[11px] text-[#A3A3A3] dark:text-[#737373] mb-2 font-normal">
-                Select a clip to apply an in-transition cut
+            <div className="space-y-3">
+              {/* Duration Slider */}
+              <div className="bg-[#FAFAFA] dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] p-2.5 space-y-2">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="font-normal text-[#171717] dark:text-[#EDEDED]">Transition Duration</span>
+                  <span className="text-[#737373] dark:text-[#A1A1A1] tabular-nums font-mono">
+                    {transitionDuration.toFixed(1)}s
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="0.2"
+                  max="2.0"
+                  step="0.1"
+                  value={transitionDuration}
+                  onChange={(e) => setTransitionDuration(parseFloat(e.target.value))}
+                  className="w-full cursor-pointer accent-[#171717] dark:accent-[#EDEDED]"
+                />
+                <div className="flex items-center justify-between gap-1">
+                  {[0.3, 0.5, 0.8, 1.0, 1.5].map((d) => (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => setTransitionDuration(d)}
+                      className={`flex-1 py-0.5 rounded-[4px] text-[10px] font-normal border transition-colors cursor-pointer tabular-nums ${
+                        transitionDuration === d
+                          ? 'bg-[#171717] text-white dark:bg-[#EDEDED] dark:text-[#171717] border-[#171717] dark:border-[#EDEDED]'
+                          : 'bg-white dark:bg-[#1A1A1A] text-[#737373] dark:text-[#A1A1A1] border-[#E5E5E5] dark:border-[#2A2A2A] hover:bg-[#F5F5F5] dark:hover:bg-[#262626]'
+                      }`}
+                    >
+                      {d}s
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Selected Clip indicator & Remove Option */}
+              {selectedClip && (
+                <div className="flex items-center justify-between text-xs px-1 text-[#737373] dark:text-[#A1A1A1]">
+                  <span className="truncate">
+                    Apply to: <strong className="text-[#171717] dark:text-[#EDEDED] font-normal">{selectedClip.name}</strong>
+                  </span>
+                  {selectedClip.transitionIn && (
+                    <button
+                      onClick={() => {
+                        useEditorStore.getState().pushHistory();
+                        updateClip(selectedClip.id, { transitionIn: null });
+                      }}
+                      className="text-[10px] text-red-600 dark:text-red-400 hover:underline cursor-pointer"
+                    >
+                      Remove ({selectedClip.transitionIn.type})
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Tip for timeline + button */}
+              <p className="text-[10px] text-[#737373] dark:text-[#A1A1A1] leading-relaxed">
+                Tap a transition below to apply to the selected clip, or tap the <span className="font-semibold text-[#171717] dark:text-[#EDEDED]">+</span> button between two clips on the timeline.
               </p>
-              <div className="grid grid-cols-2 gap-2">
-                {TRANSITIONS_LIST.map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => handleApplyTransition(t.id)}
-                    className="p-3 rounded-[6px] bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] hover:border-[#3B82F6] flex flex-col items-center justify-center gap-1.5 transition-colors text-center cursor-pointer"
-                  >
-                    <Shuffle className="w-4 h-4 text-[#737373] dark:text-[#A1A1A1]" strokeWidth={1.5} />
-                    <span className="text-xs font-medium text-[#171717] dark:text-[#EDEDED]">{t.name}</span>
-                    <span className="text-[10px] text-[#737373] dark:text-[#A1A1A1] tabular-nums">{t.duration}s</span>
-                  </button>
-                ))}
+
+              {/* Transitions List */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {TRANSITIONS_LIST.map((t) => {
+                  const isSelected = selectedClip && selectedClip.transitionIn && selectedClip.transitionIn.type === t.id;
+                  return (
+                    <button
+                      key={t.id}
+                      onClick={() => handleApplyTransition(t.id, transitionDuration)}
+                      className={`p-3 rounded-[6px] border flex flex-col items-center justify-center gap-1.5 transition-all text-center cursor-pointer ${
+                        isSelected
+                          ? 'bg-blue-50 dark:bg-blue-950/40 border-[#3B82F6] text-[#3B82F6]'
+                          : 'bg-white dark:bg-[#1A1A1A] border-[#E5E5E5] dark:border-[#2A2A2A] hover:border-[#3B82F6] text-[#171717] dark:text-[#EDEDED]'
+                      }`}
+                    >
+                      <Shuffle className="w-4 h-4 text-[#737373] dark:text-[#A1A1A1]" strokeWidth={1.5} />
+                      <span className="text-xs font-medium truncate w-full">{t.name}</span>
+                      <span className="text-[10px] text-[#737373] dark:text-[#A1A1A1] tabular-nums">
+                        {transitionDuration.toFixed(1)}s
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
 
           {/* TAB: FILTERS */}
           {activeLeftTab === 'filters' && (
-            <div className="space-y-2">
-              <span className="text-xs font-normal text-[#737373] dark:text-[#A1A1A1] block">
-                Color Grading Filters ({FILTERS_LIST.length})
-              </span>
-              <p className="text-[11px] text-[#A3A3A3] dark:text-[#737373] mb-2 font-normal">
-                Select a clip on timeline to apply filter
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                {FILTERS_LIST.map((f) => (
+            <div className="space-y-3">
+              {/* Category Pills */}
+              <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5">
+                {['All', 'Cinematic', 'Retro', 'Atmosphere', 'Color'].map((cat) => (
                   <button
-                    key={f.id}
-                    onClick={() => handleApplyFilter(f.id)}
-                    className="p-2 rounded-[6px] bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] hover:border-[#3B82F6] transition-colors text-left group cursor-pointer"
+                    key={cat}
+                    onClick={() => setFilterCategory(cat)}
+                    className={`px-2.5 py-1 rounded-[6px] text-xs font-normal border transition-colors cursor-pointer shrink-0 ${
+                      filterCategory === cat
+                        ? 'bg-[#171717] text-white dark:bg-[#EDEDED] dark:text-[#171717] border-[#171717] dark:border-[#EDEDED]'
+                        : 'bg-white dark:bg-[#1A1A1A] text-[#737373] dark:text-[#A1A1A1] border-[#E5E5E5] dark:border-[#2A2A2A] hover:bg-[#F5F5F5] dark:hover:bg-[#262626]'
+                    }`}
                   >
-                    <div
-                      className="w-full h-10 rounded-[4px] mb-1.5 border border-[#E5E5E5] dark:border-[#2A2A2A] flex items-center justify-center text-[11px] font-medium text-white shadow-xs"
-                      style={{ backgroundColor: f.previewColor }}
-                    >
-                      {f.name}
-                    </div>
-                    <p className="text-[11px] font-medium text-[#171717] dark:text-[#EDEDED] truncate">{f.name}</p>
-                    <p className="text-[9px] text-[#737373] dark:text-[#A1A1A1]">{f.category}</p>
+                    {cat}
                   </button>
                 ))}
+              </div>
+
+              {/* Selected Clip & Intensity Slider */}
+              <div className="bg-[#FAFAFA] dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] p-2.5 space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-normal text-[#171717] dark:text-[#EDEDED] truncate">
+                    {selectedClip ? `Target: ${selectedClip.name}` : 'No clip selected (auto-applies to playhead)'}
+                  </span>
+                  {selectedClip && selectedClip.filter && selectedClip.filter !== 'none' && (
+                    <button
+                      onClick={() => {
+                        useEditorStore.getState().pushHistory();
+                        updateClip(selectedClip.id, { filter: 'none', filterIntensity: 0 });
+                      }}
+                      className="text-[10px] text-[#737373] dark:text-[#A1A1A1] hover:text-[#171717] dark:hover:text-[#EDEDED] underline cursor-pointer"
+                    >
+                      Clear Filter
+                    </button>
+                  )}
+                </div>
+
+                <div>
+                  <div className="flex justify-between text-[#171717] dark:text-[#EDEDED] mb-1 text-xs">
+                    <span className="font-normal">Filter Intensity</span>
+                    <span className="text-[#737373] dark:text-[#A1A1A1] tabular-nums">
+                      {selectedClip ? (selectedClip.filterIntensity !== undefined ? selectedClip.filterIntensity : 80) : 80}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={selectedClip ? (selectedClip.filterIntensity !== undefined ? selectedClip.filterIntensity : 80) : 80}
+                    onPointerDown={() => useEditorStore.getState().pushHistory()}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value) || 0;
+                      if (selectedClip) {
+                        updateClip(selectedClip.id, { filterIntensity: val });
+                      }
+                    }}
+                    className="w-full cursor-pointer accent-[#171717] dark:accent-[#EDEDED]"
+                  />
+                </div>
+              </div>
+
+              {/* Filter Presets Grid */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-xs text-[#737373] dark:text-[#A1A1A1]">
+                  <span>Filter Presets ({FILTERS_LIST.filter(f => filterCategory === 'All' || f.category === filterCategory).length})</span>
+                  <button
+                    onClick={() => handleApplyFilter('none')}
+                    className="text-[10px] hover:text-[#171717] dark:hover:text-[#EDEDED] underline cursor-pointer"
+                  >
+                    Set None
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 max-h-[460px] overflow-y-auto pr-0.5">
+                  {/* None / Reset Option */}
+                  <button
+                    onClick={() => handleApplyFilter('none')}
+                    className={`p-2 rounded-[6px] border text-left transition-all group cursor-pointer ${
+                      selectedClip && (!selectedClip.filter || selectedClip.filter === 'none')
+                        ? 'border-[#3B82F6] ring-1 ring-[#3B82F6] bg-blue-50/20 dark:bg-blue-950/20'
+                        : 'bg-white dark:bg-[#1A1A1A] border-[#E5E5E5] dark:border-[#2A2A2A] hover:border-[#3B82F6]'
+                    }`}
+                  >
+                    <div className="w-full h-12 rounded-[4px] mb-1.5 border border-[#E5E5E5] dark:border-[#2A2A2A] flex items-center justify-center bg-[#F5F5F5] dark:bg-[#222222] text-[#737373] dark:text-[#A1A1A1] text-xs">
+                      None
+                    </div>
+                    <p className="text-[11px] font-medium text-[#171717] dark:text-[#EDEDED] truncate">Original (None)</p>
+                    <p className="text-[9px] text-[#737373] dark:text-[#A1A1A1]">No color grading</p>
+                  </button>
+
+                  {FILTERS_LIST.filter((f) => f.id !== 'none' && (filterCategory === 'All' || f.category === filterCategory)).map((f) => {
+                    const isApplied = selectedClip && selectedClip.filter === f.id;
+                    return (
+                      <button
+                        key={f.id}
+                        onClick={() => handleApplyFilter(f.id)}
+                        className={`p-2 rounded-[6px] border text-left transition-all group cursor-pointer ${
+                          isApplied
+                            ? 'border-[#3B82F6] ring-1 ring-[#3B82F6] bg-blue-50/20 dark:bg-blue-950/20'
+                            : 'bg-white dark:bg-[#1A1A1A] border-[#E5E5E5] dark:border-[#2A2A2A] hover:border-[#3B82F6]'
+                        }`}
+                      >
+                        {/* Thumbnail preview with real CSS filter grading effect */}
+                        <div
+                          className="w-full h-12 rounded-[4px] mb-1.5 border border-[#E5E5E5] dark:border-[#2A2A2A] relative overflow-hidden flex items-end p-1.5 shadow-xs bg-[#171717]"
+                        >
+                          <div
+                            className="absolute inset-0 bg-gradient-to-tr from-amber-500 via-rose-500 to-sky-500 opacity-90 transition-all"
+                            style={{
+                              filter: f.cssFilter ? f.cssFilter(0.85) : 'none',
+                            }}
+                          />
+                          <span className="relative z-10 text-[9px] font-medium text-white px-1 py-0.5 rounded bg-black/60 backdrop-blur-xs leading-none truncate max-w-full">
+                            {f.name}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <p className="text-[11px] font-medium text-[#171717] dark:text-[#EDEDED] truncate">{f.name}</p>
+                          {isApplied && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-[#3B82F6]" />
+                          )}
+                        </div>
+                        <p className="text-[9px] text-[#737373] dark:text-[#A1A1A1] truncate">{f.category}</p>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           )}
@@ -1368,36 +2332,91 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
 
           {/* TAB: TEMPLATES */}
           {activeLeftTab === 'templates' && (
-            <div className="space-y-3">
-              <span className="text-xs font-normal text-[#737373] dark:text-[#A1A1A1] block">
-                1-Click Templates
-              </span>
+            <div className="space-y-3.5">
+              {/* Top Action: Save current project as template */}
+              <button
+                type="button"
+                onClick={handleSaveAsTemplate}
+                className="w-full py-2 px-3 rounded-[6px] bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] hover:border-[#3B82F6] text-[#171717] dark:text-[#EDEDED] text-xs font-medium flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-2xs"
+              >
+                <BookmarkPlus className="w-3.5 h-3.5 text-[#3B82F6]" strokeWidth={1.5} />
+                <span>Save Current Project as Template</span>
+              </button>
+
+              {/* Category Filter Pills */}
+              <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5">
+                {['All', 'Reels', 'YouTube', 'Slideshow', 'Social', 'My Templates'].map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setTemplateCategory(cat)}
+                    className={`px-2.5 py-1 rounded-[6px] text-xs font-normal border transition-colors cursor-pointer shrink-0 ${
+                      templateCategory === cat
+                        ? 'bg-[#171717] text-white dark:bg-[#EDEDED] dark:text-[#171717] border-[#171717] dark:border-[#EDEDED]'
+                        : 'bg-white dark:bg-[#1A1A1A] text-[#737373] dark:text-[#A1A1A1] border-[#E5E5E5] dark:border-[#2A2A2A]'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+
+              {/* Templates List */}
               <div className="space-y-2">
-                {TEMPLATES_LIST.map((tpl) => (
+                {[...userTemplates, ...TEMPLATES_LIST].filter((tpl) => {
+                  if (templateCategory === 'All') return true;
+                  if (templateCategory === 'My Templates') return tpl.category === 'My Templates';
+                  return tpl.category === templateCategory;
+                }).map((tpl) => (
                   <div
                     key={tpl.id}
                     className="p-3 rounded-[6px] bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] hover:border-[#3B82F6] transition-colors flex flex-col gap-2"
                   >
                     <div className="flex items-center justify-between">
-                      <h3 className="text-xs font-medium text-[#171717] dark:text-[#EDEDED]">{tpl.title}</h3>
-                      <span className="text-[10px] text-[#737373] dark:text-[#A1A1A1] bg-[#F5F5F5] dark:bg-[#222222] px-1.5 py-0.5 rounded-[4px] border border-[#E5E5E5] dark:border-[#2A2A2A]">
-                        {tpl.aspectRatio}
-                      </span>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <h3 className="text-xs font-medium text-[#171717] dark:text-[#EDEDED] truncate">{tpl.title}</h3>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <span className="text-[9px] text-[#737373] dark:text-[#A1A1A1] bg-[#F5F5F5] dark:bg-[#222222] px-1.5 py-0.5 rounded-[4px] border border-[#E5E5E5] dark:border-[#2A2A2A] font-mono">
+                          {tpl.aspectRatio}
+                        </span>
+                        <span className="text-[9px] text-[#737373] dark:text-[#A1A1A1] bg-[#F5F5F5] dark:bg-[#222222] px-1.5 py-0.5 rounded-[4px] border border-[#E5E5E5] dark:border-[#2A2A2A]">
+                          {tpl.category}
+                        </span>
+                      </div>
                     </div>
-                    <p className="text-[11px] text-[#737373] dark:text-[#A1A1A1]">{tpl.description}</p>
-                    <div className="flex items-center justify-between pt-1 border-t border-[#E5E5E5] dark:border-[#2A2A2A]">
-                      <span className="text-[10px] text-[#A3A3A3] dark:text-[#737373] tabular-nums">{tpl.duration}s length</span>
-                      <button
-                        onClick={() => {
-                          const newProj = createDefaultProject();
-                          newProj.name = tpl.title;
-                          newProj.aspectRatio = tpl.aspectRatio;
-                          setProject(newProj);
-                        }}
-                        className="px-2.5 py-1 rounded-[6px] bg-[#171717] hover:bg-[#262626] text-white dark:bg-[#EDEDED] dark:hover:bg-white dark:text-[#171717] text-[11px] font-medium transition-colors cursor-pointer"
-                      >
-                        Load Template
-                      </button>
+
+                    <p className="text-[11px] text-[#737373] dark:text-[#A1A1A1] leading-relaxed">
+                      {tpl.description}
+                    </p>
+
+                    {tpl.slots && (
+                      <div className="flex items-center gap-1 flex-wrap pt-0.5">
+                        {tpl.slots.map((s) => (
+                          <span
+                            key={s.id}
+                            className="text-[9px] px-1.5 py-0.5 rounded-[3px] bg-[#FAFAFA] dark:bg-[#202020] text-[#737373] dark:text-[#A1A1A1] border border-[#E5E5E5] dark:border-[#2A2A2A]"
+                          >
+                            {s.label}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between pt-2 border-t border-[#E5E5E5] dark:border-[#2A2A2A]">
+                      <span className="text-[10px] text-[#A3A3A3] dark:text-[#737373] tabular-nums">
+                        {tpl.duration}s duration
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => openTemplateModal(tpl)}
+                          className="px-2.5 py-1 rounded-[6px] bg-[#171717] hover:bg-[#262626] text-white dark:bg-[#EDEDED] dark:hover:bg-white dark:text-[#171717] text-[11px] font-medium transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
+                        >
+                          <Sparkles className="w-3 h-3" strokeWidth={1.5} />
+                          Customize & Use
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}

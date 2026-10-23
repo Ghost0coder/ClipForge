@@ -1,3 +1,6 @@
+function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } }
+function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }
+
 import { getInterpolatedProperty } from './previewRenderer';
 
 class AudioEngine {constructor() { AudioEngine.prototype.__init.call(this);AudioEngine.prototype.__init2.call(this);AudioEngine.prototype.__init3.call(this);AudioEngine.prototype.__init4.call(this);AudioEngine.prototype.__init5.call(this);AudioEngine.prototype.__init6.call(this);AudioEngine.prototype.__init7.call(this); }
@@ -145,7 +148,21 @@ class AudioEngine {constructor() { AudioEngine.prototype.__init.call(this);Audio
             const dynVol = getInterpolatedProperty(clip, 'volume', currentTime, baseVol);
             const trackVol = track.volume != null ? track.volume : 1;
             const isMute = Boolean(clip.audioProps && clip.audioProps.mute);
-            audioEl.volume = isMute ? 0 : Math.min(Math.max(dynVol * trackVol, 0), 1);
+
+            // Compute dynamic Fade In / Fade Out envelope
+            const clipElapsed = currentTime - clipStart;
+            const clipRemaining = clipEnd - currentTime;
+            let fadeGain = 1.0;
+            const fadeInDur = _optionalChain([clip, 'access', _ => _.audioProps, 'optionalAccess', _2 => _2.fadeIn]) || 0;
+            const fadeOutDur = _optionalChain([clip, 'access', _3 => _3.audioProps, 'optionalAccess', _4 => _4.fadeOut]) || 0;
+            if (fadeInDur > 0 && clipElapsed < fadeInDur) {
+              fadeGain = Math.max(0, clipElapsed / fadeInDur);
+            }
+            if (fadeOutDur > 0 && clipRemaining < fadeOutDur) {
+              fadeGain = Math.min(fadeGain, Math.max(0, clipRemaining / fadeOutDur));
+            }
+
+            audioEl.volume = isMute ? 0 : Math.min(Math.max(dynVol * trackVol * fadeGain, 0), 1);
           }
         } else {
           this.stopClipAudio(clip.id);
@@ -154,7 +171,7 @@ class AudioEngine {constructor() { AudioEngine.prototype.__init.call(this);Audio
     });
   }
 
-   playClipAudio(clip, track, offset, currentTime = 0) {
+  playClipAudio(clip, track, offset, currentTime = 0) {
     if (this.activeSources.has(clip.id)) {
       return; // Already playing
     }
@@ -173,8 +190,32 @@ class AudioEngine {constructor() { AudioEngine.prototype.__init.call(this);Audio
         this.mediaElements.set(clip.id, audioEl);
       }
       try {
-        audioEl.volume = Math.min(Math.max(clipVolume, 0), 1);
-        audioEl.playbackRate = clip.speed || 1;
+        const clipElapsed = Math.max(0, currentTime - clip.start);
+        const clipRemaining = Math.max(0, clip.duration - clipElapsed);
+        let fadeGain = 1.0;
+        const fadeInDur = _optionalChain([clip, 'access', _5 => _5.audioProps, 'optionalAccess', _6 => _6.fadeIn]) || 0;
+        const fadeOutDur = _optionalChain([clip, 'access', _7 => _7.audioProps, 'optionalAccess', _8 => _8.fadeOut]) || 0;
+        if (fadeInDur > 0 && clipElapsed < fadeInDur) {
+          fadeGain = Math.max(0, clipElapsed / fadeInDur);
+        }
+        if (fadeOutDur > 0 && clipRemaining < fadeOutDur) {
+          fadeGain = Math.min(fadeGain, Math.max(0, clipRemaining / fadeOutDur));
+        }
+
+        audioEl.volume = Math.min(Math.max(clipVolume * fadeGain, 0), 1);
+
+        // Voice changer & Pitch shift calculation
+        const pitchShiftSt = _optionalChain([clip, 'access', _9 => _9.audioProps, 'optionalAccess', _10 => _10.pitchShift]) || 0;
+        const voiceChanger = _optionalChain([clip, 'access', _11 => _11.audioProps, 'optionalAccess', _12 => _12.voiceChanger]) || 'none';
+        let pitchMultiplier = Math.pow(2, pitchShiftSt / 12);
+        if (voiceChanger === 'deep') pitchMultiplier *= 0.82;
+        else if (voiceChanger === 'high') pitchMultiplier *= 1.25;
+        else if (voiceChanger === 'chipmunk') pitchMultiplier *= 1.55;
+        else if (voiceChanger === 'robot') pitchMultiplier *= 0.95;
+
+        const effectiveSpeed = (clip.speed || 1) * pitchMultiplier;
+        audioEl.playbackRate = Math.max(0.2, Math.min(effectiveSpeed, 4.0));
+
         // Only seek if audio has drifted significantly (> 0.25s) or is unstarted/paused
         if (audioEl.paused || Math.abs(audioEl.currentTime - offset) > 0.25) {
           audioEl.currentTime = offset;

@@ -1,18 +1,17 @@
- function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }import React, { useRef, useState, useEffect } from 'react';
+function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } }
+function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }
+
+import React, { useRef, useState, useEffect } from 'react';
 import {
   Scissors,
   Trash2,
   Copy,
-
   Lock,
   Unlock,
-
-
   Volume2,
   VolumeX,
   ZoomIn,
   ZoomOut,
-
   Bookmark,
   ArrowLeftRight,
   Snowflake,
@@ -21,9 +20,16 @@ import {
   Type,
   Smile,
   Layers,
+  Plus,
+  Shuffle,
+  Zap,
+  X,
+  Check,
+  Magnet,
+  Activity,
 } from 'lucide-react';
 import { useEditorStore } from '../store/editorStore';
-
+import { TRANSITIONS_LIST, EFFECTS_LIST } from '../utils/sampleData';
 import { useResponsive } from '../utils/useResponsive';
 import { MobileFloatingClipBar } from './MobileFloatingClipBar';
 
@@ -38,6 +44,8 @@ export const Timeline = () => {
     toggleSnapping,
     magneticTimeline,
     toggleMagnetic,
+    snapToBeats,
+    toggleSnapToBeats,
     selectedClipIds,
     selectClip,
     splitClipAtPlayhead,
@@ -47,7 +55,9 @@ export const Timeline = () => {
     freezeFrame,
     moveClip,
     trimClip,
+    updateClip,
     addTrack,
+    addClipToTrack,
     removeTrack,
     toggleTrackLock,
     toggleTrackHide,
@@ -63,6 +73,7 @@ export const Timeline = () => {
   } = useEditorStore();
 
   const { isMobile } = useResponsive();
+  const [transitionModal, setTransitionModal] = useState(null);
 
   const rulerRef = useRef(null);
   const timelineTracksRef = useRef(null);
@@ -97,12 +108,40 @@ export const Timeline = () => {
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
+  // Detect beats: generates rhythmic beat markers along the project timeline (128 BPM = ~0.46875s)
+  const handleDetectBeats = () => {
+    useEditorStore.getState().pushHistory();
+    const beatInterval = 0.46875; // 128 BPM
+    const targetDuration = Math.max(project.duration, 16);
+    const newMarkers = [];
+    for (let t = 0; t <= targetDuration; t += beatInterval) {
+      const beatNum = Math.round(t / beatInterval) + 1;
+      const isDownbeat = (beatNum - 1) % 4 === 0;
+      newMarkers.push({
+        id: 'beat_' + Date.now() + '_' + Math.round(t * 100),
+        time: Math.round(t * 100) / 100,
+        label: isDownbeat ? `Beat ${beatNum}` : `·`,
+        color: isDownbeat ? '#3B82F6' : '#F59E0B',
+      });
+    }
+    useEditorStore.setState((state) => ({
+      project: {
+        ...state.project,
+        markers: [...(state.project.markers || []).filter((m) => !m.id.startsWith('beat_')), ...newMarkers],
+      },
+    }));
+  };
+
   // Playhead scrubber interactions (mouse + touch)
   const handleRulerScrubStart = (clientX) => {
     if (!rulerRef.current) return;
     const rect = rulerRef.current.getBoundingClientRect();
     const clickX = clientX - rect.left;
-    const targetTime = Math.max(0, clickX / zoom);
+    let targetTime = Math.max(0, clickX / zoom);
+    if (snapToBeats && project.markers && project.markers.length > 0) {
+      const nearestMarker = project.markers.find((m) => Math.abs(m.time - targetTime) < 0.15);
+      if (nearestMarker) targetTime = nearestMarker.time;
+    }
     seek(targetTime);
     setIsScrubbing(true);
   };
@@ -123,7 +162,11 @@ export const Timeline = () => {
       if (isScrubbing && rulerRef.current) {
         const rect = rulerRef.current.getBoundingClientRect();
         const clickX = clientX - rect.left;
-        const targetTime = Math.max(0, Math.min(clickX / zoom, project.duration));
+        let targetTime = Math.max(0, Math.min(clickX / zoom, project.duration));
+        if (snapToBeats && project.markers && project.markers.length > 0) {
+          const nearestMarker = project.markers.find((m) => Math.abs(m.time - targetTime) < 0.15);
+          if (nearestMarker) targetTime = nearestMarker.time;
+        }
         seek(targetTime);
       }
 
@@ -146,12 +189,16 @@ export const Timeline = () => {
         const deltaSec = deltaPx / zoom;
         let newStart = Math.max(0, dragClipStartPos.current.origStart + deltaSec);
 
-        // Snap to start 00:00 or playhead
+        // Snap to start 00:00 or playhead or beat markers
         if (newStart < 0.2) {
           newStart = 0;
-        } else if (snapping) {
-          if (Math.abs(newStart - currentTime) < 0.2) {
+        } else {
+          if (snapping && Math.abs(newStart - currentTime) < 0.2) {
             newStart = currentTime;
+          }
+          if (snapToBeats && project.markers && project.markers.length > 0) {
+            const nearestMarker = project.markers.find((m) => Math.abs(m.time - newStart) < 0.25);
+            if (nearestMarker) newStart = nearestMarker.time;
           }
         }
 
@@ -204,7 +251,7 @@ export const Timeline = () => {
       window.removeEventListener('touchmove', handleTouchMove);
       window.removeEventListener('touchend', handlePointerUp);
     };
-  }, [isScrubbing, trimmingClip, draggingClipId, draggingKeyframe, zoom, project.duration, currentTime, snapping, seek, trimClip, moveClip, updateKeyframeTime]);
+  }, [isScrubbing, trimmingClip, draggingClipId, draggingKeyframe, zoom, project.duration, project.markers, currentTime, snapping, snapToBeats, seek, trimClip, moveClip, updateKeyframeTime]);
 
   // Touch pinch-to-zoom on timeline tracks
   const handleTimelineTouchStart = (e) => {
@@ -246,6 +293,8 @@ export const Timeline = () => {
         return <Type className="w-3.5 h-3.5 text-[#737373] dark:text-[#A1A1A1]" strokeWidth={1.5} />;
       case 'sticker':
         return <Smile className="w-3.5 h-3.5 text-[#737373] dark:text-[#A1A1A1]" strokeWidth={1.5} />;
+      case 'effect':
+        return <Zap className="w-3.5 h-3.5 text-[#737373] dark:text-[#A1A1A1]" strokeWidth={1.5} />;
       default:
         return <Layers className="w-3.5 h-3.5 text-[#737373] dark:text-[#A1A1A1]" strokeWidth={1.5} />;
     }
@@ -263,6 +312,8 @@ export const Timeline = () => {
         return 'bg-[#F5EFE6] dark:bg-[#362F24] border-[#E5DAC9] dark:border-[#4D4233] text-[#4F3B20] dark:text-[#EAD9C2]';
       case 'sticker':
         return 'bg-[#FCEAEB] dark:bg-[#382327] border-[#F3CDD1] dark:border-[#543138] text-[#5E282D] dark:text-[#F2CBD2]';
+      case 'effect':
+        return 'bg-[#F3E8FF] dark:bg-[#2E1065]/50 border-[#D8B4FE] dark:border-[#581C87] text-[#581C87] dark:text-[#E9D5FF]';
       default:
         return 'bg-[#F5F5F5] dark:bg-[#222222] border-[#E5E5E5] dark:border-[#2A2A2A] text-[#171717] dark:text-[#EDEDED]';
     }
@@ -341,6 +392,30 @@ export const Timeline = () => {
             title="Add Marker at Playhead"
           >
             <Bookmark className="w-3.5 h-3.5" strokeWidth={1.5} />
+          </button>
+
+          {/* Detect Beats */}
+          <button
+            onClick={handleDetectBeats}
+            className="flex items-center gap-1 px-2 py-1 rounded-[6px] bg-white dark:bg-[#1A1A1A] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] text-xs text-[#737373] dark:text-[#A1A1A1] hover:text-[#171717] dark:hover:text-[#EDEDED] border border-[#E5E5E5] dark:border-[#2A2A2A] transition-colors cursor-pointer shrink-0"
+            title="Auto Detect Beats (128 BPM grid & audio markers)"
+          >
+            <Activity className="w-3.5 h-3.5 text-[#3B82F6]" strokeWidth={1.5} />
+            <span className="hidden sm:inline">Detect Beats</span>
+          </button>
+
+          {/* Snap to Beats Toggle */}
+          <button
+            onClick={toggleSnapToBeats}
+            className={`flex items-center gap-1 px-2 py-1 rounded-[6px] border text-xs transition-colors cursor-pointer shrink-0 ${
+              snapToBeats
+                ? 'bg-[#3B82F6]/10 text-[#3B82F6] border-[#3B82F6]'
+                : 'bg-white dark:bg-[#1A1A1A] text-[#737373] dark:text-[#A1A1A1] hover:text-[#171717] dark:hover:text-[#EDEDED] border-[#E5E5E5] dark:border-[#2A2A2A]'
+            }`}
+            title={snapToBeats ? 'Snap to Beats Active' : 'Snap to Beats Off'}
+          >
+            <Magnet className="w-3.5 h-3.5" strokeWidth={1.5} />
+            <span className="hidden sm:inline">Snap to Beats</span>
           </button>
         </div>
 
@@ -519,7 +594,64 @@ export const Timeline = () => {
             </div>
 
             {/* Track Lanes - flush left 00:00 alignment */}
-            <div className="space-y-1 py-1 pl-0 pr-4">
+            <div
+              className="space-y-1 py-1 pl-0 pr-4"
+              onDragOver={(e) => {
+                if (e.dataTransfer.types.includes('application/clipforge-effect')) {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'copy';
+                }
+              }}
+              onDrop={(e) => {
+                const effectId = e.dataTransfer.getData('application/clipforge-effect');
+                if (effectId) {
+                  e.preventDefault();
+                  const tracksEl = timelineTracksRef.current;
+                  const scrollLeft = tracksEl ? tracksEl.scrollLeft : 0;
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const dropX = e.clientX - rect.left + scrollLeft;
+                  const dropTime = Math.max(0, dropX / zoom);
+
+                  let effectTrack = project.tracks.find((t) => t.type === 'effect');
+                  if (!effectTrack) {
+                    effectTrack = {
+                      id: 'track_effect_' + Date.now(),
+                      name: 'Effects',
+                      type: 'effect',
+                      locked: false,
+                      hidden: false,
+                      muted: false,
+                      volume: 1,
+                      clips: [],
+                    };
+                    addTrack(effectTrack);
+                  }
+
+                  const fx = EFFECTS_LIST.find((f) => f.id === effectId) || { name: 'Effect' };
+                  const newClip = {
+                    id: 'clip_effect_' + Date.now(),
+                    trackId: effectTrack.id,
+                    type: 'effect',
+                    name: fx.name,
+                    effectType: effectId,
+                    effectIntensity: 60,
+                    start: dropTime,
+                    duration: 3.0,
+                    sourceStart: 0,
+                    sourceDuration: 3.0,
+                    x: 0,
+                    y: 0,
+                    scale: 1,
+                    rotation: 0,
+                    opacity: 1,
+                    keyframes: [],
+                  };
+                  useEditorStore.getState().pushHistory();
+                  addClipToTrack(effectTrack.id, newClip);
+                  selectClip(newClip.id);
+                }
+              }}
+            >
               {project.tracks.map((track) => (
                 <div
                   key={track.id}
@@ -629,8 +761,26 @@ export const Timeline = () => {
                           <div className="w-1 h-5 bg-[#737373] dark:bg-[#D4D4D4] rounded-full" />
                         </div>
 
+                        {/* Audio Waveform visualization */}
+                        {clip.type === 'audio' && (
+                          <div className="absolute inset-0 flex items-center justify-around pointer-events-none opacity-30 px-3 overflow-hidden select-none">
+                            {Array.from({ length: Math.min(80, Math.max(12, Math.floor(widthPx / 4.5))) }).map((_, barIdx) => {
+                              const charCode = clip.id.charCodeAt(barIdx % clip.id.length) || 65;
+                              const pseudoRandom = Math.sin(barIdx * 0.7 + charCode * 0.1) * 0.5 + 0.5;
+                              const heightPct = 15 + Math.round(pseudoRandom * 75);
+                              return (
+                                <span
+                                  key={barIdx}
+                                  className="w-[2px] bg-emerald-800 dark:bg-emerald-300 rounded-full shrink-0"
+                                  style={{ height: `${heightPct}%` }}
+                                />
+                              );
+                            })}
+                          </div>
+                        )}
+
                         {/* Clip Content Label */}
-                        <div className="flex items-center gap-1.5 min-w-0 pr-2 pointer-events-none mx-auto">
+                        <div className="flex items-center gap-1.5 min-w-0 pr-2 pointer-events-none mx-auto relative z-10">
                           <span className="font-normal truncate text-[11px]">
                             {clip.type === 'sticker' && clip.stickerEmoji ? `${clip.stickerEmoji} ` : ''}
                             {clip.name}
@@ -638,6 +788,11 @@ export const Timeline = () => {
                           {clip.freezeFrame && (
                             <span className="text-[9px] bg-white/70 dark:bg-black/50 px-1 py-0.5 rounded-[4px] border border-[#CBD5E1] dark:border-[#334155] shrink-0">
                               ❄️
+                            </span>
+                          )}
+                          {clip.transitionIn && (
+                            <span className="text-[9px] bg-[#3B82F6] text-white px-1 py-0.2 rounded-[3px] shrink-0 flex items-center gap-0.5" title={`Transition: ${clip.transitionIn.type}`}>
+                              <Shuffle className="w-2.5 h-2.5" />
                             </span>
                           )}
                         </div>
@@ -748,12 +903,224 @@ export const Timeline = () => {
                       </div>
                     );
                   })}
+
+                  {/* Transition Cut Buttons between adjacent clips on visual tracks */}
+                  {track.type !== 'audio' && (() => {
+                    const sortedClips = [...track.clips].sort((a, b) => a.start - b.start);
+                    return sortedClips.slice(0, -1).map((clipA, idx) => {
+                      const clipB = sortedClips[idx + 1];
+                      const gap = clipB.start - (clipA.start + clipA.duration);
+                      if (gap < 0.4 && gap > -0.1) {
+                        const cutPosPx = clipB.start * zoom;
+                        const hasTransition = Boolean(clipB.transitionIn && clipB.transitionIn.type);
+                        const transItem = hasTransition ? TRANSITIONS_LIST.find((t) => t.id === clipB.transitionIn.type) : null;
+                        const transName = transItem ? transItem.name : (clipB.transitionIn ? clipB.transitionIn.type : '');
+
+                        return (
+                          <div
+                            key={`trans-cut-${clipA.id}-${clipB.id}`}
+                            style={{ left: `${cutPosPx}px` }}
+                            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 z-35 flex items-center justify-center pointer-events-auto"
+                          >
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setTransitionModal({
+                                  clipId: clipB.id,
+                                  clipName: clipB.name,
+                                  currentTransition: clipB.transitionIn || { type: 'dissolve', duration: 0.5 },
+                                });
+                              }}
+                              className={`group flex items-center justify-center transition-transform hover:scale-110 active:scale-95 cursor-pointer ${
+                                isMobile ? 'min-w-[44px] min-h-[44px]' : 'p-0.5'
+                              }`}
+                              title={hasTransition ? `Transition: ${transName} (${clipB.transitionIn.duration}s). Click to edit.` : 'Add Transition between clips (+)'}
+                            >
+                              {hasTransition ? (
+                                <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-[4px] bg-[#3B82F6] text-white text-[10px] font-medium border border-blue-400 shadow-xs">
+                                  <Shuffle className="w-2.5 h-2.5" strokeWidth={2} />
+                                  <span className="hidden sm:inline max-w-[50px] truncate">{transName}</span>
+                                </div>
+                              ) : (
+                                <div className="w-5 h-5 rounded-[4px] bg-white dark:bg-[#1A1A1A] border border-[#CBD5E1] dark:border-[#404040] hover:border-[#3B82F6] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] flex items-center justify-center text-[11px] font-semibold text-[#525252] dark:text-[#A3A3A3] hover:text-[#171717] dark:hover:text-[#EDEDED] shadow-xs">
+                                  <Plus className="w-3 h-3" strokeWidth={2} />
+                                </div>
+                              )}
+                            </button>
+                          </div>
+                        );
+                      }
+                      return null;
+                    });
+                  })()}
                 </div>
               ))}
             </div>
           </div>
         </div>
       </div>
+
+      {/* Transition Selector Modal */}
+      {transitionModal && (
+        <div
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4"
+          onClick={() => setTransitionModal(null)}
+        >
+          <div
+            className="bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[8px] shadow-xl w-full max-w-sm p-4 space-y-3.5 select-none animate-in fade-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-[#E5E5E5] dark:border-[#2A2A2A] pb-2.5">
+              <div>
+                <h3 className="text-xs font-semibold text-[#171717] dark:text-[#EDEDED] flex items-center gap-1.5">
+                  <Shuffle className="w-3.5 h-3.5 text-[#3B82F6]" strokeWidth={1.5} />
+                  Add Transition to Cut
+                </h3>
+                <p className="text-[10px] text-[#737373] dark:text-[#A1A1A1] truncate max-w-[240px]">
+                  Clip: {transitionModal.clipName}
+                </p>
+              </div>
+              <button
+                onClick={() => setTransitionModal(null)}
+                className="p-1 rounded-[4px] text-[#737373] hover:text-[#171717] dark:hover:text-[#EDEDED] cursor-pointer"
+              >
+                <X className="w-4 h-4" strokeWidth={1.5} />
+              </button>
+            </div>
+
+            {/* Duration slider */}
+            <div className="space-y-1.5">
+              <div className="flex justify-between items-center text-xs">
+                <span className="font-normal text-[#171717] dark:text-[#EDEDED]">Duration</span>
+                <span className="font-mono text-[#737373] dark:text-[#A1A1A1] tabular-nums text-[11px]">
+                  {(transitionModal.currentTransition?.duration || 0.5).toFixed(1)}s
+                </span>
+              </div>
+              <input
+                type="range"
+                min="0.2"
+                max="2.0"
+                step="0.1"
+                value={transitionModal.currentTransition?.duration || 0.5}
+                onChange={(e) => {
+                  const dur = parseFloat(e.target.value);
+                  setTransitionModal((prev) => ({
+                    ...prev,
+                    currentTransition: {
+                      ...(prev.currentTransition || { type: 'dissolve' }),
+                      duration: dur,
+                    },
+                  }));
+                }}
+                className="w-full cursor-pointer accent-[#171717] dark:accent-[#EDEDED]"
+              />
+              <div className="flex items-center gap-1">
+                {[0.3, 0.5, 0.8, 1.0, 1.5].map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => {
+                      setTransitionModal((prev) => ({
+                        ...prev,
+                        currentTransition: {
+                          ...(prev.currentTransition || { type: 'dissolve' }),
+                          duration: d,
+                        },
+                      }));
+                    }}
+                    className={`flex-1 py-0.5 rounded-[4px] text-[10px] font-normal border transition-colors cursor-pointer tabular-nums ${
+                      Math.abs((transitionModal.currentTransition?.duration || 0.5) - d) < 0.05
+                        ? 'bg-[#171717] text-white dark:bg-[#EDEDED] dark:text-[#171717] border-[#171717] dark:border-[#EDEDED]'
+                        : 'bg-white dark:bg-[#1A1A1A] text-[#737373] dark:text-[#A1A1A1] border-[#E5E5E5] dark:border-[#2A2A2A] hover:bg-[#F5F5F5] dark:hover:bg-[#262626]'
+                    }`}
+                  >
+                    {d}s
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Grid of transitions */}
+            <div className="space-y-1">
+              <span className="text-[11px] font-normal text-[#737373] dark:text-[#A1A1A1] block">
+                Preset Styles ({TRANSITIONS_LIST.length})
+              </span>
+              <div className="grid grid-cols-3 gap-1.5 max-h-48 overflow-y-auto pr-0.5">
+                {TRANSITIONS_LIST.map((t) => {
+                  const isSelected = transitionModal.currentTransition?.type === t.id;
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => {
+                        setTransitionModal((prev) => ({
+                          ...prev,
+                          currentTransition: {
+                            type: t.id,
+                            duration: prev.currentTransition?.duration || 0.5,
+                          },
+                        }));
+                      }}
+                      className={`p-2 rounded-[6px] border flex flex-col items-center justify-center gap-1 transition-all text-center cursor-pointer ${
+                        isSelected
+                          ? 'bg-blue-50 dark:bg-blue-950/40 border-[#3B82F6] text-[#3B82F6]'
+                          : 'bg-white dark:bg-[#1A1A1A] border-[#E5E5E5] dark:border-[#2A2A2A] hover:border-[#3B82F6] text-[#171717] dark:text-[#EDEDED]'
+                      }`}
+                    >
+                      <Shuffle className="w-3.5 h-3.5 text-[#737373] dark:text-[#A1A1A1]" strokeWidth={1.5} />
+                      <span className="text-[11px] font-normal truncate w-full">{t.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Action buttons */}
+            <div className="pt-2 border-t border-[#E5E5E5] dark:border-[#2A2A2A] flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  useEditorStore.getState().pushHistory();
+                  updateClip(transitionModal.clipId, { transitionIn: null });
+                  setTransitionModal(null);
+                }}
+                className="px-2.5 py-1.5 rounded-[6px] text-xs font-normal text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer"
+              >
+                Remove
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setTransitionModal(null)}
+                  className="px-3 py-1.5 rounded-[6px] text-xs font-normal border border-[#E5E5E5] dark:border-[#2A2A2A] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] text-[#171717] dark:text-[#EDEDED] cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (transitionModal.currentTransition?.type) {
+                      useEditorStore.getState().pushHistory();
+                      updateClip(transitionModal.clipId, {
+                        transitionIn: {
+                          type: transitionModal.currentTransition.type,
+                          duration: transitionModal.currentTransition.duration || 0.5,
+                        },
+                      });
+                    }
+                    setTransitionModal(null);
+                  }}
+                  className="px-3.5 py-1.5 rounded-[6px] text-xs font-medium bg-[#171717] hover:bg-[#262626] text-white dark:bg-[#EDEDED] dark:hover:bg-white dark:text-[#171717] transition-colors cursor-pointer shadow-xs"
+                >
+                  Apply
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </footer>
   );
 };

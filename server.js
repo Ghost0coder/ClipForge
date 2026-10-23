@@ -215,6 +215,96 @@ app.post('/api/ai/auto-captions', async (req, res) => {
   }
 });
 
+app.post('/api/ai/smart-highlights', async (req, res) => {
+  try {
+    if (!ai) {
+      return res.status(503).json({ error: 'Gemini API key is not configured.' });
+    }
+    const { clipName = 'Video Clip', duration = 60, context = '' } = req.body;
+    const clipDur = Math.max(5, parseFloat(duration) || 60);
+    const targetHighlightDuration = Math.min(clipDur, Math.max(15, Math.min(30, Math.round(clipDur * 0.4))));
+
+    const prompt = `You are an expert viral video editor and content strategist.
+Given a video clip titled "${clipName}" with total length ${clipDur.toFixed(1)} seconds (context: "${context || 'entertainment/vlog/story'}").
+Find the single most engaging and viral 15-30 second segment (target duration: ${targetHighlightDuration}s) that has the strongest hook, emotion, or key takeaway.
+Return JSON:
+{
+  "start": number (start time in seconds between 0 and ${(clipDur - targetHighlightDuration).toFixed(1)}),
+  "duration": number (duration in seconds between 15 and 30, max ${clipDur}),
+  "title": string (punchy highlight title),
+  "hookText": string (suggested text overlay for the hook),
+  "reason": string (why this is the best retention moment)
+}`;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.8-flash',
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+      },
+    });
+
+    const parsed = JSON.parse(response.text || '{}');
+    const start = Math.max(0, Math.min(clipDur - 5, parseFloat(parsed.start) || 0));
+    const finalDuration = Math.min(clipDur - start, parseFloat(parsed.duration) || targetHighlightDuration);
+
+    res.json({
+      start: Math.round(start * 10) / 10,
+      duration: Math.round(finalDuration * 10) / 10,
+      title: parsed.title || 'Viral Peak Moment',
+      hookText: parsed.hookText || 'Watch this!',
+      reason: parsed.reason || 'Optimal viewer retention section',
+    });
+  } catch (error) {
+    console.error('smart-highlights error:', error);
+    res.status(500).json({ error: error?.message || 'Failed to detect smart highlights' });
+  }
+});
+
+app.post('/api/ai/translate-captions', async (req, res) => {
+  try {
+    if (!ai) {
+      return res.status(503).json({ error: 'Gemini API key is not configured.' });
+    }
+    const { captions = [], targetLanguage = 'Spanish' } = req.body;
+    if (!Array.isArray(captions) || captions.length === 0) {
+      return res.status(400).json({ error: 'No captions provided for translation' });
+    }
+
+    const prompt = `You are a professional subtitle translator and localizer.
+Translate each caption line into ${targetLanguage}. Keep the translations punchy, natural, and formatted for video captions (TikTok / Reels style).
+Preserve the exact start time and duration for each subtitle entry.
+Source captions:
+${JSON.stringify(captions.map((c) => ({ id: c.id, text: c.text, start: c.start, duration: c.duration })))}
+
+Return JSON:
+{
+  "translatedCaptions": [
+    {
+      "id": string (match source id),
+      "text": string (translated subtitle text),
+      "start": number,
+      "duration": number
+    }
+  ]
+}`;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.8-flash',
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+      },
+    });
+
+    const parsed = JSON.parse(response.text || '{"translatedCaptions":[]}');
+    res.json(parsed);
+  } catch (error) {
+    console.error('translate-captions error:', error);
+    res.status(500).json({ error: error?.message || 'Failed to translate captions' });
+  }
+});
+
 app.post('/api/ai/smart-cut', async (req, res) => {
   try {
     if (!ai) {

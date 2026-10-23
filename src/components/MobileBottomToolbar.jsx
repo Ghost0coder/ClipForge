@@ -1,4 +1,3 @@
-import React from 'react';
 import {
   Video,
   Music,
@@ -10,6 +9,7 @@ import {
   Subtitles,
   LayoutTemplate,
   Sparkles,
+  Paintbrush,
 } from 'lucide-react';
 import { useEditorStore } from '../store/editorStore';
 
@@ -19,6 +19,8 @@ export const MobileBottomToolbar = () => {
     setActiveLeftTab,
     isMobileToolDrawerOpen,
     setMobileToolDrawerOpen,
+    isDrawingMode,
+    toggleDrawingMode,
   } = useEditorStore();
 
   const toolTabs = [
@@ -26,6 +28,7 @@ export const MobileBottomToolbar = () => {
     { id: 'audio', label: 'Audio', icon: Music },
     { id: 'text', label: 'Text', icon: Type },
     { id: 'stickers', label: 'Stickers', icon: Smile },
+    { id: 'draw', label: 'Draw', icon: Paintbrush },
     { id: 'effects', label: 'Effects', icon: Zap },
     { id: 'filters', label: 'Filters', icon: Palette },
     { id: 'transitions', label: 'Transitions', icon: Shuffle },
@@ -35,6 +38,11 @@ export const MobileBottomToolbar = () => {
   ];
 
   const handleTabClick = (tabId) => {
+    if (tabId === 'draw') {
+      toggleDrawingMode();
+      setMobileToolDrawerOpen(false);
+      return;
+    }
     if (activeLeftTab === tabId && isMobileToolDrawerOpen) {
       setMobileToolDrawerOpen(false);
     } else {

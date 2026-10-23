@@ -8,6 +8,7 @@ import { Timeline } from './components/Timeline';
 import { ExportModal } from './components/ExportModal';
 import { ProjectManagerModal } from './components/ProjectManagerModal';
 import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
+import { TemplateModal } from './components/TemplateModal';
 import { ToastContainer } from './components/ToastContainer';
 import { MobileBottomToolbar } from './components/MobileBottomToolbar';
 import { useEditorStore } from './store/editorStore';
@@ -144,6 +145,7 @@ export default function App() {
         <ExportModal />
         <ProjectManagerModal />
         <KeyboardShortcutsModal />
+        <TemplateModal />
 
         {/* Global Error & Notification Toasts */}
         <ToastContainer />
@@ -196,6 +198,7 @@ export default function App() {
       <ExportModal />
       <ProjectManagerModal />
       <KeyboardShortcutsModal />
+      <TemplateModal />
 
       {/* Global Error & Notification Toasts */}
       <ToastContainer />

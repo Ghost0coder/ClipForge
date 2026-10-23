@@ -1,3 +1,6 @@
+function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } }
+function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }
+
 import React, { useState } from 'react';
 import {
   X,
@@ -11,9 +14,21 @@ import {
   Diamond,
   ChevronLeft,
   ChevronRight,
+  RotateCcw,
+  Bold,
+  Italic,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  Sparkles,
+  Search,
+  Play,
+  Pipette,
+  Music,
 } from 'lucide-react';
 import { useEditorStore } from '../store/editorStore';
-import { FILTERS_LIST, GOOGLE_FONTS } from '../utils/sampleData';
+import { toastSuccess, toastInfo, toastError } from '../store/toastStore';
+import { FILTERS_LIST, GOOGLE_FONTS, EFFECTS_LIST } from '../utils/sampleData';
 import { getInterpolatedProperty } from '../utils/previewRenderer';
 
 /**
@@ -166,6 +181,8 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
   } = useEditorStore();
 
   const [activeTab, setActiveTab] = useState('transform');
+  const [fontSearch, setFontSearch] = useState('');
+  const [fontFilter, setFontFilter] = useState('All');
 
   const clip = getSelectedClip();
 
@@ -184,6 +201,7 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
 
   const isText = clip.type === 'text';
   const isAudioOrVideo = clip.type === 'audio' || clip.type === 'video';
+  const isEffect = clip.type === 'effect';
   const isVisual = clip.type !== 'audio';
 
   const currentX = getInterpolatedProperty(clip, 'x', currentTime, clip.x);
@@ -218,7 +236,19 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
 
       {/* Tab Selector Strip */}
       <div className="flex border-b border-[#E5E5E5] dark:border-[#2A2A2A] bg-[#FAFAFA] dark:bg-[#111111] p-1 gap-1 overflow-x-auto text-xs shrink-0">
-        {isVisual && (
+        {isEffect && (
+          <button
+            onClick={() => setActiveTab('effect')}
+            className={`px-2 py-1 rounded-[4px] text-[11px] font-normal transition-colors cursor-pointer ${
+              activeTab === 'effect'
+                ? 'bg-white dark:bg-[#1A1A1A] text-[#171717] dark:text-[#EDEDED] border-b-2 border-b-[#3B82F6] shadow-sm'
+                : 'text-[#737373] dark:text-[#A1A1A1] hover:text-[#171717] dark:hover:text-[#EDEDED]'
+            }`}
+          >
+            Effect
+          </button>
+        )}
+        {isVisual && !isEffect && (
           <button
             onClick={() => setActiveTab('transform')}
             className={`px-2 py-1 rounded-[4px] text-[11px] font-normal transition-colors cursor-pointer ${
@@ -242,7 +272,7 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
             Text
           </button>
         )}
-        {isVisual && (
+        {isVisual && !isEffect && (
           <button
             onClick={() => setActiveTab('color')}
             className={`px-2 py-1 rounded-[4px] text-[11px] font-normal transition-colors cursor-pointer ${
@@ -251,7 +281,7 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
                 : 'text-[#737373] dark:text-[#A1A1A1] hover:text-[#171717] dark:hover:text-[#EDEDED]'
             }`}
           >
-            Color/Filter
+            Adjust
           </button>
         )}
         {isAudioOrVideo && (
@@ -288,6 +318,18 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
             }`}
           >
             Mask/Chroma
+          </button>
+        )}
+        {isVisual && (
+          <button
+            onClick={() => setActiveTab('animation')}
+            className={`px-2 py-1 rounded-[4px] text-[11px] font-normal transition-colors cursor-pointer ${
+              activeTab === 'animation'
+                ? 'bg-white dark:bg-[#1A1A1A] text-[#171717] dark:text-[#EDEDED] border-b-2 border-b-[#3B82F6] shadow-sm'
+                : 'text-[#737373] dark:text-[#A1A1A1] hover:text-[#171717] dark:hover:text-[#EDEDED]'
+            }`}
+          >
+            Animation
           </button>
         )}
         <button
@@ -471,16 +513,16 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
               <span className="text-[#171717] dark:text-[#EDEDED] block mb-1.5 font-normal">Blend Mode</span>
               <select
                 value={clip.blendMode || 'normal'}
-                onChange={(e) => updateClip(clip.id, { blendMode: e.target.value  })}
-                className="w-full bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] px-2 py-1.5 text-xs text-[#171717] dark:text-[#EDEDED] outline-none"
+                onChange={(e) => updateClip(clip.id, { blendMode: e.target.value })}
+                className="w-full bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] px-2 py-1.5 text-xs text-[#171717] dark:text-[#EDEDED] outline-none cursor-pointer"
               >
                 <option value="normal">Normal</option>
-                <option value="screen">Screen (Lighten overlay)</option>
-                <option value="multiply">Multiply (Darken overlay)</option>
-                <option value="overlay">Overlay (High contrast)</option>
-                <option value="lighten">Lighten</option>
+                <option value="multiply">Multiply</option>
+                <option value="screen">Screen</option>
+                <option value="overlay">Overlay</option>
                 <option value="darken">Darken</option>
-                <option value="color-dodge">Color Dodge</option>
+                <option value="lighten">Lighten</option>
+                <option value="soft-light">Soft Light</option>
                 <option value="difference">Difference</option>
               </select>
             </div>
@@ -600,100 +642,621 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
             <div>
               <span className="text-[#171717] dark:text-[#EDEDED] block mb-1 font-normal">Text Content</span>
               <textarea
-                value={clip.textProps.text}
+                value={clip.textProps.text || ''}
                 onChange={(e) => updateClip(clip.id, { textProps: { text: e.target.value } })}
                 className="w-full h-18 bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] p-2 text-xs text-[#171717] dark:text-[#EDEDED] outline-none resize-none focus:border-[#171717] dark:focus:border-[#EDEDED]"
+                placeholder="Type text here..."
               />
             </div>
 
-            {/* Font Family (50+ Google Fonts) */}
-            <div>
-              <span className="text-[#171717] dark:text-[#EDEDED] block mb-1 font-normal">Font Family</span>
-              <select
-                value={clip.textProps.fontFamily}
-                onChange={(e) => updateClip(clip.id, { textProps: { fontFamily: e.target.value } })}
-                className="w-full bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] px-2 py-1.5 text-xs text-[#171717] dark:text-[#EDEDED] outline-none"
-              >
-                {GOOGLE_FONTS.map((f) => (
-                  <option key={f.name} value={f.name}>
-                    {f.name} ({f.category})
-                  </option>
+            {/* Font Family (Searchable with Hindi & Malayalam tags) */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[#171717] dark:text-[#EDEDED] font-normal">Font Family</span>
+                <span className="text-[10px] text-[#737373] dark:text-[#A1A1A1]">{clip.textProps.fontFamily}</span>
+              </div>
+
+              {/* Search input & Category filter */}
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 absolute left-2 top-2 text-[#737373] dark:text-[#A1A1A1]" strokeWidth={1.5} />
+                <input
+                  type="text"
+                  placeholder="Search 40+ fonts (Hindi, Malayalam, etc.)..."
+                  value={fontSearch}
+                  onChange={(e) => setFontSearch(e.target.value)}
+                  className="w-full pl-7 pr-2 py-1 bg-[#FAFAFA] dark:bg-[#151515] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] text-xs text-[#171717] dark:text-[#EDEDED] outline-none"
+                />
+              </div>
+
+              {/* Language / Category Pills */}
+              <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5">
+                {['All', 'Hindi', 'Malayalam', 'Modern', 'Condensed', 'Serif Luxury', 'Handwritten'].map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setFontFilter(cat)}
+                    className={`px-2 py-0.5 rounded-[4px] text-[10px] font-normal border transition-colors cursor-pointer shrink-0 ${
+                      fontFilter === cat
+                        ? 'bg-[#171717] text-white dark:bg-[#EDEDED] dark:text-[#171717] border-[#171717] dark:border-[#EDEDED]'
+                        : 'bg-white dark:bg-[#1A1A1A] text-[#737373] dark:text-[#A1A1A1] border-[#E5E5E5] dark:border-[#2A2A2A]'
+                    }`}
+                  >
+                    {cat}
+                  </button>
                 ))}
-              </select>
+              </div>
+
+              {/* Searchable Dropdown / Scroll list */}
+              <div className="max-h-36 overflow-y-auto border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] divide-y divide-[#E5E5E5] dark:divide-[#2A2A2A] bg-white dark:bg-[#1A1A1A]">
+                {GOOGLE_FONTS.filter((f) => {
+                  const matchesSearch = f.name.toLowerCase().includes(fontSearch.toLowerCase()) ||
+                    f.category.toLowerCase().includes(fontSearch.toLowerCase());
+                  const matchesCat = fontFilter === 'All' || f.category === fontFilter;
+                  return matchesSearch && matchesCat;
+                }).map((f) => (
+                  <button
+                    key={f.name}
+                    type="button"
+                    onClick={() => updateClip(clip.id, { textProps: { fontFamily: f.name } })}
+                    className={`w-full px-2.5 py-1.5 flex items-center justify-between text-left transition-colors cursor-pointer ${
+                      clip.textProps.fontFamily === f.name
+                        ? 'bg-blue-50 dark:bg-blue-950/40 text-[#3B82F6]'
+                        : 'hover:bg-[#F5F5F5] dark:hover:bg-[#222222] text-[#171717] dark:text-[#EDEDED]'
+                    }`}
+                  >
+                    <span className="text-xs truncate" style={{ fontFamily: f.name }}>
+                      {f.name}
+                    </span>
+                    <span className="text-[10px] opacity-70 shrink-0 font-sans ml-2">
+                      {f.sample}
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
 
-            {/* Font Size */}
-            <div>
-              <div className="flex justify-between text-[#171717] dark:text-[#EDEDED] mb-1">
+            {/* Font Size & Weight / Formatting (Bold, Italic, Alignment) */}
+            <div className="space-y-2 pt-2 border-t border-[#E5E5E5] dark:border-[#2A2A2A]">
+              <div className="flex justify-between text-[#171717] dark:text-[#EDEDED]">
                 <span className="font-normal">Font Size</span>
-                <span className="text-[#737373] dark:text-[#A1A1A1] tabular-nums">{clip.textProps.fontSize}px</span>
+                <span className="text-[#737373] dark:text-[#A1A1A1] tabular-nums">{clip.textProps.fontSize || 48}px</span>
               </div>
               <input
                 type="range"
-                min="18"
-                max="140"
-                value={clip.textProps.fontSize}
+                min="12"
+                max="160"
+                value={clip.textProps.fontSize || 48}
                 onChange={(e) =>
-                  updateClip(clip.id, { textProps: { fontSize: parseInt(e.target.value) } })
+                  updateClip(clip.id, { textProps: { fontSize: parseInt(e.target.value) || 48 } })
                 }
-                className="w-full"
+                className="w-full cursor-pointer accent-[#171717] dark:accent-[#EDEDED]"
               />
+
+              {/* Bold, Italic & Alignment Buttons */}
+              <div className="flex items-center justify-between gap-1 pt-1">
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => updateClip(clip.id, { textProps: { bold: !clip.textProps.bold } })}
+                    className={`w-8 h-8 rounded-[6px] border flex items-center justify-center transition-colors cursor-pointer ${
+                      clip.textProps.bold
+                        ? 'bg-[#171717] text-white dark:bg-[#EDEDED] dark:text-[#171717] border-[#171717] dark:border-[#EDEDED]'
+                        : 'bg-white dark:bg-[#1A1A1A] border-[#E5E5E5] dark:border-[#2A2A2A] text-[#737373] dark:text-[#A1A1A1]'
+                    }`}
+                    title="Toggle Bold"
+                  >
+                    <Bold className="w-3.5 h-3.5" strokeWidth={2.5} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => updateClip(clip.id, { textProps: { italic: !clip.textProps.italic } })}
+                    className={`w-8 h-8 rounded-[6px] border flex items-center justify-center transition-colors cursor-pointer ${
+                      clip.textProps.italic
+                        ? 'bg-[#171717] text-white dark:bg-[#EDEDED] dark:text-[#171717] border-[#171717] dark:border-[#EDEDED]'
+                        : 'bg-white dark:bg-[#1A1A1A] border-[#E5E5E5] dark:border-[#2A2A2A] text-[#737373] dark:text-[#A1A1A1]'
+                    }`}
+                    title="Toggle Italic"
+                  >
+                    <Italic className="w-3.5 h-3.5" strokeWidth={2} />
+                  </button>
+                </div>
+
+                {/* Alignment */}
+                <div className="flex items-center gap-1">
+                  {[
+                    { align: 'left', icon: AlignLeft },
+                    { align: 'center', icon: AlignCenter },
+                    { align: 'right', icon: AlignRight },
+                  ].map(({ align, icon: Icon }) => (
+                    <button
+                      key={align}
+                      type="button"
+                      onClick={() => updateClip(clip.id, { textProps: { align } })}
+                      className={`w-8 h-8 rounded-[6px] border flex items-center justify-center transition-colors cursor-pointer ${
+                        (clip.textProps.align || 'center') === align
+                          ? 'bg-[#171717] text-white dark:bg-[#EDEDED] dark:text-[#171717] border-[#171717] dark:border-[#EDEDED]'
+                          : 'bg-white dark:bg-[#1A1A1A] border-[#E5E5E5] dark:border-[#2A2A2A] text-[#737373] dark:text-[#A1A1A1]'
+                      }`}
+                      title={`Align ${align}`}
+                    >
+                      <Icon className="w-3.5 h-3.5" strokeWidth={1.5} />
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
-            {/* Colors: Text & Stroke */}
-            <div className="grid grid-cols-2 gap-2">
+            {/* Letter Spacing & Line Height */}
+            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[#E5E5E5] dark:border-[#2A2A2A]">
               <div>
-                <span className="text-[#171717] dark:text-[#EDEDED] block mb-1 font-normal">Text Color</span>
-                <div className="flex items-center gap-1.5 bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] p-1">
-                  <input
-                    type="color"
-                    value={clip.textProps.color}
-                    onChange={(e) => updateClip(clip.id, { textProps: { color: e.target.value } })}
-                    className="w-6 h-6 rounded border-none bg-transparent cursor-pointer"
-                  />
-                  <span className="text-[11px] text-[#737373] dark:text-[#A1A1A1] uppercase tabular-nums">
-                    {clip.textProps.color}
-                  </span>
+                <div className="flex justify-between text-[#171717] dark:text-[#EDEDED] mb-1">
+                  <span className="font-normal text-[11px]">Letter Space</span>
+                  <span className="text-[#737373] dark:text-[#A1A1A1] tabular-nums">{clip.textProps.letterSpacing || 0}px</span>
                 </div>
+                <input
+                  type="range"
+                  min="-4"
+                  max="24"
+                  value={clip.textProps.letterSpacing || 0}
+                  onChange={(e) =>
+                    updateClip(clip.id, { textProps: { letterSpacing: parseInt(e.target.value) || 0 } })
+                  }
+                  className="w-full cursor-pointer accent-[#171717] dark:accent-[#EDEDED]"
+                />
               </div>
 
               <div>
-                <span className="text-[#171717] dark:text-[#EDEDED] block mb-1 font-normal">Stroke Color</span>
-                <div className="flex items-center gap-1.5 bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] p-1">
+                <div className="flex justify-between text-[#171717] dark:text-[#EDEDED] mb-1">
+                  <span className="font-normal text-[11px]">Line Height</span>
+                  <span className="text-[#737373] dark:text-[#A1A1A1] tabular-nums">{clip.textProps.lineHeight || 1.15}</span>
+                </div>
+                <input
+                  type="range"
+                  min="0.8"
+                  max="2.5"
+                  step="0.05"
+                  value={clip.textProps.lineHeight || 1.15}
+                  onChange={(e) =>
+                    updateClip(clip.id, { textProps: { lineHeight: parseFloat(e.target.value) || 1.15 } })
+                  }
+                  className="w-full cursor-pointer accent-[#171717] dark:accent-[#EDEDED]"
+                />
+              </div>
+            </div>
+
+            {/* Solid Color & Gradient Fill */}
+            <div className="pt-2 border-t border-[#E5E5E5] dark:border-[#2A2A2A] space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[#171717] dark:text-[#EDEDED] font-normal">Color Fill</span>
+                <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-[#737373] dark:text-[#A1A1A1]">
                   <input
-                    type="color"
-                    value={clip.textProps.strokeColor || '#000000'}
+                    type="checkbox"
+                    checked={Boolean(clip.textProps.useGradient)}
                     onChange={(e) =>
                       updateClip(clip.id, {
-                        textProps: { strokeColor: e.target.value, strokeWidth: _optionalChain([clip, 'access', _42 => _42.textProps, 'optionalAccess', _43 => _43.strokeWidth]) || 2 },
+                        textProps: {
+                          useGradient: e.target.checked,
+                          gradientFrom: clip.textProps.gradientFrom || clip.textProps.color || '#3B82F6',
+                          gradientTo: clip.textProps.gradientTo || '#8B5CF6',
+                          gradientDirection: clip.textProps.gradientDirection || 'vertical',
+                        },
                       })
                     }
-                    className="w-6 h-6 rounded border-none bg-transparent cursor-pointer"
+                    className="rounded text-[#3B82F6]"
                   />
-                  <span className="text-[11px] text-[#737373] dark:text-[#A1A1A1] uppercase tabular-nums">
-                    {clip.textProps.strokeColor || '#000000'}
-                  </span>
-                </div>
+                  Gradient Fill
+                </label>
               </div>
+
+              {!clip.textProps.useGradient ? (
+                <div className="flex items-center gap-2 bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] p-1.5">
+                  <input
+                    type="color"
+                    value={clip.textProps.color || '#FFFFFF'}
+                    onChange={(e) => updateClip(clip.id, { textProps: { color: e.target.value } })}
+                    className="w-7 h-7 rounded border-none bg-transparent cursor-pointer"
+                  />
+                  <input
+                    type="text"
+                    value={clip.textProps.color || '#FFFFFF'}
+                    onChange={(e) => updateClip(clip.id, { textProps: { color: e.target.value } })}
+                    className="flex-1 bg-transparent text-xs text-[#171717] dark:text-[#EDEDED] uppercase font-mono outline-none"
+                  />
+                </div>
+              ) : (
+                <div className="space-y-2 p-2 rounded-[6px] bg-[#FAFAFA] dark:bg-[#151515] border border-[#E5E5E5] dark:border-[#2A2A2A]">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <span className="text-[10px] text-[#737373] dark:text-[#A1A1A1] block mb-1">Color From</span>
+                      <div className="flex items-center gap-1 bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[4px] p-1">
+                        <input
+                          type="color"
+                          value={clip.textProps.gradientFrom || '#3B82F6'}
+                          onChange={(e) => updateClip(clip.id, { textProps: { gradientFrom: e.target.value } })}
+                          className="w-5 h-5 rounded cursor-pointer"
+                        />
+                        <span className="text-[10px] uppercase font-mono truncate">{clip.textProps.gradientFrom || '#3B82F6'}</span>
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-[#737373] dark:text-[#A1A1A1] block mb-1">Color To</span>
+                      <div className="flex items-center gap-1 bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[4px] p-1">
+                        <input
+                          type="color"
+                          value={clip.textProps.gradientTo || '#8B5CF6'}
+                          onChange={(e) => updateClip(clip.id, { textProps: { gradientTo: e.target.value } })}
+                          className="w-5 h-5 rounded cursor-pointer"
+                        />
+                        <span className="text-[10px] uppercase font-mono truncate">{clip.textProps.gradientTo || '#8B5CF6'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] text-[#737373] dark:text-[#A1A1A1] block mb-1">Direction</span>
+                    <select
+                      value={clip.textProps.gradientDirection || 'vertical'}
+                      onChange={(e) => updateClip(clip.id, { textProps: { gradientDirection: e.target.value } })}
+                      className="w-full bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[4px] px-2 py-1 text-xs text-[#171717] dark:text-[#EDEDED] outline-none"
+                    >
+                      <option value="vertical">Vertical (Top to Bottom)</option>
+                      <option value="horizontal">Horizontal (Left to Right)</option>
+                      <option value="diagonal">Diagonal (Top-Left to Bottom-Right)</option>
+                    </select>
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* Text Animation */}
-            <div>
-              <span className="text-[#171717] dark:text-[#EDEDED] block mb-1 font-normal">Text Animation</span>
-              <select
-                value={clip.textProps.animation || 'none'}
-                onChange={(e) =>
-                  updateClip(clip.id, { textProps: { animation: e.target.value  } })
-                }
-                className="w-full bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] px-2 py-1.5 text-xs text-[#171717] dark:text-[#EDEDED] outline-none"
-              >
-                <option value="none">None (Static)</option>
-                <option value="typewriter">Typewriter (Character by character)</option>
-                <option value="bounce">Bounce In (Kinetic impact)</option>
-                <option value="glow">Soft Glow Pulse</option>
-                <option value="karaoke">Karaoke Word Highlight</option>
-              </select>
+            {/* Stroke / Outline */}
+            <div className="pt-2 border-t border-[#E5E5E5] dark:border-[#2A2A2A] space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[#171717] dark:text-[#EDEDED] font-normal">Outline / Stroke</span>
+                <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-[#737373] dark:text-[#A1A1A1]">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(clip.textProps.strokeWidth && clip.textProps.strokeWidth > 0)}
+                    onChange={(e) =>
+                      updateClip(clip.id, {
+                        textProps: {
+                          strokeWidth: e.target.checked ? (clip.textProps.strokeWidth || 4) : 0,
+                          strokeColor: clip.textProps.strokeColor || '#000000',
+                        },
+                      })
+                    }
+                    className="rounded text-[#3B82F6]"
+                  />
+                  Enable Outline
+                </label>
+              </div>
+
+              {clip.textProps.strokeWidth > 0 && (
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <span className="text-[10px] text-[#737373] dark:text-[#A1A1A1] block mb-1">Outline Color</span>
+                    <div className="flex items-center gap-1.5 bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] p-1">
+                      <input
+                        type="color"
+                        value={clip.textProps.strokeColor || '#000000'}
+                        onChange={(e) => updateClip(clip.id, { textProps: { strokeColor: e.target.value } })}
+                        className="w-6 h-6 rounded cursor-pointer"
+                      />
+                      <span className="text-[10px] font-mono uppercase">{clip.textProps.strokeColor || '#000000'}</span>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-[10px] text-[#737373] dark:text-[#A1A1A1] mb-1">
+                      <span>Width</span>
+                      <span className="tabular-nums">{clip.textProps.strokeWidth}px</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="1"
+                      max="20"
+                      value={clip.textProps.strokeWidth || 4}
+                      onChange={(e) =>
+                        updateClip(clip.id, { textProps: { strokeWidth: parseInt(e.target.value) || 0 } })
+                      }
+                      className="w-full cursor-pointer accent-[#171717] dark:accent-[#EDEDED]"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
+
+            {/* Drop Shadow */}
+            <div className="pt-2 border-t border-[#E5E5E5] dark:border-[#2A2A2A] space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[#171717] dark:text-[#EDEDED] font-normal">Drop Shadow</span>
+                <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-[#737373] dark:text-[#A1A1A1]">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(clip.textProps.shadowBlur && clip.textProps.shadowBlur > 0)}
+                    onChange={(e) =>
+                      updateClip(clip.id, {
+                        textProps: {
+                          shadowBlur: e.target.checked ? (clip.textProps.shadowBlur || 12) : 0,
+                          shadowColor: clip.textProps.shadowColor || 'rgba(0,0,0,0.7)',
+                          shadowOffsetX: clip.textProps.shadowOffsetX !== undefined ? clip.textProps.shadowOffsetX : 2,
+                          shadowOffsetY: clip.textProps.shadowOffsetY !== undefined ? clip.textProps.shadowOffsetY : 3,
+                        },
+                      })
+                    }
+                    className="rounded text-[#3B82F6]"
+                  />
+                  Enable Shadow
+                </label>
+              </div>
+
+              {clip.textProps.shadowBlur > 0 && (
+                <div className="space-y-2 p-2 rounded-[6px] bg-[#FAFAFA] dark:bg-[#151515] border border-[#E5E5E5] dark:border-[#2A2A2A]">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <span className="text-[10px] text-[#737373] dark:text-[#A1A1A1] block mb-1">Blur Radius ({clip.textProps.shadowBlur}px)</span>
+                      <input
+                        type="range"
+                        min="0"
+                        max="30"
+                        value={clip.textProps.shadowBlur || 0}
+                        onChange={(e) => updateClip(clip.id, { textProps: { shadowBlur: parseInt(e.target.value) || 0 } })}
+                        className="w-full cursor-pointer accent-[#171717] dark:accent-[#EDEDED]"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-[#737373] dark:text-[#A1A1A1] block mb-1">Offset Y ({clip.textProps.shadowOffsetY || 0}px)</span>
+                      <input
+                        type="range"
+                        min="-20"
+                        max="20"
+                        value={clip.textProps.shadowOffsetY || 0}
+                        onChange={(e) => updateClip(clip.id, { textProps: { shadowOffsetY: parseInt(e.target.value) || 0 } })}
+                        className="w-full cursor-pointer accent-[#171717] dark:accent-[#EDEDED]"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Background Box */}
+            <div className="pt-2 border-t border-[#E5E5E5] dark:border-[#2A2A2A] space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[#171717] dark:text-[#EDEDED] font-normal">Background Box</span>
+                <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-[#737373] dark:text-[#A1A1A1]">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(clip.textProps.bgColor && clip.textProps.bgColor !== 'transparent')}
+                    onChange={(e) =>
+                      updateClip(clip.id, {
+                        textProps: {
+                          bgColor: e.target.checked ? (clip.textProps.bgColor !== 'transparent' && clip.textProps.bgColor ? clip.textProps.bgColor : 'rgba(23, 23, 23, 0.85)') : 'transparent',
+                          bgPadding: clip.textProps.bgPadding || 14,
+                          bgRadius: clip.textProps.bgRadius !== undefined ? clip.textProps.bgRadius : 6,
+                        },
+                      })
+                    }
+                    className="rounded text-[#3B82F6]"
+                  />
+                  Enable Box
+                </label>
+              </div>
+
+              {clip.textProps.bgColor && clip.textProps.bgColor !== 'transparent' && (
+                <div className="space-y-2 p-2 rounded-[6px] bg-[#FAFAFA] dark:bg-[#151515] border border-[#E5E5E5] dark:border-[#2A2A2A]">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <span className="text-[10px] text-[#737373] dark:text-[#A1A1A1] block mb-1">Box Padding ({clip.textProps.bgPadding || 12}px)</span>
+                      <input
+                        type="range"
+                        min="4"
+                        max="40"
+                        value={clip.textProps.bgPadding || 12}
+                        onChange={(e) => updateClip(clip.id, { textProps: { bgPadding: parseInt(e.target.value) || 4 } })}
+                        className="w-full cursor-pointer accent-[#171717] dark:accent-[#EDEDED]"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-[#737373] dark:text-[#A1A1A1] block mb-1">Corner Radius ({clip.textProps.bgRadius || 0}px)</span>
+                      <input
+                        type="range"
+                        min="0"
+                        max="30"
+                        value={clip.textProps.bgRadius || 0}
+                        onChange={(e) => updateClip(clip.id, { textProps: { bgRadius: parseInt(e.target.value) || 0 } })}
+                        className="w-full cursor-pointer accent-[#171717] dark:accent-[#EDEDED]"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ANIMATION TAB (for Text, Stickers, Images, Videos, Drawings) */}
+        {activeTab === 'animation' && isVisual && (
+          <div className="space-y-4 text-xs">
+            {/* Live Test / Preview Play Button */}
+            <div className="p-2.5 rounded-[6px] bg-[#FAFAFA] dark:bg-[#151515] border border-[#E5E5E5] dark:border-[#2A2A2A] flex items-center justify-between">
+              <div>
+                <span className="text-xs font-medium text-[#171717] dark:text-[#EDEDED] block">Live Animation Preview</span>
+                <span className="text-[10px] text-[#737373] dark:text-[#A1A1A1]">Plays clip from start with live easing</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  seek(clip.start);
+                  useEditorStore.getState().play();
+                }}
+                className="px-3 py-1.5 rounded-[6px] bg-[#171717] hover:bg-[#262626] text-white dark:bg-[#EDEDED] dark:hover:bg-white dark:text-[#171717] text-xs font-normal flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <Play className="w-3.5 h-3.5" strokeWidth={1.5} /> Play
+              </button>
+            </div>
+
+            {/* In-Animation */}
+            <div className="p-3 rounded-[6px] bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-medium text-[#171717] dark:text-[#EDEDED]">In Animation (Entrance)</span>
+                <span className="text-[10px] text-[#737373] dark:text-[#A1A1A1] uppercase font-mono">
+                  {clip.animationIn || (clip.textProps && clip.textProps.animationIn) || 'none'}
+                </span>
+              </div>
+              <select
+                value={clip.animationIn || (clip.textProps && clip.textProps.animationIn) || 'none'}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  updateClip(clip.id, {
+                    animationIn: val,
+                    textProps: clip.textProps ? { ...clip.textProps, animationIn: val, animation: val } : undefined,
+                  });
+                }}
+                className="w-full bg-[#FAFAFA] dark:bg-[#151515] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] px-2 py-1.5 text-xs text-[#171717] dark:text-[#EDEDED] outline-none cursor-pointer"
+              >
+                <option value="none">None (Immediate)</option>
+                <option value="fade">Fade In</option>
+                <option value="slide-up">Slide Up</option>
+                <option value="slide-left">Slide Left</option>
+                <option value="pop">Pop In</option>
+                <option value="typewriter">Typewriter (Text only)</option>
+                <option value="bounce">Bounce In</option>
+                <option value="blur-in">Blur In</option>
+              </select>
+
+              {(clip.animationIn !== 'none' || (clip.textProps && clip.textProps.animationIn !== 'none')) && (
+                <div>
+                  <div className="flex justify-between text-[11px] text-[#737373] dark:text-[#A1A1A1] mb-1">
+                    <span>In Duration</span>
+                    <span className="tabular-nums font-mono font-medium text-[#171717] dark:text-[#EDEDED]">
+                      {(clip.animInDuration || (clip.textProps && clip.textProps.animInDuration) || 0.5).toFixed(1)}s
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0.1"
+                    max="3.0"
+                    step="0.1"
+                    value={clip.animInDuration || (clip.textProps && clip.textProps.animInDuration) || 0.5}
+                    onChange={(e) => {
+                      const dur = parseFloat(e.target.value) || 0.5;
+                      updateClip(clip.id, {
+                        animInDuration: dur,
+                        textProps: clip.textProps ? { ...clip.textProps, animInDuration: dur } : undefined,
+                      });
+                    }}
+                    className="w-full cursor-pointer accent-[#171717] dark:accent-[#EDEDED]"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Out-Animation */}
+            <div className="p-3 rounded-[6px] bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-medium text-[#171717] dark:text-[#EDEDED]">Out Animation (Exit)</span>
+                <span className="text-[10px] text-[#737373] dark:text-[#A1A1A1] uppercase font-mono">
+                  {clip.animationOut || 'none'}
+                </span>
+              </div>
+              <select
+                value={clip.animationOut || 'none'}
+                onChange={(e) => updateClip(clip.id, { animationOut: e.target.value })}
+                className="w-full bg-[#FAFAFA] dark:bg-[#151515] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] px-2 py-1.5 text-xs text-[#171717] dark:text-[#EDEDED] outline-none cursor-pointer"
+              >
+                <option value="none">None (Static to End)</option>
+                <option value="fade">Fade Out</option>
+                <option value="slide-down">Slide Down</option>
+                <option value="shrink">Shrink Out</option>
+                <option value="blur-out">Blur Out</option>
+              </select>
+
+              {clip.animationOut && clip.animationOut !== 'none' && (
+                <div>
+                  <div className="flex justify-between text-[11px] text-[#737373] dark:text-[#A1A1A1] mb-1">
+                    <span>Out Duration</span>
+                    <span className="tabular-nums font-mono font-medium text-[#171717] dark:text-[#EDEDED]">
+                      {(clip.animOutDuration || 0.5).toFixed(1)}s
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0.1"
+                    max="3.0"
+                    step="0.1"
+                    value={clip.animOutDuration || 0.5}
+                    onChange={(e) => updateClip(clip.id, { animOutDuration: parseFloat(e.target.value) || 0.5 })}
+                    className="w-full cursor-pointer accent-[#171717] dark:accent-[#EDEDED]"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Loop Animation */}
+            <div className="p-3 rounded-[6px] bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-medium text-[#171717] dark:text-[#EDEDED]">Loop Animation (Continuous)</span>
+                <span className="text-[10px] text-[#737373] dark:text-[#A1A1A1] uppercase font-mono">
+                  {clip.animationLoop || 'none'}
+                </span>
+              </div>
+              <select
+                value={clip.animationLoop || 'none'}
+                onChange={(e) => updateClip(clip.id, { animationLoop: e.target.value })}
+                className="w-full bg-[#FAFAFA] dark:bg-[#151515] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] px-2 py-1.5 text-xs text-[#171717] dark:text-[#EDEDED] outline-none cursor-pointer"
+              >
+                <option value="none">None (No Continuous Motion)</option>
+                <option value="pulse">Pulse (Breathing Scale)</option>
+                <option value="float">Float (Gentle Bobbing)</option>
+                <option value="shake">Shake (Subtle Kinetic)</option>
+              </select>
+
+              {clip.animationLoop && clip.animationLoop !== 'none' && (
+                <div>
+                  <div className="flex justify-between text-[11px] text-[#737373] dark:text-[#A1A1A1] mb-1">
+                    <span>Loop Speed</span>
+                    <span className="tabular-nums font-mono font-medium text-[#171717] dark:text-[#EDEDED]">
+                      {(clip.animLoopSpeed || 1.0).toFixed(1)}x
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0.5"
+                    max="3.0"
+                    step="0.1"
+                    value={clip.animLoopSpeed || 1.0}
+                    onChange={(e) => updateClip(clip.id, { animLoopSpeed: parseFloat(e.target.value) || 1.0 })}
+                    className="w-full cursor-pointer accent-[#171717] dark:accent-[#EDEDED]"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Sticker Shape / Frame Color Controls */}
+            {clip.type === 'sticker' && (clip.shapeType || clip.isShape || clip.frameType || clip.isFrame) && (
+              <div className="p-3 rounded-[6px] bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] space-y-2">
+                <span className="font-medium text-[#171717] dark:text-[#EDEDED] block">Shape / Frame Styling</span>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <span className="text-[10px] text-[#737373] dark:text-[#A1A1A1] block mb-1">Fill Color</span>
+                    <input
+                      type="color"
+                      value={clip.fillColor || '#3B82F6'}
+                      onChange={(e) => updateClip(clip.id, { fillColor: e.target.value })}
+                      className="w-full h-8 rounded border border-[#E5E5E5] dark:border-[#2A2A2A] cursor-pointer"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-[#737373] dark:text-[#A1A1A1] block mb-1">Stroke / Border</span>
+                    <input
+                      type="color"
+                      value={clip.strokeColor || clip.borderColor || '#FFFFFF'}
+                      onChange={(e) => updateClip(clip.id, { strokeColor: e.target.value, borderColor: e.target.value })}
+                      className="w-full h-8 rounded border border-[#E5E5E5] dark:border-[#2A2A2A] cursor-pointer"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -737,89 +1300,105 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
 
             {/* Adjustments */}
             <div className="pt-2 border-t border-[#E5E5E5] dark:border-[#2A2A2A] space-y-3">
-              <span className="text-xs font-normal text-[#737373] dark:text-[#A1A1A1] block">
-                Manual Color Adjustments
-              </span>
-
-              {/* Brightness */}
-              <div>
-                <div className="flex justify-between text-[#171717] dark:text-[#EDEDED] mb-1">
-                  <span className="font-normal">Brightness</span>
-                  <span className="text-[#737373] dark:text-[#A1A1A1] tabular-nums">{_optionalChain([clip, 'access', _44 => _44.adjustments, 'optionalAccess', _45 => _45.brightness]) || 0}</span>
-                </div>
-                <input
-                  type="range"
-                  min="-100"
-                  max="100"
-                  value={_optionalChain([clip, 'access', _46 => _46.adjustments, 'optionalAccess', _47 => _47.brightness]) || 0}
-                  onChange={(e) =>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-normal text-[#737373] dark:text-[#A1A1A1]">
+                  Color Adjustments
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    useEditorStore.getState().pushHistory();
                     updateClip(clip.id, {
-                      adjustments: { ...clip.adjustments, brightness: parseInt(e.target.value) },
-                    })
-                  }
-                  className="w-full"
-                />
+                      adjustments: {
+                        brightness: 0,
+                        contrast: 0,
+                        saturation: 0,
+                        exposure: 0,
+                        highlights: 0,
+                        shadows: 0,
+                        temperature: 0,
+                        tint: 0,
+                        sharpen: 0,
+                        vignette: 0,
+                        grain: 0,
+                      },
+                    });
+                  }}
+                  className="flex items-center gap-1 px-2 py-0.5 rounded-[4px] border border-[#E5E5E5] dark:border-[#2A2A2A] hover:border-[#171717] dark:hover:border-[#EDEDED] text-[10px] text-[#737373] dark:text-[#A1A1A1] hover:text-[#171717] dark:hover:text-[#EDEDED] transition-colors cursor-pointer"
+                  title="Reset all color adjustment sliders to 0"
+                >
+                  <RotateCcw className="w-3 h-3" strokeWidth={1.5} />
+                  <span>Reset all</span>
+                </button>
               </div>
 
-              {/* Contrast */}
-              <div>
-                <div className="flex justify-between text-[#171717] dark:text-[#EDEDED] mb-1">
-                  <span className="font-normal">Contrast</span>
-                  <span className="text-[#737373] dark:text-[#A1A1A1] tabular-nums">{_optionalChain([clip, 'access', _48 => _48.adjustments, 'optionalAccess', _49 => _49.contrast]) || 0}</span>
-                </div>
-                <input
-                  type="range"
-                  min="-100"
-                  max="100"
-                  value={_optionalChain([clip, 'access', _50 => _50.adjustments, 'optionalAccess', _51 => _51.contrast]) || 0}
-                  onChange={(e) =>
-                    updateClip(clip.id, {
-                      adjustments: { ...clip.adjustments, contrast: parseInt(e.target.value) },
-                    })
-                  }
-                  className="w-full"
-                />
-              </div>
+              {[
+                { key: 'brightness', label: 'Brightness', min: -100, max: 100, unit: '' },
+                { key: 'contrast', label: 'Contrast', min: -100, max: 100, unit: '' },
+                { key: 'saturation', label: 'Saturation', min: -100, max: 100, unit: '' },
+                { key: 'exposure', label: 'Exposure', min: -100, max: 100, unit: '' },
+                { key: 'highlights', label: 'Highlights', min: -100, max: 100, unit: '' },
+                { key: 'shadows', label: 'Shadows', min: -100, max: 100, unit: '' },
+                { key: 'temperature', label: 'Temperature', min: -100, max: 100, unit: '' },
+                { key: 'tint', label: 'Tint', min: -100, max: 100, unit: '' },
+                { key: 'sharpen', label: 'Sharpen', min: 0, max: 100, unit: '' },
+                { key: 'vignette', label: 'Vignette', min: 0, max: 100, unit: '%' },
+                { key: 'grain', label: 'Grain', min: 0, max: 100, unit: '%' },
+              ].map((item) => {
+                const currentVal = (_optionalChain([clip, 'access', _a => _a.adjustments, 'optionalAccess', _b => _b[item.key]])) || 0;
+                const isModified = currentVal !== 0;
 
-              {/* Saturation */}
-              <div>
-                <div className="flex justify-between text-[#171717] dark:text-[#EDEDED] mb-1">
-                  <span className="font-normal">Saturation</span>
-                  <span className="text-[#737373] dark:text-[#A1A1A1] tabular-nums">{_optionalChain([clip, 'access', _52 => _52.adjustments, 'optionalAccess', _53 => _53.saturation]) || 0}</span>
-                </div>
-                <input
-                  type="range"
-                  min="-100"
-                  max="100"
-                  value={_optionalChain([clip, 'access', _54 => _54.adjustments, 'optionalAccess', _55 => _55.saturation]) || 0}
-                  onChange={(e) =>
-                    updateClip(clip.id, {
-                      adjustments: { ...clip.adjustments, saturation: parseInt(e.target.value) },
-                    })
-                  }
-                  className="w-full"
-                />
-              </div>
-
-              {/* Vignette */}
-              <div>
-                <div className="flex justify-between text-[#171717] dark:text-[#EDEDED] mb-1">
-                  <span className="font-normal">Vignette Edge</span>
-                  <span className="text-[#737373] dark:text-[#A1A1A1] tabular-nums">{_optionalChain([clip, 'access', _56 => _56.adjustments, 'optionalAccess', _57 => _57.vignette]) || 0}%</span>
-                </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={_optionalChain([clip, 'access', _58 => _58.adjustments, 'optionalAccess', _59 => _59.vignette]) || 0}
-                  onChange={(e) =>
-                    updateClip(clip.id, {
-                      adjustments: { ...clip.adjustments, vignette: parseInt(e.target.value) },
-                    })
-                  }
-                  className="w-full"
-                />
-              </div>
+                return (
+                  <div key={item.key}>
+                    <div className="flex items-center justify-between text-[#171717] dark:text-[#EDEDED] mb-1">
+                      <span className="font-normal">{item.label}</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[#737373] dark:text-[#A1A1A1] tabular-nums text-[11px]">
+                          {currentVal > 0 && item.min < 0 ? `+${currentVal}` : currentVal}
+                          {item.unit}
+                        </span>
+                        <button
+                          type="button"
+                          disabled={!isModified}
+                          onClick={() => {
+                            useEditorStore.getState().pushHistory();
+                            updateClip(clip.id, {
+                              adjustments: {
+                                ...(clip.adjustments || {}),
+                                [item.key]: 0,
+                              },
+                            });
+                          }}
+                          className={`p-1 rounded-[4px] transition-colors cursor-pointer ${
+                            isModified
+                              ? 'text-[#737373] dark:text-[#A1A1A1] hover:text-[#171717] dark:hover:text-[#EDEDED] hover:bg-[#F5F5F5] dark:hover:bg-[#262626]'
+                              : 'opacity-20 cursor-default'
+                          }`}
+                          title={`Reset ${item.label}`}
+                        >
+                          <RotateCcw className="w-2.5 h-2.5" strokeWidth={1.5} />
+                        </button>
+                      </div>
+                    </div>
+                    <input
+                      type="range"
+                      min={item.min}
+                      max={item.max}
+                      value={currentVal}
+                      onPointerDown={() => useEditorStore.getState().pushHistory()}
+                      onChange={(e) =>
+                        updateClip(clip.id, {
+                          adjustments: {
+                            ...(clip.adjustments || {}),
+                            [item.key]: parseInt(e.target.value) || 0,
+                          },
+                        })
+                      }
+                      className="w-full cursor-pointer accent-[#171717] dark:accent-[#EDEDED]"
+                    />
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
@@ -827,6 +1406,20 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
         {/* AUDIO TAB */}
         {activeTab === 'audio' && isAudioOrVideo && (
           <div className="space-y-3.5 text-xs">
+            {/* Extract Audio from Video Clip */}
+            {clip.type === 'video' && (
+              <div className="pb-2 border-b border-[#E5E5E5] dark:border-[#2A2A2A]">
+                <button
+                  type="button"
+                  onClick={() => useEditorStore.getState().extractAudioFromClip(clip.id)}
+                  className="w-full py-2 px-3 rounded-[6px] bg-[#171717] hover:bg-[#262626] text-white dark:bg-[#EDEDED] dark:hover:bg-white dark:text-[#171717] text-xs font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                >
+                  <Music className="w-3.5 h-3.5" strokeWidth={1.5} />
+                  <span>Extract Audio to Track</span>
+                </button>
+              </div>
+            )}
+
             {/* Volume */}
             <div>
               <div className="flex items-center justify-between text-[#171717] dark:text-[#EDEDED] mb-1">
@@ -857,7 +1450,7 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
                 onChange={(e) =>
                   updateClip(clip.id, { audioProps: { volume: parseFloat(e.target.value) } })
                 }
-                className="w-full"
+                className="w-full cursor-pointer accent-[#171717] dark:accent-[#EDEDED]"
               />
             </div>
 
@@ -872,7 +1465,7 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
                   max="5"
                   value={_optionalChain([clip, 'access', _64 => _64.audioProps, 'optionalAccess', _65 => _65.fadeIn]) || 0}
                   onChange={(e) =>
-                    updateClip(clip.id, { audioProps: { fadeIn: parseFloat(e.target.value) } })
+                    updateClip(clip.id, { audioProps: { ...clip.audioProps, fadeIn: parseFloat(e.target.value) || 0 } })
                   }
                   className="w-full bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] p-1.5 text-xs text-[#171717] dark:text-[#EDEDED] outline-none"
                 />
@@ -886,11 +1479,50 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
                   max="5"
                   value={_optionalChain([clip, 'access', _66 => _66.audioProps, 'optionalAccess', _67 => _67.fadeOut]) || 0}
                   onChange={(e) =>
-                    updateClip(clip.id, { audioProps: { fadeOut: parseFloat(e.target.value) } })
+                    updateClip(clip.id, { audioProps: { ...clip.audioProps, fadeOut: parseFloat(e.target.value) || 0 } })
                   }
                   className="w-full bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] p-1.5 text-xs text-[#171717] dark:text-[#EDEDED] outline-none"
                 />
               </div>
+            </div>
+
+            {/* Noise Reduction */}
+            <div className="pt-2 border-t border-[#E5E5E5] dark:border-[#2A2A2A] space-y-2">
+              <label className="flex items-center justify-between cursor-pointer">
+                <span className="font-normal text-[#171717] dark:text-[#EDEDED]">Noise Reduction</span>
+                <input
+                  type="checkbox"
+                  checked={_optionalChain([clip, 'access', _nr => _nr.audioProps, 'optionalAccess', _nr2 => _nr2.noiseReduction]) || false}
+                  onChange={(e) =>
+                    updateClip(clip.id, {
+                      audioProps: { ...(clip.audioProps || {}), noiseReduction: e.target.checked },
+                    })
+                  }
+                  className="rounded border-[#E5E5E5] dark:border-[#2A2A2A] accent-[#171717] dark:accent-[#EDEDED]"
+                />
+              </label>
+              {_optionalChain([clip, 'access', _nr3 => _nr3.audioProps, 'optionalAccess', _nr4 => _nr4.noiseReduction]) && (
+                <div>
+                  <div className="flex justify-between text-[11px] text-[#737373] dark:text-[#A1A1A1] mb-1">
+                    <span>Noise Strength</span>
+                    <span className="tabular-nums">
+                      {(_optionalChain([clip, 'access', _ns => _ns.audioProps, 'optionalAccess', _ns2 => _ns2.noiseStrength])) ?? 50}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="1"
+                    max="100"
+                    value={(_optionalChain([clip, 'access', _ns3 => _ns3.audioProps, 'optionalAccess', _ns4 => _ns4.noiseStrength])) ?? 50}
+                    onChange={(e) =>
+                      updateClip(clip.id, {
+                        audioProps: { ...(clip.audioProps || {}), noiseStrength: parseInt(e.target.value) || 50 },
+                      })
+                    }
+                    className="w-full cursor-pointer accent-[#171717] dark:accent-[#EDEDED]"
+                  />
+                </div>
+              )}
             </div>
 
             {/* Pitch Shift */}
@@ -905,88 +1537,135 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
                 max="12"
                 value={_optionalChain([clip, 'access', _70 => _70.audioProps, 'optionalAccess', _71 => _71.pitchShift]) || 0}
                 onChange={(e) =>
-                  updateClip(clip.id, { audioProps: { pitchShift: parseInt(e.target.value) } })
+                  updateClip(clip.id, { audioProps: { ...(clip.audioProps || {}), pitchShift: parseInt(e.target.value) } })
                 }
-                className="w-full"
+                className="w-full cursor-pointer accent-[#171717] dark:accent-[#EDEDED]"
               />
             </div>
 
-            {/* 3-Band Equalizer */}
+            {/* Equalizer Presets */}
             <div className="pt-2 border-t border-[#E5E5E5] dark:border-[#2A2A2A] space-y-2">
-              <span className="text-[#171717] dark:text-[#EDEDED] block font-normal">3-Band Graphic Equalizer</span>
-              <div>
-                <div className="flex justify-between text-[11px] text-[#737373] dark:text-[#A1A1A1] mb-0.5">
-                  <span>Bass</span>
-                  <span className="tabular-nums">{_optionalChain([clip, 'access', _72 => _72.audioProps, 'optionalAccess', _73 => _73.equalizer, 'optionalAccess', _74 => _74.bass]) || 0} dB</span>
-                </div>
-                <input
-                  type="range"
-                  min="-12"
-                  max="12"
-                  value={_optionalChain([clip, 'access', _75 => _75.audioProps, 'optionalAccess', _76 => _76.equalizer, 'optionalAccess', _77 => _77.bass]) || 0}
-                  onChange={(e) =>
-                    updateClip(clip.id, {
-                      audioProps: {
-                        equalizer: {
-                          bass: parseInt(e.target.value),
-                          mid: _optionalChain([clip, 'access', _78 => _78.audioProps, 'optionalAccess', _79 => _79.equalizer, 'optionalAccess', _80 => _80.mid]) || 0,
-                          treble: _optionalChain([clip, 'access', _81 => _81.audioProps, 'optionalAccess', _82 => _82.equalizer, 'optionalAccess', _83 => _83.treble]) || 0,
-                        },
-                      },
-                    })
-                  }
-                  className="w-full"
-                />
+              <span className="text-[#171717] dark:text-[#EDEDED] block font-normal">Equalizer Presets</span>
+              <div className="grid grid-cols-2 gap-1.5">
+                {[
+                  { name: 'Voice Boost', bass: -2, mid: 5, treble: 3 },
+                  { name: 'Bass Boost', bass: 7, mid: 0, treble: -1 },
+                  { name: 'Treble Boost', bass: -2, mid: 1, treble: 6 },
+                  { name: 'Podcast', bass: 2, mid: 4, treble: 1 },
+                ].map((eq) => {
+                  const isCurrent =
+                    _optionalChain([clip, 'access', _c => _c.audioProps, 'optionalAccess', _c2 => _c2.equalizer, 'optionalAccess', _c3 => _c3.preset]) === eq.name;
+                  return (
+                    <button
+                      key={eq.name}
+                      type="button"
+                      onClick={() =>
+                        updateClip(clip.id, {
+                          audioProps: {
+                            ...(clip.audioProps || {}),
+                            equalizer: {
+                              preset: eq.name,
+                              bass: eq.bass,
+                              mid: eq.mid,
+                              treble: eq.treble,
+                            },
+                          },
+                        })
+                      }
+                      className={`py-1 px-2 rounded-[6px] border text-[11px] font-normal transition-colors cursor-pointer text-center ${
+                        isCurrent
+                          ? 'bg-[#171717] text-white dark:bg-[#EDEDED] dark:text-[#171717] border-[#171717] dark:border-[#EDEDED]'
+                          : 'bg-white dark:bg-[#1A1A1A] text-[#737373] dark:text-[#A1A1A1] border-[#E5E5E5] dark:border-[#2A2A2A] hover:bg-[#F5F5F5] dark:hover:bg-[#262626]'
+                      }`}
+                    >
+                      {eq.name}
+                    </button>
+                  );
+                })}
               </div>
 
-              <div>
-                <div className="flex justify-between text-[11px] text-[#737373] dark:text-[#A1A1A1] mb-0.5">
-                  <span>Mid</span>
-                  <span className="tabular-nums">{_optionalChain([clip, 'access', _84 => _84.audioProps, 'optionalAccess', _85 => _85.equalizer, 'optionalAccess', _86 => _86.mid]) || 0} dB</span>
-                </div>
-                <input
-                  type="range"
-                  min="-12"
-                  max="12"
-                  value={_optionalChain([clip, 'access', _87 => _87.audioProps, 'optionalAccess', _88 => _88.equalizer, 'optionalAccess', _89 => _89.mid]) || 0}
-                  onChange={(e) =>
-                    updateClip(clip.id, {
-                      audioProps: {
-                        equalizer: {
-                          bass: _optionalChain([clip, 'access', _90 => _90.audioProps, 'optionalAccess', _91 => _91.equalizer, 'optionalAccess', _92 => _92.bass]) || 0,
-                          mid: parseInt(e.target.value),
-                          treble: _optionalChain([clip, 'access', _93 => _93.audioProps, 'optionalAccess', _94 => _94.equalizer, 'optionalAccess', _95 => _95.treble]) || 0,
+              {/* 3-Band Equalizer Sliders */}
+              <div className="pt-1.5 space-y-2">
+                <div>
+                  <div className="flex justify-between text-[11px] text-[#737373] dark:text-[#A1A1A1] mb-0.5">
+                    <span>Bass</span>
+                    <span className="tabular-nums">{_optionalChain([clip, 'access', _72 => _72.audioProps, 'optionalAccess', _73 => _73.equalizer, 'optionalAccess', _74 => _74.bass]) || 0} dB</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="-12"
+                    max="12"
+                    value={_optionalChain([clip, 'access', _75 => _75.audioProps, 'optionalAccess', _76 => _76.equalizer, 'optionalAccess', _77 => _77.bass]) || 0}
+                    onChange={(e) =>
+                      updateClip(clip.id, {
+                        audioProps: {
+                          ...(clip.audioProps || {}),
+                          equalizer: {
+                            bass: parseInt(e.target.value),
+                            mid: _optionalChain([clip, 'access', _78 => _78.audioProps, 'optionalAccess', _79 => _79.equalizer, 'optionalAccess', _80 => _80.mid]) || 0,
+                            treble: _optionalChain([clip, 'access', _81 => _81.audioProps, 'optionalAccess', _82 => _82.equalizer, 'optionalAccess', _83 => _83.treble]) || 0,
+                            preset: 'Custom',
+                          },
                         },
-                      },
-                    })
-                  }
-                  className="w-full"
-                />
-              </div>
+                      })
+                    }
+                    className="w-full cursor-pointer accent-[#171717] dark:accent-[#EDEDED]"
+                  />
+                </div>
 
-              <div>
-                <div className="flex justify-between text-[11px] text-[#737373] dark:text-[#A1A1A1] mb-0.5">
-                  <span>Treble</span>
-                  <span className="tabular-nums">{_optionalChain([clip, 'access', _96 => _96.audioProps, 'optionalAccess', _97 => _97.equalizer, 'optionalAccess', _98 => _98.treble]) || 0} dB</span>
-                </div>
-                <input
-                  type="range"
-                  min="-12"
-                  max="12"
-                  value={_optionalChain([clip, 'access', _99 => _99.audioProps, 'optionalAccess', _100 => _100.equalizer, 'optionalAccess', _101 => _101.treble]) || 0}
-                  onChange={(e) =>
-                    updateClip(clip.id, {
-                      audioProps: {
-                        equalizer: {
-                          bass: _optionalChain([clip, 'access', _102 => _102.audioProps, 'optionalAccess', _103 => _103.equalizer, 'optionalAccess', _104 => _104.bass]) || 0,
-                          mid: _optionalChain([clip, 'access', _105 => _105.audioProps, 'optionalAccess', _106 => _106.equalizer, 'optionalAccess', _107 => _107.mid]) || 0,
-                          treble: parseInt(e.target.value),
+                <div>
+                  <div className="flex justify-between text-[11px] text-[#737373] dark:text-[#A1A1A1] mb-0.5">
+                    <span>Mid</span>
+                    <span className="tabular-nums">{_optionalChain([clip, 'access', _84 => _84.audioProps, 'optionalAccess', _85 => _85.equalizer, 'optionalAccess', _86 => _86.mid]) || 0} dB</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="-12"
+                    max="12"
+                    value={_optionalChain([clip, 'access', _87 => _87.audioProps, 'optionalAccess', _88 => _88.equalizer, 'optionalAccess', _89 => _89.mid]) || 0}
+                    onChange={(e) =>
+                      updateClip(clip.id, {
+                        audioProps: {
+                          ...(clip.audioProps || {}),
+                          equalizer: {
+                            bass: _optionalChain([clip, 'access', _90 => _90.audioProps, 'optionalAccess', _91 => _91.equalizer, 'optionalAccess', _92 => _92.bass]) || 0,
+                            mid: parseInt(e.target.value),
+                            treble: _optionalChain([clip, 'access', _93 => _93.audioProps, 'optionalAccess', _94 => _94.equalizer, 'optionalAccess', _95 => _95.treble]) || 0,
+                            preset: 'Custom',
+                          },
                         },
-                      },
-                    })
-                  }
-                  className="w-full"
-                />
+                      })
+                    }
+                    className="w-full cursor-pointer accent-[#171717] dark:accent-[#EDEDED]"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex justify-between text-[11px] text-[#737373] dark:text-[#A1A1A1] mb-0.5">
+                    <span>Treble</span>
+                    <span className="tabular-nums">{_optionalChain([clip, 'access', _96 => _96.audioProps, 'optionalAccess', _97 => _97.equalizer, 'optionalAccess', _98 => _98.treble]) || 0} dB</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="-12"
+                    max="12"
+                    value={_optionalChain([clip, 'access', _99 => _99.audioProps, 'optionalAccess', _100 => _100.equalizer, 'optionalAccess', _101 => _101.treble]) || 0}
+                    onChange={(e) =>
+                      updateClip(clip.id, {
+                        audioProps: {
+                          ...(clip.audioProps || {}),
+                          equalizer: {
+                            bass: _optionalChain([clip, 'access', _102 => _102.audioProps, 'optionalAccess', _103 => _103.equalizer, 'optionalAccess', _104 => _104.bass]) || 0,
+                            mid: _optionalChain([clip, 'access', _105 => _105.audioProps, 'optionalAccess', _106 => _106.equalizer, 'optionalAccess', _107 => _107.mid]) || 0,
+                            treble: parseInt(e.target.value),
+                            preset: 'Custom',
+                          },
+                        },
+                      })
+                    }
+                    className="w-full cursor-pointer accent-[#171717] dark:accent-[#EDEDED]"
+                  />
+                </div>
               </div>
             </div>
 
@@ -996,16 +1675,16 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
               <select
                 value={_optionalChain([clip, 'access', _108 => _108.audioProps, 'optionalAccess', _109 => _109.voiceChanger]) || 'none'}
                 onChange={(e) =>
-                  updateClip(clip.id, { audioProps: { voiceChanger: e.target.value  } })
+                  updateClip(clip.id, { audioProps: { ...(clip.audioProps || {}), voiceChanger: e.target.value } })
                 }
-                className="w-full bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] px-2 py-1.5 text-xs text-[#171717] dark:text-[#EDEDED] outline-none"
+                className="w-full bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] px-2 py-1.5 text-xs text-[#171717] dark:text-[#EDEDED] outline-none cursor-pointer"
               >
                 <option value="none">None (Natural Voice)</option>
-                <option value="chipmunk">Chipmunk (High pitch)</option>
-                <option value="deep">Deep Cinematic (Low pitch)</option>
-                <option value="robot">Robot Synthesizer</option>
-                <option value="radio">Vintage Radio Walkie-Talkie</option>
-                <option value="echo">Echo & Reverb</option>
+                <option value="deep">Deep</option>
+                <option value="high">High</option>
+                <option value="robot">Robot</option>
+                <option value="echo">Echo</option>
+                <option value="chipmunk">Chipmunk</option>
               </select>
             </div>
           </div>
@@ -1025,8 +1704,9 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
                 max="10"
                 step="0.1"
                 value={clip.speed}
+                onPointerDown={() => useEditorStore.getState().pushHistory()}
                 onChange={(e) => updateClip(clip.id, { speed: parseFloat(e.target.value) })}
-                className="w-full"
+                className="w-full cursor-pointer accent-[#171717] dark:accent-[#EDEDED]"
               />
             </div>
 
@@ -1034,7 +1714,10 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
               {[0.5, 1.0, 2.0, 4.0].map((s) => (
                 <button
                   key={s}
-                  onClick={() => updateClip(clip.id, { speed: s })}
+                  onClick={() => {
+                    useEditorStore.getState().pushHistory();
+                    updateClip(clip.id, { speed: s });
+                  }}
                   className={`py-1 rounded-[6px] text-xs font-normal border transition-colors cursor-pointer tabular-nums ${
                     clip.speed === s
                       ? 'bg-[#171717] text-white dark:bg-[#EDEDED] dark:text-[#171717] border-[#171717] dark:border-[#EDEDED]'
@@ -1044,6 +1727,12 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
                   {s}x
                 </button>
               ))}
+            </div>
+
+            {/* Audio Pitch Note */}
+            <div className="flex items-center justify-between text-[11px] text-[#737373] dark:text-[#A1A1A1] pt-1">
+              <span>Audio Pitch:</span>
+              <span className="text-[#171717] dark:text-[#EDEDED] font-normal">Natural (Pitch Preserved)</span>
             </div>
 
             {/* Speed Curves */}
@@ -1060,7 +1749,10 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
                 ].map((curve) => (
                   <button
                     key={curve.id}
-                    onClick={() => updateClip(clip.id, { speedCurve: curve.id  })}
+                    onClick={() => {
+                      useEditorStore.getState().pushHistory();
+                      updateClip(clip.id, { speedCurve: curve.id });
+                    }}
                     className={`py-1.5 px-1 text-[10px] rounded-[6px] border font-normal transition-colors cursor-pointer ${
                       (clip.speedCurve || 'constant') === curve.id
                         ? 'bg-blue-50 dark:bg-blue-950/40 border-[#3B82F6] text-[#3B82F6]'
@@ -1073,22 +1765,54 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
               </div>
             </div>
 
-            <div className="pt-2 border-t border-[#E5E5E5] dark:border-[#2A2A2A] space-y-2">
+            {/* Reverse & Smooth Slow-Mo */}
+            <div className="pt-2 border-t border-[#E5E5E5] dark:border-[#2A2A2A] space-y-2.5">
               <label className="flex items-center gap-2 cursor-pointer text-[#171717] dark:text-[#EDEDED]">
                 <input
                   type="checkbox"
                   checked={clip.reverse || false}
-                  onChange={(e) => updateClip(clip.id, { reverse: e.target.checked })}
+                  onChange={(e) => {
+                    useEditorStore.getState().pushHistory();
+                    updateClip(clip.id, { reverse: e.target.checked });
+                  }}
                   className="rounded border-[#E5E5E5] dark:border-[#2A2A2A] accent-[#171717] dark:accent-[#EDEDED]"
                 />
                 <span className="font-normal">Reverse Playback</span>
+              </label>
+
+              <label className="flex items-start gap-2 cursor-pointer text-[#171717] dark:text-[#EDEDED]">
+                <input
+                  type="checkbox"
+                  checked={clip.smoothSlowMo || false}
+                  onChange={(e) => {
+                    useEditorStore.getState().pushHistory();
+                    updateClip(clip.id, { smoothSlowMo: e.target.checked });
+                  }}
+                  className="rounded border-[#E5E5E5] dark:border-[#2A2A2A] accent-[#171717] dark:accent-[#EDEDED] mt-0.5"
+                />
+                <div className="flex flex-col">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-normal">Smooth slow motion</span>
+                    {clip.speed < 0.5 && clip.smoothSlowMo && (
+                      <span className="text-[9px] px-1 py-0.2 rounded bg-blue-50 dark:bg-blue-950/40 text-[#3B82F6]">
+                        Active
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-[10px] text-[#737373] dark:text-[#A1A1A1]">
+                    Blends frames when speed is under 0.5x for stutter-free slow motion
+                  </span>
+                </div>
               </label>
 
               <label className="flex items-center gap-2 cursor-pointer text-[#171717] dark:text-[#EDEDED]">
                 <input
                   type="checkbox"
                   checked={clip.freezeFrame || false}
-                  onChange={(e) => updateClip(clip.id, { freezeFrame: e.target.checked })}
+                  onChange={(e) => {
+                    useEditorStore.getState().pushHistory();
+                    updateClip(clip.id, { freezeFrame: e.target.checked });
+                  }}
                   className="rounded border-[#E5E5E5] dark:border-[#2A2A2A] accent-[#171717] dark:accent-[#EDEDED]"
                 />
                 <span className="font-normal">Freeze Frame</span>
@@ -1097,92 +1821,393 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
           </div>
         )}
 
-        {/* MASK & CHROMA TAB */}
-        {activeTab === 'mask' && isVisual && (
-          <div className="space-y-4 text-xs">
-            {/* Shape Mask */}
+        {/* EFFECT TAB (for effect track clips) */}
+        {activeTab === 'effect' && isEffect && (
+          <div className="space-y-3.5 text-xs">
             <div>
-              <span className="text-[#171717] dark:text-[#EDEDED] block mb-1 font-normal">Shape Mask</span>
+              <span className="text-[#171717] dark:text-[#EDEDED] block mb-1 font-normal">Effect Preset</span>
               <select
-                value={_optionalChain([clip, 'access', _110 => _110.mask, 'optionalAccess', _111 => _111.type]) || 'none'}
-                onChange={(e) =>
+                value={clip.effectType || 'lens-blur'}
+                onChange={(e) => {
+                  useEditorStore.getState().pushHistory();
+                  const targetFx = EFFECTS_LIST.find((fx) => fx.id === e.target.value);
                   updateClip(clip.id, {
-                    mask: {
-                      type: e.target.value ,
-                      size: _optionalChain([clip, 'access', _112 => _112.mask, 'optionalAccess', _113 => _113.size]) || 50,
-                      feather: _optionalChain([clip, 'access', _114 => _114.mask, 'optionalAccess', _115 => _115.feather]) || 10,
-                      x: _optionalChain([clip, 'access', _116 => _116.mask, 'optionalAccess', _117 => _117.x]) || 0,
-                      y: _optionalChain([clip, 'access', _118 => _118.mask, 'optionalAccess', _119 => _119.y]) || 0,
-                    },
-                  })
-                }
+                    effectType: e.target.value,
+                    name: targetFx ? targetFx.name : clip.name,
+                  });
+                }}
                 className="w-full bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] px-2 py-1.5 text-xs text-[#171717] dark:text-[#EDEDED] outline-none"
               >
-                <option value="none">None</option>
-                <option value="circle">Circle Mask</option>
-                <option value="rectangle">Rectangle Mask</option>
-                <option value="heart">Heart Shape</option>
-                <option value="star">Star Shape</option>
+                {EFFECTS_LIST.map((fx) => (
+                  <option key={fx.id} value={fx.id}>
+                    {fx.name} ({fx.category})
+                  </option>
+                ))}
               </select>
             </div>
 
-            {clip.mask && clip.mask.type !== 'none' && (
-              <div className="space-y-2">
-                <div>
-                  <div className="flex justify-between text-[#171717] dark:text-[#EDEDED] mb-1">
-                    <span className="font-normal">Mask Radius Size</span>
-                    <span className="text-[#737373] dark:text-[#A1A1A1] tabular-nums">{clip.mask.size}%</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="10"
-                    max="100"
-                    value={clip.mask.size}
-                    onChange={(e) =>
-                      updateClip(clip.id, { mask: { ...clip.mask, size: parseInt(e.target.value) } })
-                    }
-                    className="w-full"
-                  />
-                </div>
+            <div>
+              <div className="flex justify-between text-[#171717] dark:text-[#EDEDED] mb-1">
+                <span className="font-normal">Effect Intensity</span>
+                <span className="text-[#737373] dark:text-[#A1A1A1] tabular-nums">{clip.effectIntensity || 50}%</span>
               </div>
-            )}
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={clip.effectIntensity || 50}
+                onPointerDown={() => useEditorStore.getState().pushHistory()}
+                onChange={(e) =>
+                  updateClip(clip.id, { effectIntensity: parseInt(e.target.value) || 0 })
+                }
+                className="w-full cursor-pointer accent-[#171717] dark:accent-[#EDEDED]"
+              />
+            </div>
 
-            {/* Chroma Key (Green Screen) */}
-            <div className="pt-2 border-t border-[#E5E5E5] dark:border-[#2A2A2A] space-y-2">
-              <span className="text-[#171717] dark:text-[#EDEDED] block font-normal">Chroma Key (Green Screen)</span>
-              <label className="flex items-center gap-2 cursor-pointer text-[#171717] dark:text-[#EDEDED]">
+            <div className="pt-2 border-t border-[#E5E5E5] dark:border-[#2A2A2A] flex items-center justify-between text-[11px] text-[#737373] dark:text-[#A1A1A1]">
+              <span>Duration:</span>
+              <span className="tabular-nums text-[#171717] dark:text-[#EDEDED]">
+                {Math.round(clip.duration * 10) / 10}s
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* MASK, CHROMA & BG REMOVAL TAB */}
+        {activeTab === 'mask' && isVisual && (
+          <div className="space-y-4 text-xs">
+            {/* Shape Mask Section */}
+            <div className="space-y-2.5">
+              <span className="text-xs font-medium text-[#171717] dark:text-[#EDEDED] block">
+                Shape Mask
+              </span>
+              <div>
+                <span className="text-[#737373] dark:text-[#A1A1A1] block mb-1">Mask Shape</span>
+                <select
+                  value={_optionalChain([clip, 'access', _110 => _110.mask, 'optionalAccess', _111 => _111.type]) || 'none'}
+                  onChange={(e) =>
+                    updateClip(clip.id, {
+                      mask: {
+                        type: e.target.value,
+                        size: _optionalChain([clip, 'access', _112 => _112.mask, 'optionalAccess', _113 => _113.size]) ?? 50,
+                        feather: _optionalChain([clip, 'access', _114 => _114.mask, 'optionalAccess', _115 => _115.feather]) ?? 0,
+                        rotation: _optionalChain([clip, 'access', _116 => _116.mask, 'optionalAccess', _117 => _117.rotation]) ?? 0,
+                        x: _optionalChain([clip, 'access', _118 => _118.mask, 'optionalAccess', _119 => _119.x]) ?? 0,
+                        y: _optionalChain([clip, 'access', _120 => _120.mask, 'optionalAccess', _121 => _121.y]) ?? 0,
+                        invert: _optionalChain([clip, 'access', _122 => _122.mask, 'optionalAccess', _123 => _123.invert]) ?? false,
+                      },
+                    })
+                  }
+                  className="w-full bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] px-2 py-1.5 text-xs text-[#171717] dark:text-[#EDEDED] outline-none cursor-pointer"
+                >
+                  <option value="none">None</option>
+                  <option value="circle">Circle</option>
+                  <option value="rectangle">Rectangle</option>
+                  <option value="heart">Heart</option>
+                  <option value="star">Star</option>
+                  <option value="linear">Linear (Split)</option>
+                  <option value="mirror">Mirror (Parallel)</option>
+                </select>
+              </div>
+
+              {clip.mask && clip.mask.type !== 'none' && (
+                <div className="space-y-2.5 pt-1">
+                  {/* Size */}
+                  <div>
+                    <div className="flex justify-between text-[#171717] dark:text-[#EDEDED] mb-1">
+                      <span className="font-normal">Size</span>
+                      <span className="text-[#737373] dark:text-[#A1A1A1] tabular-nums">{clip.mask.size ?? 50}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="10"
+                      max="150"
+                      value={clip.mask.size ?? 50}
+                      onChange={(e) =>
+                        updateClip(clip.id, { mask: { ...clip.mask, size: parseInt(e.target.value) || 50 } })
+                      }
+                      className="w-full cursor-pointer accent-[#171717] dark:accent-[#EDEDED]"
+                    />
+                  </div>
+
+                  {/* Position X & Y */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <div className="flex justify-between text-[#171717] dark:text-[#EDEDED] mb-1">
+                        <span className="font-normal">Pos X</span>
+                        <span className="text-[#737373] dark:text-[#A1A1A1] tabular-nums">{clip.mask.x ?? 0}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="-50"
+                        max="50"
+                        value={clip.mask.x ?? 0}
+                        onChange={(e) =>
+                          updateClip(clip.id, { mask: { ...clip.mask, x: parseInt(e.target.value) || 0 } })
+                        }
+                        className="w-full cursor-pointer accent-[#171717] dark:accent-[#EDEDED]"
+                      />
+                    </div>
+                    <div>
+                      <div className="flex justify-between text-[#171717] dark:text-[#EDEDED] mb-1">
+                        <span className="font-normal">Pos Y</span>
+                        <span className="text-[#737373] dark:text-[#A1A1A1] tabular-nums">{clip.mask.y ?? 0}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="-50"
+                        max="50"
+                        value={clip.mask.y ?? 0}
+                        onChange={(e) =>
+                          updateClip(clip.id, { mask: { ...clip.mask, y: parseInt(e.target.value) || 0 } })
+                        }
+                        className="w-full cursor-pointer accent-[#171717] dark:accent-[#EDEDED]"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Rotation */}
+                  <div>
+                    <div className="flex justify-between text-[#171717] dark:text-[#EDEDED] mb-1">
+                      <span className="font-normal">Rotation</span>
+                      <span className="text-[#737373] dark:text-[#A1A1A1] tabular-nums">{clip.mask.rotation ?? 0}°</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="360"
+                      value={clip.mask.rotation ?? 0}
+                      onChange={(e) =>
+                        updateClip(clip.id, { mask: { ...clip.mask, rotation: parseInt(e.target.value) || 0 } })
+                      }
+                      className="w-full cursor-pointer accent-[#171717] dark:accent-[#EDEDED]"
+                    />
+                  </div>
+
+                  {/* Feather */}
+                  <div>
+                    <div className="flex justify-between text-[#171717] dark:text-[#EDEDED] mb-1">
+                      <span className="font-normal">Feather</span>
+                      <span className="text-[#737373] dark:text-[#A1A1A1] tabular-nums">{clip.mask.feather ?? 0}px</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={clip.mask.feather ?? 0}
+                      onChange={(e) =>
+                        updateClip(clip.id, { mask: { ...clip.mask, feather: parseInt(e.target.value) || 0 } })
+                      }
+                      className="w-full cursor-pointer accent-[#171717] dark:accent-[#EDEDED]"
+                    />
+                  </div>
+
+                  {/* Invert Toggle */}
+                  <label className="flex items-center justify-between cursor-pointer pt-1">
+                    <span className="font-normal text-[#171717] dark:text-[#EDEDED]">Invert Mask</span>
+                    <input
+                      type="checkbox"
+                      checked={Boolean(clip.mask.invert)}
+                      onChange={(e) =>
+                        updateClip(clip.id, { mask: { ...clip.mask, invert: e.target.checked } })
+                      }
+                      className="rounded border-[#E5E5E5] dark:border-[#2A2A2A] accent-[#171717] dark:accent-[#EDEDED]"
+                    />
+                  </label>
+                </div>
+              )}
+            </div>
+
+            {/* Chroma Key (Green Screen) Section */}
+            <div className="pt-3 border-t border-[#E5E5E5] dark:border-[#2A2A2A] space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-[#171717] dark:text-[#EDEDED]">
+                  Chroma Key
+                </span>
                 <input
                   type="checkbox"
-                  checked={_optionalChain([clip, 'access', _120 => _120.chromaKey, 'optionalAccess', _121 => _121.enabled]) || false}
+                  checked={_optionalChain([clip, 'access', _124 => _124.chromaKey, 'optionalAccess', _125 => _125.enabled]) || false}
                   onChange={(e) =>
                     updateClip(clip.id, {
                       chromaKey: {
                         enabled: e.target.checked,
-                        keyColor: _optionalChain([clip, 'access', _122 => _122.chromaKey, 'optionalAccess', _123 => _123.keyColor]) || '#00ff00',
-                        similarity: _optionalChain([clip, 'access', _124 => _124.chromaKey, 'optionalAccess', _125 => _125.similarity]) || 40,
-                        smoothness: _optionalChain([clip, 'access', _126 => _126.chromaKey, 'optionalAccess', _127 => _127.smoothness]) || 10,
+                        keyColor: _optionalChain([clip, 'access', _126 => _126.chromaKey, 'optionalAccess', _127 => _127.keyColor]) || '#00FF00',
+                        tolerance: _optionalChain([clip, 'access', _128 => _128.chromaKey, 'optionalAccess', _129 => _129.tolerance]) ?? 40,
+                        softness: _optionalChain([clip, 'access', _130 => _130.chromaKey, 'optionalAccess', _131 => _131.softness]) ?? 15,
+                        spillRemoval: _optionalChain([clip, 'access', _132 => _132.chromaKey, 'optionalAccess', _133 => _133.spillRemoval]) ?? 50,
                       },
                     })
                   }
                   className="rounded border-[#E5E5E5] dark:border-[#2A2A2A] accent-[#171717] dark:accent-[#EDEDED]"
                 />
-                <span className="font-normal">Enable Chroma Key Removal</span>
-              </label>
+              </div>
 
-              {_optionalChain([clip, 'access', _128 => _128.chromaKey, 'optionalAccess', _129 => _129.enabled]) && (
-                <div className="space-y-2 pt-1">
-                  <div className="flex items-center gap-2">
+              {_optionalChain([clip, 'access', _134 => _134.chromaKey, 'optionalAccess', _135 => _135.enabled]) && (
+                <div className="space-y-2.5 pt-1">
+                  {/* Eyedropper & Color Picker */}
+                  <div className="flex items-center justify-between">
                     <span className="text-[#737373] dark:text-[#A1A1A1]">Key Color:</span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (window.EyeDropper) {
+                            try {
+                              const eyeDropper = new window.EyeDropper();
+                              const res = await eyeDropper.open();
+                              if (res && res.sRGBHex) {
+                                updateClip(clip.id, {
+                                  chromaKey: { ...clip.chromaKey, keyColor: res.sRGBHex },
+                                });
+                                toastSuccess(`Sampled ${res.sRGBHex}`, 'Color Selected');
+                              }
+                            } catch (e) {}
+                          } else {
+                            toastInfo('Use the color picker to pick background color', 'Color Picker');
+                          }
+                        }}
+                        className="p-1.5 rounded-[4px] border border-[#E5E5E5] dark:border-[#2A2A2A] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] text-[#171717] dark:text-[#EDEDED] transition-colors cursor-pointer"
+                        title="Eyedropper: Pick color from screen"
+                      >
+                        <Pipette className="w-3.5 h-3.5" strokeWidth={1.5} />
+                      </button>
+                      <input
+                        type="color"
+                        value={clip.chromaKey.keyColor || '#00FF00'}
+                        onChange={(e) =>
+                          updateClip(clip.id, {
+                            chromaKey: { ...clip.chromaKey, keyColor: e.target.value },
+                          })
+                        }
+                        className="w-7 h-7 rounded-[4px] border border-[#E5E5E5] dark:border-[#2A2A2A] cursor-pointer"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Tolerance */}
+                  <div>
+                    <div className="flex justify-between text-[#171717] dark:text-[#EDEDED] mb-1">
+                      <span className="font-normal">Tolerance</span>
+                      <span className="text-[#737373] dark:text-[#A1A1A1] tabular-nums">
+                        {clip.chromaKey.tolerance ?? 40}%
+                      </span>
+                    </div>
                     <input
-                      type="color"
-                      value={clip.chromaKey.keyColor}
+                      type="range"
+                      min="1"
+                      max="100"
+                      value={clip.chromaKey.tolerance ?? 40}
                       onChange={(e) =>
                         updateClip(clip.id, {
-                          chromaKey: { ...clip.chromaKey, keyColor: e.target.value },
+                          chromaKey: { ...clip.chromaKey, tolerance: parseInt(e.target.value) || 40 },
                         })
                       }
-                      className="w-7 h-7 rounded-[4px] border border-[#E5E5E5] dark:border-[#2A2A2A] cursor-pointer"
+                      className="w-full cursor-pointer accent-[#171717] dark:accent-[#EDEDED]"
                     />
+                  </div>
+
+                  {/* Edge Softness */}
+                  <div>
+                    <div className="flex justify-between text-[#171717] dark:text-[#EDEDED] mb-1">
+                      <span className="font-normal">Edge Softness</span>
+                      <span className="text-[#737373] dark:text-[#A1A1A1] tabular-nums">
+                        {clip.chromaKey.softness ?? 15}%
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={clip.chromaKey.softness ?? 15}
+                      onChange={(e) =>
+                        updateClip(clip.id, {
+                          chromaKey: { ...clip.chromaKey, softness: parseInt(e.target.value) || 15 },
+                        })
+                      }
+                      className="w-full cursor-pointer accent-[#171717] dark:accent-[#EDEDED]"
+                    />
+                  </div>
+
+                  {/* Spill Removal */}
+                  <div>
+                    <div className="flex justify-between text-[#171717] dark:text-[#EDEDED] mb-1">
+                      <span className="font-normal">Spill Removal</span>
+                      <span className="text-[#737373] dark:text-[#A1A1A1] tabular-nums">
+                        {clip.chromaKey.spillRemoval ?? 50}%
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={clip.chromaKey.spillRemoval ?? 50}
+                      onChange={(e) =>
+                        updateClip(clip.id, {
+                          chromaKey: { ...clip.chromaKey, spillRemoval: parseInt(e.target.value) || 50 },
+                        })
+                      }
+                      className="w-full cursor-pointer accent-[#171717] dark:accent-[#EDEDED]"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Background Removal Section */}
+            <div className="pt-3 border-t border-[#E5E5E5] dark:border-[#2A2A2A] space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-medium text-[#171717] dark:text-[#EDEDED] block">
+                    Background Removal
+                  </span>
+                  <span className="text-[10px] text-[#737373] dark:text-[#A1A1A1]">
+                    Smart browser portrait cutout
+                  </span>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={_optionalChain([clip, 'access', _bg => _bg.bgRemoval, 'optionalAccess', _bg2 => _bg2.enabled]) || false}
+                  onChange={(e) => {
+                    const nextVal = e.target.checked;
+                    if (nextVal) {
+                      toastSuccess('Background removed in browser', 'Cutout Applied');
+                    }
+                    updateClip(clip.id, {
+                      bgRemoval: {
+                        enabled: nextVal,
+                        smoothing: _optionalChain([clip, 'access', _bg3 => _bg3.bgRemoval, 'optionalAccess', _bg4 => _bg4.smoothing]) ?? 15,
+                      },
+                    });
+                  }}
+                  className="rounded border-[#E5E5E5] dark:border-[#2A2A2A] accent-[#171717] dark:accent-[#EDEDED]"
+                />
+              </div>
+
+              {_optionalChain([clip, 'access', _bg5 => _bg5.bgRemoval, 'optionalAccess', _bg6 => _bg6.enabled]) && (
+                <div className="space-y-2 pt-1">
+                  <div>
+                    <div className="flex justify-between text-[#171717] dark:text-[#EDEDED] mb-1">
+                      <span className="font-normal">Edge Smoothing</span>
+                      <span className="text-[#737373] dark:text-[#A1A1A1] tabular-nums">
+                        {clip.bgRemoval.smoothing ?? 15}%
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={clip.bgRemoval.smoothing ?? 15}
+                      onChange={(e) =>
+                        updateClip(clip.id, {
+                          bgRemoval: { ...clip.bgRemoval, smoothing: parseInt(e.target.value) || 15 },
+                        })
+                      }
+                      className="w-full cursor-pointer accent-[#171717] dark:accent-[#EDEDED]"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-[4px] bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 text-[10px]">
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                    <span>Cutout active (Live preview & export)</span>
                   </div>
                 </div>
               )}

@@ -1,4 +1,6 @@
- function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }import React, { useRef, useEffect, useState, } from 'react';
+function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }
+
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import {
   Play,
   Pause,
@@ -9,12 +11,21 @@ import {
   Camera,
   ShieldCheck,
   Grid,
+  RotateCw,
+  Paintbrush,
+  Eraser,
+  Undo2,
+  Trash2,
+  Check,
+  X,
+  Pipette,
 } from 'lucide-react';
 import { useEditorStore } from '../store/editorStore';
 import { renderFrame } from '../utils/previewRenderer';
 import { ASPECT_RATIOS } from '../types/editor';
 import { useResponsive } from '../utils/useResponsive';
 import { audioEngine } from '../utils/audioEngine';
+import { toastSuccess } from '../store/toastStore';
 
 export const CenterPreview = () => {
   const {
@@ -32,34 +43,102 @@ export const CenterPreview = () => {
     toggleSafeGuides,
     showGrid,
     toggleGrid,
+    isDrawingMode,
+    setIsDrawingMode,
+    toggleDrawingMode,
+    eyedropperActive,
+    setEyedropperActive,
+    addClipToTrack,
+    selectClip,
   } = useEditorStore();
 
   const { isMobile } = useResponsive();
 
   const canvasRef = useRef(null);
+  const drawingCanvasRef = useRef(null);
   const containerRef = useRef(null);
+  const previewWrapperRef = useRef(null);
 
   const [previewZoom, setPreviewZoom] = useState('fit');
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [isDraggingClip, setIsDraggingClip] = useState(false);
-  const dragStartPos = useRef({
-    x: 0,
-    y: 0,
+
+  // Snapping guides states
+  const [snapGuideX, setSnapGuideX] = useState(false);
+  const [snapGuideY, setSnapGuideY] = useState(false);
+
+  // Direct Manipulation Dragging / Resizing / Rotating state
+  const [interactionMode, setInteractionMode] = useState(null); // 'move' | 'scale' | 'rotate'
+  const dragContext = useRef({
+    startX: 0,
+    startY: 0,
     initialClipX: 0,
     initialClipY: 0,
+    initialScale: 1,
+    initialRotation: 0,
+    centerBoxX: 0,
+    centerBoxY: 0,
+    corner: null,
   });
+
+  // Drawing Tool States
+  const [brushColor, setBrushColor] = useState('#FFFFFF');
+  const [brushSize, setBrushSize] = useState(8);
+  const [brushOpacity, setBrushOpacity] = useState(1);
+  const [isEraser, setIsEraser] = useState(false);
+  const [strokes, setStrokes] = useState([]);
+  const [isDrawingPointerDown, setIsDrawingPointerDown] = useState(false);
+  const currentStrokeRef = useRef(null);
 
   const selectedClip = getSelectedClip();
   const ratioConfig = ASPECT_RATIOS[project.aspectRatio];
 
-  // Mobile proxy resolution: half resolution for smooth 60fps playback & low memory
+  // Mobile proxy resolution
   const renderWidth = isMobile ? Math.round(ratioConfig.width / 2) : ratioConfig.width;
   const renderHeight = isMobile ? Math.round(ratioConfig.height / 2) : ratioConfig.height;
 
-  // Tap preview handler (also unlocks AudioContext for iOS/Android)
+  // Tap preview handler (supports eyedropper sampling for Chroma Key)
   const handlePlayerTap = (e) => {
-    // If user was dragging clip, don't toggle play
-    if (isDraggingClip) return;
+    if (eyedropperActive && canvasRef.current && selectedClip) {
+      e.stopPropagation();
+      try {
+        const canvas = canvasRef.current;
+        const rect = canvas.getBoundingClientRect();
+        const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+        const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+        const canvasX = Math.floor(((clientX - rect.left) / rect.width) * canvas.width);
+        const canvasY = Math.floor(((clientY - rect.top) / rect.height) * canvas.height);
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        if (ctx) {
+          const pixel = ctx.getImageData(
+            Math.max(0, Math.min(canvas.width - 1, canvasX)),
+            Math.max(0, Math.min(canvas.height - 1, canvasY)),
+            1,
+            1
+          ).data;
+          const hex =
+            '#' +
+            ((1 << 24) + (pixel[0] << 16) + (pixel[1] << 8) + pixel[2])
+              .toString(16)
+              .slice(1)
+              .toUpperCase();
+          updateClip(selectedClip.id, {
+            chromaKey: {
+              ...(selectedClip.chromaKey || { enabled: true, tolerance: 30, softness: 10, spill: 20 }),
+              enabled: true,
+              color: hex,
+            },
+          });
+          toastSuccess(`Chroma Key color sampled: ${hex}`);
+          setEyedropperActive(false);
+          return;
+        }
+      } catch (err) {
+        console.warn('[Eyedropper] Sampling warning:', err);
+      }
+      setEyedropperActive(false);
+      return;
+    }
+    if (interactionMode || isDrawingMode) return;
     audioEngine.getContext();
     togglePlay();
   };
@@ -80,7 +159,6 @@ export const CenterPreview = () => {
 
       const nextTime = store.currentTime + delta;
       if (nextTime >= store.project.duration) {
-        console.log('[ClipForge:Play] Playback reached end of timeline duration:', store.project.duration);
         store.seek(store.project.duration);
         store.pause();
         return;
@@ -88,7 +166,6 @@ export const CenterPreview = () => {
 
       store.seek(nextTime);
 
-      // Draw active frame to canvas during playback
       if (canvasRef.current) {
         const ctx = canvasRef.current.getContext('2d');
         if (ctx) {
@@ -108,7 +185,7 @@ export const CenterPreview = () => {
               isPlaying: true,
             });
           } catch (renderErr) {
-            console.error('[ClipForge:Play] Error rendering frame during playback:', renderErr);
+            console.error('[ClipForge:Play] Error rendering frame:', renderErr);
           }
         }
       }
@@ -120,15 +197,13 @@ export const CenterPreview = () => {
     animId = requestAnimationFrame(loop);
 
     return () => {
-      if (animId) {
-        cancelAnimationFrame(animId);
-      }
+      if (animId) cancelAnimationFrame(animId);
     };
   }, [isPlaying, isMobile]);
 
-  // Canvas drawing effect when paused/scrubbing or when project properties change
+  // Canvas drawing effect when paused/scrubbing
   useEffect(() => {
-    if (isPlaying) return; // Handled at 60fps in requestAnimationFrame loop
+    if (isPlaying) return;
     if (canvasRef.current) {
       const ctx = canvasRef.current.getContext('2d');
       if (ctx) {
@@ -145,7 +220,7 @@ export const CenterPreview = () => {
     }
   }, [project, currentTime, renderWidth, renderHeight, selectedClip, showSafeGuides, showGrid, isPlaying]);
 
-  // Listen to media ready / seek events to redraw when uploaded video loads
+  // Redraw when custom redraw event fires
   useEffect(() => {
     const handleRedraw = () => {
       if (!useEditorStore.getState().isPlaying && canvasRef.current) {
@@ -168,21 +243,21 @@ export const CenterPreview = () => {
         }
       }
     };
+
     window.addEventListener('clipforge:redraw', handleRedraw);
     return () => window.removeEventListener('clipforge:redraw', handleRedraw);
   }, [isMobile]);
 
-  // Format timecode (00:00:00.00)
-  const formatTimecode = (seconds) => {
-    const totalMs = Math.floor(seconds * 100);
-    const ms = (totalMs % 100).toString().padStart(2, '0');
-    const totalSec = Math.floor(seconds);
-    const s = (totalSec % 60).toString().padStart(2, '0');
-    const m = Math.floor(totalSec / 60).toString().padStart(2, '0');
-    return `${m}:${s}.${ms}`;
+  // Helper format timecode
+  const formatTimecode = (sec) => {
+    if (isNaN(sec) || sec < 0) sec = 0;
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    const f = Math.floor((sec % 1) * 30);
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}:${f.toString().padStart(2, '0')}`;
   };
 
-  // Quick Snapshot Frame to PNG
+  // Snapshot PNG frame
   const handleSnapshotFrame = () => {
     if (!canvasRef.current) return;
     const url = canvasRef.current.toDataURL('image/png');
@@ -190,6 +265,7 @@ export const CenterPreview = () => {
     a.href = url;
     a.download = `frame_${formatTimecode(currentTime).replace(/[:.]/g, '_')}.png`;
     a.click();
+    toastSuccess('Snapshot downloaded');
   };
 
   // Fullscreen toggle
@@ -204,35 +280,295 @@ export const CenterPreview = () => {
     }
   };
 
-  // Direct canvas drag to move clip (mouse + touch)
-  const handleStartDrag = (clientX, clientY) => {
-    if (!selectedClip || !canvasRef.current) return;
-    setIsDraggingClip(true);
-    dragStartPos.current = {
-      x: clientX,
-      y: clientY,
-      initialClipX: selectedClip.x,
-      initialClipY: selectedClip.y,
+  // ---------------- DIRECT MANIPULATION HANDLERS ----------------
+  const handleStartMove = (e, clientX, clientY) => {
+    e.stopPropagation();
+    if (!selectedClip || isDrawingMode) return;
+    useEditorStore.getState().pushHistory();
+
+    setInteractionMode('move');
+    dragContext.current = {
+      startX: clientX,
+      startY: clientY,
+      initialClipX: selectedClip.x || 0,
+      initialClipY: selectedClip.y || 0,
     };
   };
 
-  const handleMoveDrag = (clientX, clientY) => {
-    if (!isDraggingClip || !selectedClip || !canvasRef.current) return;
-    const rect = canvasRef.current.getBoundingClientRect();
-    const deltaX = ((clientX - dragStartPos.current.x) / rect.width) * 100;
-    const deltaY = ((clientY - dragStartPos.current.y) / rect.height) * 100;
+  const handleStartScale = (e, corner, clientX, clientY) => {
+    e.stopPropagation();
+    if (!selectedClip || isDrawingMode) return;
+    useEditorStore.getState().pushHistory();
 
-    updateClip(selectedClip.id, {
-      x: Math.round((dragStartPos.current.initialClipX + deltaX) * 10) / 10,
-      y: Math.round((dragStartPos.current.initialClipY + deltaY) * 10) / 10,
+    setInteractionMode('scale');
+    dragContext.current = {
+      startX: clientX,
+      startY: clientY,
+      initialScale: selectedClip.scale || 1,
+      corner,
+    };
+  };
+
+  const handleStartRotate = (e, clientX, clientY) => {
+    e.stopPropagation();
+    if (!selectedClip || !previewWrapperRef.current || isDrawingMode) return;
+    useEditorStore.getState().pushHistory();
+
+    const rect = previewWrapperRef.current.getBoundingClientRect();
+    const clipCenterX = rect.left + rect.width * (0.5 + (selectedClip.x || 0) / 100);
+    const clipCenterY = rect.top + rect.height * (0.5 + (selectedClip.y || 0) / 100);
+
+    setInteractionMode('rotate');
+    dragContext.current = {
+      centerBoxX: clipCenterX,
+      centerBoxY: clipCenterY,
+      initialRotation: selectedClip.rotation || 0,
+      startAngle: Math.atan2(clientY - clipCenterY, clientX - clipCenterX) * (180 / Math.PI),
+    };
+  };
+
+  const handleGlobalPointerMove = useCallback((e) => {
+    if (!interactionMode || !selectedClip || !previewWrapperRef.current) return;
+    const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+    const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+    if (clientX === undefined || clientY === undefined) return;
+
+    const rect = previewWrapperRef.current.getBoundingClientRect();
+
+    if (interactionMode === 'move') {
+      const dx = ((clientX - dragContext.current.startX) / rect.width) * 100;
+      const dy = ((clientY - dragContext.current.startY) / rect.height) * 100;
+
+      let newX = dragContext.current.initialClipX + dx;
+      let newY = dragContext.current.initialClipY + dy;
+
+      // Snapping to Center X and Center Y (threshold 1.5%)
+      let isSnappedX = false;
+      let isSnappedY = false;
+
+      if (Math.abs(newX) < 1.6) {
+        newX = 0;
+        isSnappedX = true;
+      }
+      if (Math.abs(newY) < 1.6) {
+        newY = 0;
+        isSnappedY = true;
+      }
+
+      setSnapGuideX(isSnappedX);
+      setSnapGuideY(isSnappedY);
+
+      updateClip(selectedClip.id, {
+        x: Math.round(newX * 10) / 10,
+        y: Math.round(newY * 10) / 10,
+      });
+    } else if (interactionMode === 'scale') {
+      const distStart = Math.hypot(dragContext.current.startX, dragContext.current.startY);
+      const distCurrent = Math.hypot(clientX, clientY);
+      const delta = (distCurrent - distStart) * 0.008;
+
+      let newScale = Math.max(0.15, Math.min(4.0, dragContext.current.initialScale + delta));
+      updateClip(selectedClip.id, {
+        scale: Math.round(newScale * 100) / 100,
+      });
+    } else if (interactionMode === 'rotate') {
+      const currentAngle = Math.atan2(
+        clientY - dragContext.current.centerBoxY,
+        clientX - dragContext.current.centerBoxX
+      ) * (180 / Math.PI);
+
+      let deltaAngle = currentAngle - dragContext.current.startAngle;
+      let newRot = (dragContext.current.initialRotation + deltaAngle) % 360;
+
+      // Snap to 0, 90, 180, 270 degrees
+      const snapThreshold = 3;
+      [0, 90, -90, 180, -180].forEach((snapTarget) => {
+        if (Math.abs(newRot - snapTarget) < snapThreshold) {
+          newRot = snapTarget;
+        }
+      });
+
+      updateClip(selectedClip.id, {
+        rotation: Math.round(newRot),
+      });
+    }
+  }, [interactionMode, selectedClip, updateClip]);
+
+  const handleGlobalPointerUp = useCallback(() => {
+    if (interactionMode) {
+      setInteractionMode(null);
+      setSnapGuideX(false);
+      setSnapGuideY(false);
+    }
+  }, [interactionMode]);
+
+  useEffect(() => {
+    if (interactionMode) {
+      window.addEventListener('mousemove', handleGlobalPointerMove);
+      window.addEventListener('mouseup', handleGlobalPointerUp);
+      window.addEventListener('touchmove', handleGlobalPointerMove, { passive: false });
+      window.addEventListener('touchend', handleGlobalPointerUp);
+      return () => {
+        window.removeEventListener('mousemove', handleGlobalPointerMove);
+        window.removeEventListener('mouseup', handleGlobalPointerUp);
+        window.removeEventListener('touchmove', handleGlobalPointerMove);
+        window.removeEventListener('touchend', handleGlobalPointerUp);
+      };
+    }
+  }, [interactionMode, handleGlobalPointerMove, handleGlobalPointerUp]);
+
+  // ---------------- DRAWING TOOL HANDLERS ----------------
+  const redrawDrawingCanvas = useCallback(() => {
+    if (!drawingCanvasRef.current) return;
+    const canvas = drawingCanvasRef.current;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const allStrokes = [...strokes];
+    if (currentStrokeRef.current) {
+      allStrokes.push(currentStrokeRef.current);
+    }
+
+    allStrokes.forEach((stroke) => {
+      if (!stroke.points || stroke.points.length === 0) return;
+      ctx.save();
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      if (stroke.isEraser) {
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.lineWidth = stroke.size * 2;
+      } else {
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.strokeStyle = stroke.color;
+        ctx.lineWidth = stroke.size;
+        ctx.globalAlpha = stroke.opacity;
+      }
+
+      ctx.beginPath();
+      const p0 = stroke.points[0];
+      ctx.moveTo(p0.x, p0.y);
+      if (stroke.points.length === 1) {
+        ctx.lineTo(p0.x + 0.5, p0.y + 0.5);
+      } else {
+        for (let i = 1; i < stroke.points.length; i++) {
+          ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
+        }
+      }
+      ctx.stroke();
+      ctx.restore();
     });
+  }, [strokes]);
+
+  useEffect(() => {
+    if (isDrawingMode) {
+      redrawDrawingCanvas();
+    }
+  }, [isDrawingMode, strokes, redrawDrawingCanvas]);
+
+  const handleDrawingPointerDown = (e) => {
+    if (!isDrawingMode || !drawingCanvasRef.current) return;
+    const rect = drawingCanvasRef.current.getBoundingClientRect();
+    const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+    const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+
+    const x = ((clientX - rect.left) / rect.width) * renderWidth;
+    const y = ((clientY - rect.top) / rect.height) * renderHeight;
+
+    setIsDrawingPointerDown(true);
+    currentStrokeRef.current = {
+      points: [{ x, y }],
+      color: brushColor,
+      size: brushSize,
+      opacity: brushOpacity,
+      isEraser,
+    };
+    redrawDrawingCanvas();
   };
 
-  const handleEndDrag = () => {
-    setIsDraggingClip(false);
+  const handleDrawingPointerMove = (e) => {
+    if (!isDrawingPointerDown || !currentStrokeRef.current || !drawingCanvasRef.current) return;
+    const rect = drawingCanvasRef.current.getBoundingClientRect();
+    const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+    const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+
+    const x = ((clientX - rect.left) / rect.width) * renderWidth;
+    const y = ((clientY - rect.top) / rect.height) * renderHeight;
+
+    currentStrokeRef.current.points.push({ x, y });
+    redrawDrawingCanvas();
   };
 
+  const handleDrawingPointerUp = () => {
+    if (!isDrawingPointerDown) return;
+    setIsDrawingPointerDown(false);
+    if (currentStrokeRef.current && currentStrokeRef.current.points.length > 0) {
+      setStrokes((prev) => [...prev, currentStrokeRef.current]);
+    }
+    currentStrokeRef.current = null;
+  };
 
+  const handleSaveDrawing = () => {
+    if (strokes.length === 0) {
+      setIsDrawingMode(false);
+      return;
+    }
+
+    useEditorStore.getState().pushHistory();
+
+    // Map stroke points to center coordinate space (-renderWidth/2 to +renderWidth/2)
+    const centeredStrokes = strokes.map((s) => ({
+      ...s,
+      points: s.points.map((p) => ({
+        x: Math.round(p.x - renderWidth / 2),
+        y: Math.round(p.y - renderHeight / 2),
+      })),
+    }));
+
+    const overlayTrack = project.tracks.find((t) => t.type === 'sticker') || project.tracks[0];
+    const newClip = {
+      id: 'clip_drawing_' + Date.now(),
+      trackId: overlayTrack.id,
+      type: 'drawing',
+      name: 'Brush Drawing',
+      start: currentTime,
+      duration: 4,
+      sourceStart: 0,
+      sourceDuration: 4,
+      x: 0,
+      y: 0,
+      scale: 1,
+      rotation: 0,
+      opacity: 1,
+      flipH: false,
+      flipV: false,
+      blendMode: 'normal',
+      speed: 1,
+      filterIntensity: 0,
+      adjustments: {
+        brightness: 0, contrast: 0, saturation: 0, exposure: 0,
+        highlights: 0, shadows: 0, temperature: 0, tint: 0,
+        vignette: 0, sharpen: 0, grain: 0,
+      },
+      strokes: centeredStrokes,
+      keyframes: [],
+    };
+
+    addClipToTrack(overlayTrack.id, newClip);
+    selectClip(newClip.id);
+    setStrokes([]);
+    setIsDrawingMode(false);
+    toastSuccess('Drawing saved to timeline');
+  };
+
+  const handleCancelDrawing = () => {
+    setStrokes([]);
+    setIsDrawingMode(false);
+  };
+
+  const isVisualClipSelected = selectedClip && selectedClip.type !== 'audio';
 
   return (
     <main
@@ -243,7 +579,7 @@ export const CenterPreview = () => {
           : 'flex-1 h-full min-h-0'
       }`}
     >
-      {/* Desktop Header Bar (hidden on mobile to maximize viewport) */}
+      {/* Desktop Header Bar */}
       {!isMobile && (
         <div className="h-9 border-b border-[#E5E5E5] dark:border-[#2A2A2A] px-4 flex items-center justify-between text-xs text-[#737373] dark:text-[#A1A1A1] bg-white dark:bg-[#1A1A1A] shrink-0">
           <div className="flex items-center gap-2">
@@ -254,6 +590,20 @@ export const CenterPreview = () => {
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Drawing Mode Toggle Button */}
+            <button
+              onClick={toggleDrawingMode}
+              className={`px-2 py-0.5 rounded-[6px] border text-xs font-normal flex items-center gap-1 transition-colors cursor-pointer ${
+                isDrawingMode
+                  ? 'bg-blue-50 dark:bg-blue-950/40 border-[#3B82F6] text-[#3B82F6]'
+                  : 'border-[#E5E5E5] dark:border-[#2A2A2A] text-[#737373] dark:text-[#A1A1A1] hover:text-[#171717] dark:hover:text-[#EDEDED]'
+              }`}
+              title="Toggle Drawing Tool"
+            >
+              <Paintbrush className="w-3.5 h-3.5" strokeWidth={1.5} />
+              <span>Draw</span>
+            </button>
+
             <div className="flex items-center gap-1 bg-white dark:bg-[#1A1A1A] px-2 py-0.5 rounded-[6px] border border-[#E5E5E5] dark:border-[#2A2A2A]">
               <span className="text-[10px] text-[#737373] dark:text-[#A1A1A1]">Scale:</span>
               <select
@@ -286,13 +636,14 @@ export const CenterPreview = () => {
         </div>
       )}
 
-      {/* Main Canvas Viewport Container - Neutral checkerboard for accurate colors */}
+      {/* Main Canvas Viewport Container */}
       <div
         className={`flex-1 flex items-center justify-center relative overflow-hidden canvas-checkerboard ${
           isMobile ? 'p-1.5' : 'p-3'
         }`}
       >
         <div
+          ref={previewWrapperRef}
           className="relative rounded-[6px] overflow-hidden border border-[#E5E5E5] dark:border-[#2A2A2A] flex items-center justify-center transition-all bg-black shadow-sm"
           style={{
             aspectRatio: `${ratioConfig.width} / ${ratioConfig.height}`,
@@ -303,30 +654,261 @@ export const CenterPreview = () => {
           }}
           onClick={handlePlayerTap}
         >
+          {/* Eyedropper sampling active notification badge */}
+          {eyedropperActive && (
+            <div className="absolute top-3 left-1/2 -translate-x-1/2 z-40 bg-[#171717] dark:bg-white text-white dark:text-[#171717] px-3.5 py-1.5 rounded-full text-xs flex items-center gap-2 shadow-lg animate-pulse pointer-events-none">
+              <Pipette className="w-3.5 h-3.5 text-[#3B82F6]" strokeWidth={2} />
+              <span className="font-medium">Tap preview to sample chroma color</span>
+            </div>
+          )}
+
+          {/* Main Video/Frame Canvas */}
           <canvas
             ref={canvasRef}
             width={renderWidth}
             height={renderHeight}
-            onMouseDown={(e) => handleStartDrag(e.clientX, e.clientY)}
-            onMouseMove={(e) => handleMoveDrag(e.clientX, e.clientY)}
-            onMouseUp={handleEndDrag}
-            onMouseLeave={handleEndDrag}
-            onTouchStart={(e) => {
-              if (e.touches.length === 1) {
-                handleStartDrag(e.touches[0].clientX, e.touches[0].clientY);
-              }
-            }}
-            onTouchMove={(e) => {
-              if (e.touches.length === 1) {
-                handleMoveDrag(e.touches[0].clientX, e.touches[0].clientY);
-              }
-            }}
-            onTouchEnd={handleEndDrag}
-            className="w-full h-full object-contain cursor-pointer"
+            className={`w-full h-full object-contain ${eyedropperActive ? 'cursor-crosshair' : 'cursor-pointer'}`}
           />
 
-          {/* Quick Play overlay icon when paused */}
-          {!isPlaying && (
+          {/* Center Snapping Guidelines */}
+          {snapGuideX && (
+            <div className="absolute top-0 bottom-0 left-1/2 w-[1.5px] bg-[#3B82F6] z-30 pointer-events-none shadow-sm" />
+          )}
+          {snapGuideY && (
+            <div className="absolute left-0 right-0 top-1/2 h-[1.5px] bg-[#3B82F6] z-30 pointer-events-none shadow-sm" />
+          )}
+
+          {/* DIRECT MANIPULATION OVERLAY (Corner handles, rotation, drag box) */}
+          {isVisualClipSelected && !isDrawingMode && !isPlaying && (
+            <div
+              className="absolute z-20 pointer-events-auto"
+              style={{
+                left: `${50 + (selectedClip.x || 0)}%`,
+                top: `${50 + (selectedClip.y || 0)}%`,
+                width: `${(selectedClip.type === 'text' ? 44 : 36) * (selectedClip.scale || 1)}%`,
+                height: `${(selectedClip.type === 'text' ? 20 : 36) * (selectedClip.scale || 1)}%`,
+                transform: `translate(-50%, -50%) rotate(${selectedClip.rotation || 0}deg)`,
+                cursor: interactionMode === 'move' ? 'grabbing' : 'grab',
+                touchAction: 'none',
+              }}
+              onMouseDown={(e) => handleStartMove(e, e.clientX, e.clientY)}
+              onTouchStart={(e) => {
+                if (e.touches.length === 1) {
+                  handleStartMove(e, e.touches[0].clientX, e.touches[0].clientY);
+                }
+              }}
+            >
+              {/* Bounding box outline */}
+              <div className="absolute inset-0 border border-[#3B82F6] border-dashed rounded-[2px] pointer-events-none" />
+
+              {/* Top Rotation Stem & Handle */}
+              <div className="absolute -top-7 left-1/2 -translate-x-1/2 flex flex-col items-center">
+                <button
+                  type="button"
+                  aria-label="Rotate clip"
+                  className="w-6 h-6 rounded-full bg-white dark:bg-[#171717] border border-[#3B82F6] text-[#3B82F6] flex items-center justify-center shadow-md cursor-grab active:cursor-grabbing hover:scale-110 transition-transform p-0"
+                  style={{ touchAction: 'none' }}
+                  onMouseDown={(e) => handleStartRotate(e, e.clientX, e.clientY)}
+                  onTouchStart={(e) => {
+                    if (e.touches.length === 1) {
+                      handleStartRotate(e, e.touches[0].clientX, e.touches[0].clientY);
+                    }
+                  }}
+                >
+                  <RotateCw className="w-3 h-3" strokeWidth={2} />
+                </button>
+                <div className="w-[1px] h-2 bg-[#3B82F6]" />
+              </div>
+
+              {/* 4 Corner Scale Handles (with min 44px touch target) */}
+              {/* Top-Left */}
+              <div
+                className="absolute -top-2.5 -left-2.5 w-6 h-6 flex items-center justify-center cursor-nwse-resize"
+                style={{ touchAction: 'none' }}
+                onMouseDown={(e) => handleStartScale(e, 'tl', e.clientX, e.clientY)}
+                onTouchStart={(e) => {
+                  if (e.touches.length === 1) {
+                    handleStartScale(e, 'tl', e.touches[0].clientX, e.touches[0].clientY);
+                  }
+                }}
+              >
+                <div className="w-2.5 h-2.5 bg-white dark:bg-[#171717] border-2 border-[#3B82F6] rounded-[2px] shadow-xs" />
+              </div>
+
+              {/* Top-Right */}
+              <div
+                className="absolute -top-2.5 -right-2.5 w-6 h-6 flex items-center justify-center cursor-nesw-resize"
+                style={{ touchAction: 'none' }}
+                onMouseDown={(e) => handleStartScale(e, 'tr', e.clientX, e.clientY)}
+                onTouchStart={(e) => {
+                  if (e.touches.length === 1) {
+                    handleStartScale(e, 'tr', e.touches[0].clientX, e.touches[0].clientY);
+                  }
+                }}
+              >
+                <div className="w-2.5 h-2.5 bg-white dark:bg-[#171717] border-2 border-[#3B82F6] rounded-[2px] shadow-xs" />
+              </div>
+
+              {/* Bottom-Left */}
+              <div
+                className="absolute -bottom-2.5 -left-2.5 w-6 h-6 flex items-center justify-center cursor-nesw-resize"
+                style={{ touchAction: 'none' }}
+                onMouseDown={(e) => handleStartScale(e, 'bl', e.clientX, e.clientY)}
+                onTouchStart={(e) => {
+                  if (e.touches.length === 1) {
+                    handleStartScale(e, 'bl', e.touches[0].clientX, e.touches[0].clientY);
+                  }
+                }}
+              >
+                <div className="w-2.5 h-2.5 bg-white dark:bg-[#171717] border-2 border-[#3B82F6] rounded-[2px] shadow-xs" />
+              </div>
+
+              {/* Bottom-Right */}
+              <div
+                className="absolute -bottom-2.5 -right-2.5 w-6 h-6 flex items-center justify-center cursor-nwse-resize"
+                style={{ touchAction: 'none' }}
+                onMouseDown={(e) => handleStartScale(e, 'br', e.clientX, e.clientY)}
+                onTouchStart={(e) => {
+                  if (e.touches.length === 1) {
+                    handleStartScale(e, 'br', e.touches[0].clientX, e.touches[0].clientY);
+                  }
+                }}
+              >
+                <div className="w-2.5 h-2.5 bg-white dark:bg-[#171717] border-2 border-[#3B82F6] rounded-[2px] shadow-xs" />
+              </div>
+            </div>
+          )}
+
+          {/* DRAWING TOOL ACTIVE OVERLAY CANVAS */}
+          {isDrawingMode && (
+            <div className="absolute inset-0 z-40 bg-black/20 cursor-crosshair touch-none">
+              <canvas
+                ref={drawingCanvasRef}
+                width={renderWidth}
+                height={renderHeight}
+                className="w-full h-full object-contain"
+                onMouseDown={handleDrawingPointerDown}
+                onMouseMove={handleDrawingPointerMove}
+                onMouseUp={handleDrawingPointerUp}
+                onTouchStart={handleDrawingPointerDown}
+                onTouchMove={handleDrawingPointerMove}
+                onTouchEnd={handleDrawingPointerUp}
+              />
+
+              {/* Minimalist Floating Brush Toolbar */}
+              <div className="absolute top-2 left-1/2 -translate-x-1/2 z-50 bg-white/95 dark:bg-[#1A1A1A]/95 backdrop-blur-md border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[8px] p-1.5 shadow-xl flex items-center gap-2 max-w-[95vw] overflow-x-auto no-scrollbar">
+                {/* Brush / Eraser Mode */}
+                <div className="flex items-center gap-1 bg-[#F5F5F5] dark:bg-[#222222] p-0.5 rounded-[6px] border border-[#E5E5E5] dark:border-[#2A2A2A]">
+                  <button
+                    type="button"
+                    onClick={() => setIsEraser(false)}
+                    className={`p-1.5 rounded-[4px] transition-colors cursor-pointer ${
+                      !isEraser
+                        ? 'bg-white dark:bg-[#171717] text-[#3B82F6] shadow-xs'
+                        : 'text-[#737373] dark:text-[#A1A1A1]'
+                    }`}
+                    title="Brush"
+                  >
+                    <Paintbrush className="w-3.5 h-3.5" strokeWidth={1.5} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsEraser(true)}
+                    className={`p-1.5 rounded-[4px] transition-colors cursor-pointer ${
+                      isEraser
+                        ? 'bg-white dark:bg-[#171717] text-[#3B82F6] shadow-xs'
+                        : 'text-[#737373] dark:text-[#A1A1A1]'
+                    }`}
+                    title="Eraser"
+                  >
+                    <Eraser className="w-3.5 h-3.5" strokeWidth={1.5} />
+                  </button>
+                </div>
+
+                {/* Color Palette (When in Brush mode) */}
+                {!isEraser && (
+                  <div className="flex items-center gap-1">
+                    {['#FFFFFF', '#171717', '#3B82F6', '#EF4444', '#FACC15', '#10B981'].map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => setBrushColor(c)}
+                        className={`w-5 h-5 rounded-full border transition-transform cursor-pointer ${
+                          brushColor === c ? 'scale-125 ring-2 ring-[#3B82F6]' : 'border-black/20'
+                        }`}
+                        style={{ backgroundColor: c }}
+                        title={c}
+                      />
+                    ))}
+                    <input
+                      type="color"
+                      value={brushColor}
+                      onChange={(e) => setBrushColor(e.target.value)}
+                      className="w-5 h-5 rounded-full border border-black/20 cursor-pointer p-0 bg-transparent"
+                      title="Custom color"
+                    />
+                  </div>
+                )}
+
+                {/* Brush Size Slider */}
+                <div className="flex items-center gap-1 text-[11px] text-[#737373] dark:text-[#A1A1A1] border-l border-[#E5E5E5] dark:border-[#2A2A2A] pl-2">
+                  <span className="tabular-nums font-mono w-4">{brushSize}</span>
+                  <input
+                    type="range"
+                    min="2"
+                    max="40"
+                    value={brushSize}
+                    onChange={(e) => setBrushSize(parseInt(e.target.value) || 6)}
+                    className="w-16 h-3 cursor-pointer accent-[#3B82F6]"
+                  />
+                </div>
+
+                {/* Undo & Clear */}
+                <div className="flex items-center gap-0.5 border-l border-[#E5E5E5] dark:border-[#2A2A2A] pl-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setStrokes((prev) => prev.slice(0, -1))}
+                    disabled={strokes.length === 0}
+                    className="p-1.5 rounded-[4px] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] disabled:opacity-30 cursor-pointer text-[#737373] dark:text-[#A1A1A1]"
+                    title="Undo stroke"
+                  >
+                    <Undo2 className="w-3.5 h-3.5" strokeWidth={1.5} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStrokes([])}
+                    disabled={strokes.length === 0}
+                    className="p-1.5 rounded-[4px] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] disabled:opacity-30 cursor-pointer text-[#737373] dark:text-[#A1A1A1]"
+                    title="Clear drawing"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" strokeWidth={1.5} />
+                  </button>
+                </div>
+
+                {/* Actions: Cancel & Done */}
+                <div className="flex items-center gap-1 border-l border-[#E5E5E5] dark:border-[#2A2A2A] pl-1.5">
+                  <button
+                    type="button"
+                    onClick={handleCancelDrawing}
+                    className="p-1.5 rounded-[4px] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] text-[#737373] dark:text-[#A1A1A1] cursor-pointer"
+                    title="Cancel"
+                  >
+                    <X className="w-3.5 h-3.5" strokeWidth={1.5} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveDrawing}
+                    className="px-2.5 py-1 rounded-[6px] bg-[#171717] hover:bg-[#262626] text-white dark:bg-[#EDEDED] dark:hover:bg-white dark:text-[#171717] text-xs font-medium flex items-center gap-1 transition-colors cursor-pointer"
+                  >
+                    <Check className="w-3.5 h-3.5" strokeWidth={1.5} /> Done
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Quick Play overlay icon when paused and not drawing */}
+          {!isPlaying && !isDrawingMode && !isVisualClipSelected && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/15 pointer-events-none transition-all">
               <div className="w-10 h-10 rounded-full bg-black/60 text-white flex items-center justify-center shadow-sm">
                 <Play className="w-4 h-4 ml-0.5 text-white" strokeWidth={1.5} />
@@ -339,7 +921,7 @@ export const CenterPreview = () => {
       {/* MOBILE SCRUB BAR & CONTROLS (< 768px) */}
       {isMobile ? (
         <div className="h-12 border-t border-[#E5E5E5] dark:border-[#2A2A2A] px-3 flex items-center gap-2.5 bg-white dark:bg-[#1A1A1A] shrink-0 transition-colors">
-          {/* Play/Pause Button (44x44px target) */}
+          {/* Play/Pause Button (44x44px touch target) */}
           <button
             onClick={() => {
               audioEngine.getContext();

@@ -6,6 +6,13 @@
     <meta name="theme-color" content="#FAFAFA" />
     <script>
       (function () {
+        var _nc = function (lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } };
+        var _oc = function (ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; };
+        window._nullishCoalesce = _nc;
+        window._optionalChain = _oc;
+        globalThis._nullishCoalesce = _nc;
+        globalThis._optionalChain = _oc;
+
         try {
           var t = localStorage.getItem('clipforge_theme');
           if (t === 'dark') {
@@ -31,8 +38,7 @@
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Anton&family=Bebas+Neue&family=Black+Ops+One&family=Bungee&family=Caveat:wght@700&family=Comfortaa:wght@700&family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Fredoka:wght@600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Lobster&family=Montserrat:ital,wght@0,400;0,700;0,900;1,400&family=Oswald:wght@500;700&family=Outfit:wght@400;500;600;700&family=Pacifico&family=Permanent+Marker&family=Playfair+Display:ital,wght@0,700;1,700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Poppins:wght@400;600;800&family=Righteous&family=Russo+One&family=Syne:wght@700;800&family=Titan+One&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Abril+Fatface&family=Anek+Malayalam:wght@400;600;700&family=Anton&family=Archivo+Black&family=Bangers&family=Bebas+Neue&family=Black+Ops+One&family=Bungee&family=Caveat:wght@700&family=Chilanka&family=Cinzel:wght@600;800&family=Comfortaa:wght@700&family=Cormorant+Garamond:wght@600;700&family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Dancing+Script:wght@700&family=Fredoka:wght@600&family=Gayathri:wght@400;700&family=Great+Vibes&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Lato:wght@400;700&family=Lobster&family=Manjari:wght@400;700&family=Montserrat:ital,wght@0,400;0,700;0,900;1,400&family=Noto+Sans+Devanagari:wght@400;600;700;800&family=Noto+Sans+Malayalam:wght@400;600;700&family=Oswald:wght@500;700&family=Outfit:wght@400;500;600;700&family=Pacifico&family=Permanent+Marker&family=Playfair+Display:ital,wght@0,700;1,700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Poppins:wght@400;600;800&family=Press+Start+2P&family=Righteous&family=Roboto:wght@400;700&family=Rozha+One&family=Russo+One&family=Satisfy&family=Space+Grotesk:wght@500;700&family=Syne:wght@700;800&family=Teko:wght@500;700&family=Tiro+Devanagari+Hindi&family=Titan+One&family=Urbanist:wght@600;800&family=Yatra+One&display=swap" rel="stylesheet">
     <script>
       // Suppress benign WebSocket/HMR disconnect errors in cloud container preview environments
       (function () {
