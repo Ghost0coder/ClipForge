@@ -29,7 +29,7 @@ jobs:
           scope: '@ghost0coder'
 
       - name: Install dependencies
-        run: npm install
+        run: npm install --legacy-peer-deps
 
       - name: Build
         run: npm run build
