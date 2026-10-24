@@ -155,6 +155,23 @@ export const useEditorStore = create((set, get) => {
     showGrid: false,
     activeLeftTab: 'media',
 
+    isMixerModalOpen: false,
+    setMixerModalOpen: (isMixerModalOpen) => set({ isMixerModalOpen }),
+    toggleMixerModal: () => set((state) => ({ isMixerModalOpen: !state.isMixerModalOpen })),
+
+    activeCompoundClipId: null,
+    enterCompoundClip: (clipId) => set({ activeCompoundClipId: clipId, selectedClipIds: [] }),
+    exitCompoundClip: () => set({ activeCompoundClipId: null, selectedClipIds: [] }),
+
+    trackHeightMode: 'medium',
+    setTrackHeightMode: (trackHeightMode) => set({ trackHeightMode }),
+
+    compareOriginal: false,
+    setCompareOriginal: (compareOriginal) => {
+      set({ compareOriginal });
+      window.dispatchEvent(new CustomEvent('clipforge:redraw'));
+    },
+
     isExportModalOpen: false,
     isProjectManagerOpen: false,
     isShortcutsModalOpen: false,
@@ -181,6 +198,13 @@ export const useEditorStore = create((set, get) => {
     toggleSnapToBeats: () => set((state) => ({ snapToBeats: !state.snapToBeats })),
     eyedropperActive: false,
     setEyedropperActive: (eyedropperActive) => set({ eyedropperActive }),
+
+    isOnboardingOpen: typeof window !== 'undefined' ? (localStorage.getItem('clipforge_onboarding_completed') !== 'true') : false,
+    openOnboarding: () => set({ isOnboardingOpen: true }),
+    closeOnboarding: () => set({ isOnboardingOpen: false }),
+
+    usePreviewProxy: true,
+    togglePreviewProxy: () => set((state) => ({ usePreviewProxy: !state.usePreviewProxy })),
 
     isTemplateModalOpen: false,
     templateModalData: null,
@@ -606,11 +630,12 @@ export const useEditorStore = create((set, get) => {
       window.dispatchEvent(new CustomEvent('clipforge:redraw'));
     },
 
-    deleteClip: (clipId, ripple = false) => {
-      const { project, selectedClipIds } = get();
+    deleteClip: (clipId, ripple = undefined) => {
+      const { project, selectedClipIds, magneticTimeline } = get();
       const targetId = clipId || selectedClipIds[0];
       if (!targetId) return;
 
+      const isRipple = ripple !== undefined ? ripple : magneticTimeline;
       pushHistory();
 
       let deletedClipDuration = 0;
@@ -624,7 +649,7 @@ export const useEditorStore = create((set, get) => {
         deletedClipStart = clip.start;
 
         const remaining = track.clips.filter((c) => c.id !== targetId);
-        if (ripple) {
+        if (isRipple) {
           return {
             ...track,
             clips: remaining.map((c) =>
@@ -783,7 +808,7 @@ export const useEditorStore = create((set, get) => {
     },
 
     moveClip: (clipId, targetTrackId, newStart) => {
-      const { project } = get();
+      const { project, magneticTimeline } = get();
       let targetClip = null;
 
       // Remove from source track
@@ -799,12 +824,29 @@ export const useEditorStore = create((set, get) => {
       if (!targetClip) return;
 
       // Add to destination track
-      const updatedTracks = tracksWithoutClip.map((track) => {
+      let updatedTracks = tracksWithoutClip.map((track) => {
         if (track.id === targetTrackId) {
           return { ...track, clips: [...track.clips, targetClip] };
         }
         return track;
       });
+
+      // Magnetic timeline: snap clips sequentially with no gaps on the main track
+      if (magneticTimeline) {
+        updatedTracks = updatedTracks.map((track) => {
+          if (track.type === 'video' || track.id === targetTrackId) {
+            const sorted = [...track.clips].sort((a, b) => a.start - b.start);
+            let cur = 0;
+            const packed = sorted.map((c) => {
+              const res = { ...c, start: cur };
+              cur += c.duration;
+              return res;
+            });
+            return { ...track, clips: packed };
+          }
+          return track;
+        });
+      }
 
       const updatedProject = {
         ...project,
@@ -814,11 +856,12 @@ export const useEditorStore = create((set, get) => {
       };
       set({ project: updatedProject });
       saveProjectToDB(updatedProject);
+      window.dispatchEvent(new CustomEvent('clipforge:redraw'));
     },
 
     trimClip: (clipId, newStart, newDuration) => {
-      const { project } = get();
-      const updatedTracks = project.tracks.map((track) => {
+      const { project, magneticTimeline } = get();
+      let updatedTracks = project.tracks.map((track) => {
         const clipIdx = track.clips.findIndex((c) => c.id === clipId);
         if (clipIdx !== -1) {
           const current = track.clips[clipIdx];
@@ -835,6 +878,23 @@ export const useEditorStore = create((set, get) => {
         return track;
       });
 
+      // Magnetic timeline: close gaps if trimming on main track
+      if (magneticTimeline) {
+        updatedTracks = updatedTracks.map((track) => {
+          if (track.clips.some((c) => c.id === clipId) && (track.type === 'video' || track.id === 'track_video_1')) {
+            const sorted = [...track.clips].sort((a, b) => a.start - b.start);
+            let cur = 0;
+            const packed = sorted.map((c) => {
+              const res = { ...c, start: cur };
+              cur += c.duration;
+              return res;
+            });
+            return { ...track, clips: packed };
+          }
+          return track;
+        });
+      }
+
       const updatedProject = {
         ...project,
         tracks: updatedTracks,
@@ -843,6 +903,101 @@ export const useEditorStore = create((set, get) => {
       };
       set({ project: updatedProject });
       saveProjectToDB(updatedProject);
+      window.dispatchEvent(new CustomEvent('clipforge:redraw'));
+    },
+
+    groupSelectedIntoCompoundClip: () => {
+      const { project, selectedClipIds } = get();
+      if (!selectedClipIds || selectedClipIds.length === 0) {
+        toastWarning('Please select clips to create a compound clip.', 'Compound Clip');
+        return;
+      }
+      pushHistory();
+
+      // Collect all selected clips
+      const selectedClips = [];
+      project.tracks.forEach((t) => {
+        t.clips.forEach((c) => {
+          if (selectedClipIds.includes(c.id)) {
+            selectedClips.push({ ...c, originalTrackId: t.id, originalTrackType: t.type });
+          }
+        });
+      });
+
+      if (selectedClips.length === 0) return;
+
+      const minStart = Math.min(...selectedClips.map((c) => c.start));
+      const maxEnd = Math.max(...selectedClips.map((c) => c.start + c.duration));
+      const compoundDuration = Math.max(0.5, maxEnd - minStart);
+
+      // Create compound tracks preserving relative timing
+      const nestedTracks = project.tracks
+        .map((t) => ({
+          ...t,
+          clips: t.clips
+            .filter((c) => selectedClipIds.includes(c.id))
+            .map((c) => ({ ...c, start: c.start - minStart })),
+        }))
+        .filter((t) => t.clips.length > 0);
+
+      const compoundId = `clip_compound_${Date.now()}`;
+      const compoundClip = {
+        id: compoundId,
+        name: `Compound Clip (${selectedClips.length} items)`,
+        type: 'compound',
+        start: minStart,
+        duration: compoundDuration,
+        sourceStart: 0,
+        sourceDuration: compoundDuration,
+        speed: 1,
+        x: 0,
+        y: 0,
+        scale: 1,
+        rotation: 0,
+        opacity: 1,
+        colorLabel: 'purple',
+        compoundData: {
+          tracks: nestedTracks,
+          duration: compoundDuration,
+        },
+        keyframes: [],
+      };
+
+      // Place compound clip on the first affected track or video track
+      const targetTrackId = selectedClips[0].originalTrackId || project.tracks[0].id;
+      const idsToRemove = new Set(selectedClipIds);
+
+      const updatedTracks = project.tracks.map((track) => {
+        const remaining = track.clips.filter((c) => !idsToRemove.has(c.id));
+        if (track.id === targetTrackId) {
+          return { ...track, clips: [...remaining, compoundClip] };
+        }
+        return { ...track, clips: remaining };
+      });
+
+      const updatedProject = {
+        ...project,
+        tracks: updatedTracks,
+        duration: recalculateDuration({ ...project, tracks: updatedTracks }),
+        updatedAt: Date.now(),
+      };
+
+      set({ project: updatedProject, selectedClipIds: [compoundId] });
+      saveProjectToDB(updatedProject);
+      window.dispatchEvent(new CustomEvent('clipforge:redraw'));
+      toastSuccess('Grouped into Compound Clip', 'Compound Clip Created');
+    },
+
+    setClipColorLabel: (clipId, colorLabel) => {
+      get().updateClip(clipId, { colorLabel });
+    },
+
+    updateProjectSettings: (newSettings) => {
+      const { project } = get();
+      const updated = { ...project, ...newSettings, updatedAt: Date.now() };
+      set({ project: updated });
+      saveProjectToDB(updated);
+      window.dispatchEvent(new CustomEvent('clipforge:redraw'));
     },
 
     freezeFrame: (clipId) => {
@@ -1383,6 +1538,123 @@ export const useEditorStore = create((set, get) => {
       };
       set({ project: updatedProject });
       saveProjectToDB(updatedProject);
+    },
+
+    performAutoCutSilence: (clipId, silenceGaps = []) => {
+      pushHistory();
+      const { project } = get();
+      if (!clipId || !silenceGaps || silenceGaps.length === 0) return;
+
+      let foundClip = null;
+      let targetTrackId = null;
+
+      for (const t of project.tracks) {
+        const c = t.clips.find((item) => item.id === clipId);
+        if (c) {
+          foundClip = c;
+          targetTrackId = t.id;
+          break;
+        }
+      }
+
+      if (!foundClip) return;
+
+      // Calculate audible segments between silence gaps
+      // Silence gaps are relative to clip start [gap.start, gap.end] in seconds
+      const sortedGaps = [...silenceGaps]
+        .map((g) => ({
+          start: Math.max(0, Math.min(foundClip.duration, g.start)),
+          end: Math.max(0, Math.min(foundClip.duration, g.end)),
+        }))
+        .filter((g) => g.end > g.start)
+        .sort((a, b) => a.start - b.start);
+
+      if (sortedGaps.length === 0) return;
+
+      const audibleSegments = [];
+      let currentRelStart = 0;
+
+      sortedGaps.forEach((gap) => {
+        if (gap.start - currentRelStart > 0.15) {
+          audibleSegments.push({
+            start: currentRelStart,
+            end: gap.start,
+            duration: gap.start - currentRelStart,
+          });
+        }
+        currentRelStart = Math.max(currentRelStart, gap.end);
+      });
+
+      if (foundClip.duration - currentRelStart > 0.15) {
+        audibleSegments.push({
+          start: currentRelStart,
+          end: foundClip.duration,
+          duration: foundClip.duration - currentRelStart,
+        });
+      }
+
+      if (audibleSegments.length === 0) return;
+
+      // Build replacement clips
+      let currentTimelinePos = foundClip.start;
+      const replacementClips = audibleSegments.map((seg, idx) => {
+        const segDuration = seg.duration;
+        const newClip = {
+          ...foundClip,
+          id: `${foundClip.id}_cut_${idx}_${Date.now()}`,
+          start: currentTimelinePos,
+          duration: segDuration,
+          sourceStart: foundClip.sourceStart + seg.start * (foundClip.speed || 1),
+          sourceDuration: segDuration,
+          keyframes: (foundClip.keyframes || [])
+            .filter((k) => k.time >= seg.start && k.time <= seg.end)
+            .map((k) => ({ ...k, id: `kf_${Date.now()}_${Math.random()}`, time: k.time - seg.start })),
+        };
+        currentTimelinePos += segDuration;
+        return newClip;
+      });
+
+      const totalRemovedSilence = foundClip.duration - (currentTimelinePos - foundClip.start);
+
+      // Replace in tracks and ripple subsequent clips
+      const updatedTracks = project.tracks.map((track) => {
+        if (track.id !== targetTrackId) {
+          // Ripple other tracks if magnetic
+          return track;
+        }
+        const clipIdx = track.clips.findIndex((c) => c.id === clipId);
+        if (clipIdx === -1) return track;
+
+        const newClips = [...track.clips];
+        newClips.splice(clipIdx, 1, ...replacementClips);
+
+        // Ripple clips that started after this clip on this track
+        const finalClips = newClips.map((c) => {
+          if (c.start > foundClip.start + foundClip.duration - 0.05) {
+            return {
+              ...c,
+              start: Math.max(0, c.start - totalRemovedSilence),
+            };
+          }
+          return c;
+        });
+
+        return { ...track, clips: finalClips };
+      });
+
+      const updatedProject = {
+        ...project,
+        tracks: updatedTracks,
+        duration: recalculateDuration({ ...project, tracks: updatedTracks }),
+        updatedAt: Date.now(),
+      };
+
+      set({
+        project: updatedProject,
+        selectedClipIds: replacementClips.length > 0 ? [replacementClips[0].id] : [],
+      });
+      saveProjectToDB(updatedProject);
+      window.dispatchEvent(new CustomEvent('clipforge:redraw'));
     },
 
     autoReframe: () => {

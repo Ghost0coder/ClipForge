@@ -30,6 +30,8 @@ import { useEditorStore } from '../store/editorStore';
 import { toastSuccess, toastInfo, toastError } from '../store/toastStore';
 import { FILTERS_LIST, GOOGLE_FONTS, EFFECTS_LIST } from '../utils/sampleData';
 import { getInterpolatedProperty } from '../utils/previewRenderer';
+import { SpeedCurveEditor } from './SpeedCurveEditor';
+import { AdvancedColorTools } from './AdvancedColorTools';
 
 /**
  * CapCut-Style Diamond Keyframe Controller
@@ -183,6 +185,7 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
   const [activeTab, setActiveTab] = useState('transform');
   const [fontSearch, setFontSearch] = useState('');
   const [fontFilter, setFontFilter] = useState('All');
+  const [colorMode, setColorMode] = useState('advanced');
 
   const clip = getSelectedClip();
 

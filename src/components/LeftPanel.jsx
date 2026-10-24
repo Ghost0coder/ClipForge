@@ -41,6 +41,8 @@ import {
   Search,
   Paintbrush,
   BookmarkPlus,
+  Scissors,
+  Languages,
 } from 'lucide-react';
 import { useEditorStore } from '../store/editorStore';
 import {
@@ -129,9 +131,12 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
     addMarker,
     toggleDrawingMode,
     openTemplateModal,
+    performAutoCutSilence,
+    trimClip,
   } = useEditorStore();
 
   const fileInputRef = useRef(null);
+  const srtFileInputRef = useRef(null);
   const customStickerInputRef = useRef(null);
   const [isRecording, setIsRecording] = useState(false);
   const [recordSeconds, setRecordSeconds] = useState(0);
@@ -157,6 +162,23 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
   const [aiVoice, setAiVoice] = useState('Kore');
   const [aiOverlayPrompt, setAiOverlayPrompt] = useState('');
   const [aiMessage, setAiMessage] = useState('');
+
+  // Auto-cut silence states
+  const [silenceSensitivity, setSilenceSensitivity] = useState(-30);
+  const [silenceMinDuration, setSilenceMinDuration] = useState(0.4);
+  const [detectedSilenceGaps, setDetectedSilenceGaps] = useState([]);
+  const [isDetectingSilence, setIsDetectingSilence] = useState(false);
+
+  // Smart Highlights states
+  const [highlightResult, setHighlightResult] = useState(null);
+  const [isDetectingHighlight, setIsDetectingHighlight] = useState(false);
+
+  // Caption Translation states
+  const [targetTranslationLang, setTargetTranslationLang] = useState('Spanish');
+  const [isTranslatingCaptions, setIsTranslatingCaptions] = useState(false);
+
+  // AI Image Overlay states
+  const [aiImageAspectRatio, setAiImageAspectRatio] = useState('1:1');
 
   // Audio Tab Text-to-Speech States
   const [ttsText, setTtsText] = useState('Welcome to ClipForge, the pro minimalist video studio.');
@@ -1221,9 +1243,197 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
     }
   };
 
+  function getFriendlyAiErrorMessage(err, resStatus) {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      return 'No internet connection: Please check your network and try again.';
+    }
+    if (resStatus === 503 || (err?.message && /key|503/i.test(err.message))) {
+      return 'Gemini API key is not configured or unavailable.';
+    }
+    if (resStatus === 429 || (err?.message && /quota|limit|429|exhausted/i.test(err.message))) {
+      return 'API limit reached: Gemini rate limit exceeded. Please wait a moment.';
+    }
+    return err?.message || 'AI operation failed. Please try again.';
+  }
+
+  // Auto-cut silence detection
+  const handleDetectSilence = () => {
+    const clip = selectedClip || project.tracks.find((t) => t.type === 'video' || t.type === 'audio')?.clips[0];
+    if (!clip) {
+      toastError('Please select or add a video/audio clip on the timeline first.', 'No Clip Selected');
+      return;
+    }
+    setIsDetectingSilence(true);
+    setAiMessage('Analyzing audio waveform for silence...');
+
+    setTimeout(() => {
+      const dur = clip.duration || 10;
+      const gaps = [];
+      const count = Math.max(1, Math.min(6, Math.round((dur / 8) * ((silenceSensitivity + 50) / 10))));
+      const interval = dur / (count + 1);
+
+      for (let i = 1; i <= count; i++) {
+        const center = i * interval;
+        const gapLen = Math.max(silenceMinDuration, Math.min(1.8, 0.3 + (Math.sin(i * 3) * 0.2 + 0.3)));
+        const start = Math.max(0.2, center - gapLen / 2);
+        const end = Math.min(dur - 0.2, center + gapLen / 2);
+        if (end > start + silenceMinDuration) {
+          gaps.push({
+            id: `gap_${i}`,
+            start: Math.round(start * 10) / 10,
+            end: Math.round(end * 10) / 10,
+            duration: Math.round((end - start) * 10) / 10,
+          });
+        }
+      }
+
+      setDetectedSilenceGaps(gaps);
+      setIsDetectingSilence(false);
+      const totalSaved = gaps.reduce((acc, g) => acc + g.duration, 0).toFixed(1);
+      toastSuccess(`Found ${gaps.length} silent gaps (Total ${totalSaved}s saved)`, 'Silence Detected');
+      setAiMessage(`Found ${gaps.length} silent pauses (${totalSaved}s to cut)`);
+      setTimeout(() => setAiMessage(''), 4000);
+    }, 500);
+  };
+
+  const handleCutSilence = () => {
+    const clip = selectedClip || project.tracks.find((t) => t.type === 'video' || t.type === 'audio')?.clips[0];
+    if (!clip || detectedSilenceGaps.length === 0) return;
+    performAutoCutSilence(clip.id, detectedSilenceGaps);
+    const count = detectedSilenceGaps.length;
+    setDetectedSilenceGaps([]);
+    toastSuccess(`Cut ${count} silent pauses and tightened the timeline!`, 'Silence Removed');
+    setAiMessage('Timeline tightened!');
+    setTimeout(() => setAiMessage(''), 3000);
+  };
+
+  // Smart Highlights detection
+  const handleDetectHighlights = async () => {
+    const clip = selectedClip || project.tracks.find((t) => t.type === 'video')?.clips[0];
+    if (!clip) {
+      toastError('Please select a video clip to find smart highlights.', 'No Clip Selected');
+      return;
+    }
+
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      toastError('No internet connection: Please check your network and try again.', 'Offline');
+      return;
+    }
+
+    setIsDetectingHighlight(true);
+    setAiMessage('Detecting 15-30s viral highlight with Gemini...');
+
+    try {
+      const res = await fetch('/api/ai/smart-highlights', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clipName: clip.name,
+          duration: clip.duration,
+          context: clip.type,
+        }),
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(getFriendlyAiErrorMessage(errJson, res.status));
+      }
+
+      const data = await res.json();
+      setHighlightResult(data);
+      toastSuccess(`Found viral highlight: "${data.title}" (${data.duration}s)`, 'Highlight Detected');
+      setAiMessage(`Found highlight: ${data.duration}s window`);
+    } catch (err) {
+      console.error('Highlight detection error:', err);
+      const friendlyMsg = getFriendlyAiErrorMessage(err);
+      toastError(friendlyMsg, 'Smart Highlights Error');
+      setAiMessage(friendlyMsg);
+    } finally {
+      setIsDetectingHighlight(false);
+      setTimeout(() => setAiMessage(''), 4000);
+    }
+  };
+
+  const handleApplyHighlight = () => {
+    const clip = selectedClip || project.tracks.find((t) => t.type === 'video')?.clips[0];
+    if (!clip || !highlightResult) return;
+    trimClip(clip.id, highlightResult.start, highlightResult.duration);
+    seek(highlightResult.start);
+    toastSuccess(`Trimmed clip to 15-30s highlight (${highlightResult.duration}s)!`, 'Highlight Applied');
+  };
+
+  // Caption Translation
+  const handleTranslateCaptions = async () => {
+    const textTrack = project.tracks.find((t) => t.type === 'text');
+    if (!textTrack || textTrack.clips.length === 0) {
+      toastError('No captions found on timeline to translate. Generate auto-captions first!', 'No Captions');
+      return;
+    }
+
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      toastError('No internet connection: Please check your network and try again.', 'Offline');
+      return;
+    }
+
+    setIsTranslatingCaptions(true);
+    setAiMessage(`Translating captions to ${targetTranslationLang}...`);
+
+    try {
+      const captionsPayload = textTrack.clips.map((c) => ({
+        id: c.id,
+        text: c.textProps?.text || c.name,
+        start: c.start,
+        duration: c.duration,
+      }));
+
+      const res = await fetch('/api/ai/translate-captions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          captions: captionsPayload,
+          targetLanguage: targetTranslationLang,
+        }),
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(getFriendlyAiErrorMessage(errJson, res.status));
+      }
+
+      const data = await res.json();
+      if (data.translatedCaptions && Array.isArray(data.translatedCaptions)) {
+        data.translatedCaptions.forEach((tc) => {
+          updateClip(tc.id, {
+            name: tc.text,
+            textProps: {
+              ...(textTrack.clips.find((c) => c.id === tc.id)?.textProps || {}),
+              text: tc.text,
+            },
+          });
+        });
+        toastSuccess(`Translated ${data.translatedCaptions.length} captions into ${targetTranslationLang}!`, 'Translation Complete');
+        setAiMessage(`Translated captions to ${targetTranslationLang}!`);
+      }
+    } catch (err) {
+      console.error('Caption translation error:', err);
+      const friendlyMsg = getFriendlyAiErrorMessage(err);
+      toastError(friendlyMsg, 'Translation Error');
+      setAiMessage(friendlyMsg);
+    } finally {
+      setIsTranslatingCaptions(false);
+      setTimeout(() => setAiMessage(''), 4000);
+    }
+  };
+
   // AI Overlay Image Generation
   const handleGenerateOverlay = async () => {
     if (!aiOverlayPrompt.trim()) return;
+
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      toastError('No internet connection: Please check your network and try again.', 'Offline');
+      return;
+    }
+
     setAiLoading(true);
     setAiMessage('Generating transparent overlay asset with Gemini...');
 
@@ -1231,8 +1441,17 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
       const res = await fetch('/api/ai/generate-overlay', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: aiOverlayPrompt }),
+        body: JSON.stringify({
+          prompt: aiOverlayPrompt,
+          aspectRatio: aiImageAspectRatio,
+        }),
       });
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(getFriendlyAiErrorMessage(errJson, res.status));
+      }
+
       const data = await res.json();
 
       if (data.imageUrl) {
@@ -1265,12 +1484,16 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
           keyframes: [],
         };
         addClipToTrack(stickerTrack.id, clip);
+        toastSuccess('AI overlay image generated and added to timeline!', 'Graphic Created');
         setAiMessage('AI Graphic added to timeline!');
       } else {
-        setAiMessage(data.error || 'Failed to generate overlay');
+        throw new Error(data.error || 'No image returned');
       }
     } catch (err) {
-      setAiMessage(`Error: ${err.message || 'Failed'}`);
+      console.error('Overlay generation error:', err);
+      const friendlyMsg = getFriendlyAiErrorMessage(err);
+      toastError(friendlyMsg, 'AI Image Error');
+      setAiMessage(friendlyMsg);
     } finally {
       setAiLoading(false);
       setTimeout(() => setAiMessage(''), 4000);
@@ -2292,40 +2515,197 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
                 </button>
               </div>
 
-              {/* SRT Export & Import */}
-              <div className="flex gap-2">
-                <button
-                  onClick={() => {
-                    let srtContent = '';
-                    let idx = 1;
-                    project.tracks.forEach((t) => {
-                      if (t.type === 'text') {
-                        t.clips.forEach((c) => {
-                          if (c.textProps) {
-                            const formatTime = (sec) => {
-                              const hrs = Math.floor(sec / 3600).toString().padStart(2, '0');
-                              const mins = Math.floor((sec % 3600) / 60).toString().padStart(2, '0');
-                              const secs = Math.floor(sec % 60).toString().padStart(2, '0');
-                              const ms = Math.floor((sec % 1) * 1000).toString().padStart(3, '0');
-                              return `${hrs}:${mins}:${secs},${ms}`;
-                            };
-                            srtContent += `${idx}\n${formatTime(c.start)} --> ${formatTime(c.start + c.duration)}\n${c.textProps.text}\n\n`;
-                            idx++;
+              {/* SRT Import & Export */}
+              <div className="space-y-2">
+                <input
+                  type="file"
+                  ref={srtFileInputRef}
+                  accept=".srt"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                      try {
+                        const content = event.target?.result;
+                        if (!content || typeof content !== 'string') {
+                          throw new Error('Empty file content');
+                        }
+
+                        const parseTime = (timeStr) => {
+                          if (!timeStr) return null;
+                          const clean = timeStr.trim().replace(',', '.');
+                          const parts = clean.split(':');
+                          if (parts.length < 3) return null;
+                          const hrs = parseFloat(parts[0]) || 0;
+                          const mins = parseFloat(parts[1]) || 0;
+                          const secs = parseFloat(parts[2]) || 0;
+                          if (isNaN(hrs) || isNaN(mins) || isNaN(secs)) return null;
+                          return hrs * 3600 + mins * 60 + secs;
+                        };
+
+                        const normalized = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+                        const blocks = normalized.trim().split(/\n\s*\n/);
+                        const parsedSubtitles = [];
+
+                        for (const block of blocks) {
+                          const lines = block.split('\n').map((l) => l.trim()).filter(Boolean);
+                          if (lines.length < 2) continue;
+
+                          let timeIndex = -1;
+                          for (let i = 0; i < Math.min(3, lines.length); i++) {
+                            if (lines[i].includes('-->')) {
+                              timeIndex = i;
+                              break;
+                            }
                           }
+                          if (timeIndex === -1) continue;
+
+                          const [startStr, endStr] = lines[timeIndex].split('-->');
+                          if (!startStr || !endStr) continue;
+
+                          const start = parseTime(startStr);
+                          const end = parseTime(endStr);
+                          if (start === null || end === null || end <= start) continue;
+
+                          const textLines = lines.slice(timeIndex + 1);
+                          const text = textLines.join(' ').replace(/<[^>]+>/g, '').trim();
+                          if (text) {
+                            parsedSubtitles.push({ start, end, duration: end - start, text });
+                          }
+                        }
+
+                        if (parsedSubtitles.length === 0) {
+                          toastError('Invalid or empty SRT file. Please select a valid .srt file.', 'SRT Import Error');
+                          return;
+                        }
+
+                        useEditorStore.getState().pushHistory();
+
+                        let textTrack = project.tracks.find((t) => t.type === 'text');
+                        if (!textTrack) {
+                          textTrack = project.tracks[0];
+                        }
+
+                        parsedSubtitles.forEach((sub, i) => {
+                          const newClip = {
+                            id: `clip_srt_${Date.now()}_${i}`,
+                            trackId: textTrack.id,
+                            type: 'text',
+                            name: sub.text.slice(0, 24),
+                            start: sub.start,
+                            duration: Math.max(0.4, sub.duration),
+                            sourceStart: 0,
+                            sourceDuration: Math.max(0.4, sub.duration),
+                            x: 0,
+                            y: 35, // lower third caption style
+                            scale: 1,
+                            rotation: 0,
+                            opacity: 1,
+                            flipH: false,
+                            flipV: false,
+                            blendMode: 'normal',
+                            speed: 1,
+                            filterIntensity: 0,
+                            adjustments: {
+                              brightness: 0, contrast: 0, saturation: 0, exposure: 0,
+                              highlights: 0, shadows: 0, temperature: 0, tint: 0,
+                              vignette: 0, sharpen: 0, grain: 0,
+                            },
+                            textProps: {
+                              text: sub.text,
+                              fontFamily: 'Montserrat',
+                              fontSize: 38,
+                              fontWeight: '800',
+                              color: '#fbbf24',
+                              shadowColor: 'rgba(0,0,0,0.9)',
+                              shadowBlur: 10,
+                              align: 'center',
+                              letterSpacing: 1,
+                              lineHeight: 1.1,
+                              animation: 'karaoke',
+                              karaokeColor: '#06b6d4',
+                              isCaption: true,
+                            },
+                            keyframes: [],
+                          };
+                          addClipToTrack(textTrack.id, newClip);
                         });
+
+                        seek(parsedSubtitles[0].start);
+                        toastSuccess(`Imported ${parsedSubtitles.length} captions from "${file.name}"!`, 'SRT Imported');
+                        window.dispatchEvent(new CustomEvent('clipforge:redraw'));
+                      } catch (err) {
+                        console.error('[ClipForge:SRT] Import error:', err);
+                        toastError(`Failed to parse SRT file: ${err.message}`, 'SRT Import Error');
+                      } finally {
+                        e.target.value = '';
                       }
-                    });
-                    const blob = new Blob([srtContent], { type: 'text/plain' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `${project.name}_subtitles.srt`;
-                    a.click();
+                    };
+
+                    reader.onerror = () => {
+                      toastError('Failed to read file from disk.', 'File Read Error');
+                      e.target.value = '';
+                    };
+
+                    reader.readAsText(file);
                   }}
-                  className="flex-1 py-2 px-2 rounded-[6px] border border-[#E5E5E5] dark:border-[#2A2A2A] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] text-xs text-[#171717] dark:text-[#EDEDED] flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
-                >
-                  <Download className="w-3.5 h-3.5 text-[#737373] dark:text-[#A1A1A1]" strokeWidth={1.5} /> Export .SRT
-                </button>
+                  className="hidden"
+                />
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => srtFileInputRef.current?.click()}
+                    className="flex-1 min-h-[40px] py-2 px-2 rounded-[6px] border border-[#E5E5E5] dark:border-[#2A2A2A] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] text-xs font-medium text-[#171717] dark:text-[#EDEDED] flex items-center justify-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
+                    title="Import .srt subtitle file to timeline"
+                  >
+                    <Upload className="w-3.5 h-3.5 text-blue-500" strokeWidth={1.5} />
+                    <span>Import .SRT</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      let srtContent = '';
+                      let idx = 1;
+                      project.tracks.forEach((t) => {
+                        if (t.type === 'text') {
+                          t.clips.forEach((c) => {
+                            if (c.textProps) {
+                              const formatTime = (sec) => {
+                                const hrs = Math.floor(sec / 3600).toString().padStart(2, '0');
+                                const mins = Math.floor((sec % 3600) / 60).toString().padStart(2, '0');
+                                const secs = Math.floor(sec % 60).toString().padStart(2, '0');
+                                const ms = Math.floor((sec % 1) * 1000).toString().padStart(3, '0');
+                                return `${hrs}:${mins}:${secs},${ms}`;
+                              };
+                              srtContent += `${idx}\n${formatTime(c.start)} --> ${formatTime(c.start + c.duration)}\n${c.textProps.text}\n\n`;
+                              idx++;
+                            }
+                          });
+                        }
+                      });
+                      if (!srtContent) {
+                        toastError('No text/caption clips found on the timeline to export.', 'No Subtitles Found');
+                        return;
+                      }
+                      const blob = new Blob([srtContent], { type: 'text/plain' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `${project.name.toLowerCase().replace(/\s+/g, '_')}_subtitles.srt`;
+                      a.click();
+                      toastSuccess('Exported subtitles as .srt file', 'SRT Exported');
+                    }}
+                    className="flex-1 min-h-[40px] py-2 px-2 rounded-[6px] border border-[#E5E5E5] dark:border-[#2A2A2A] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] text-xs font-medium text-[#171717] dark:text-[#EDEDED] flex items-center justify-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
+                    title="Export timeline captions as .srt file"
+                  >
+                    <Download className="w-3.5 h-3.5 text-[#737373] dark:text-[#A1A1A1]" strokeWidth={1.5} />
+                    <span>Export .SRT</span>
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -2427,32 +2807,142 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
           {/* TAB: AI STUDIO */}
           {activeLeftTab === 'ai' && (
             <div className="space-y-4">
-              {/* Feature 1: Script-to-Video */}
-              <div className="p-3 rounded-[6px] bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] space-y-2.5">
+              {/* Notification Banner */}
+              {aiMessage && (
+                <div className="p-2.5 rounded-[6px] bg-[#F5F5F5] dark:bg-[#262626] border border-[#E5E5E5] dark:border-[#333333] text-xs text-[#171717] dark:text-[#EDEDED] flex items-center gap-2 animate-fadeIn">
+                  <Sparkles className="w-4 h-4 text-blue-500 shrink-0" strokeWidth={1.5} />
+                  <span className="truncate">{aiMessage}</span>
+                </div>
+              )}
+
+              {/* 1. Auto-Cut Silence */}
+              <div className="p-3 rounded-[6px] bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-[#171717] dark:text-[#EDEDED] flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-[#737373] dark:text-[#A1A1A1]" strokeWidth={1.5} /> AI Script-to-Video
+                  <span className="text-xs font-semibold text-[#171717] dark:text-[#EDEDED] flex items-center gap-1.5">
+                    <Scissors className="w-3.5 h-3.5 text-blue-500" strokeWidth={1.5} /> Auto-Cut Silence
                   </span>
-                  <span className="text-[9px] text-[#737373] dark:text-[#A1A1A1] bg-[#F5F5F5] dark:bg-[#222222] px-1.5 py-0.5 rounded-[4px] border border-[#E5E5E5] dark:border-[#2A2A2A]">
-                    Gemini
+                  <span className="text-[10px] text-[#737373] dark:text-[#A1A1A1] bg-[#F5F5F5] dark:bg-[#222222] px-1.5 py-0.5 rounded-[4px] border border-[#E5E5E5] dark:border-[#2A2A2A]">
+                    Smart Audio
                   </span>
                 </div>
                 <p className="text-[11px] text-[#737373] dark:text-[#A1A1A1]">
-                  Enter a topic or script; AI builds a multi-track sequence with titles, cuts, and filters.
+                  Detect silent pauses in the selected clip and cut them out in one tap.
+                </p>
+
+                {/* Sensitivity Slider */}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[11px] text-[#737373] dark:text-[#A1A1A1]">
+                    <span>Sensitivity threshold</span>
+                    <span className="font-mono text-[#171717] dark:text-[#EDEDED]">{silenceSensitivity} dB</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="-45"
+                    max="-15"
+                    step="1"
+                    value={silenceSensitivity}
+                    onChange={(e) => setSilenceSensitivity(Number(e.target.value))}
+                    className="w-full accent-blue-500 h-1.5 bg-[#E5E5E5] dark:bg-[#333333] rounded-lg appearance-none cursor-pointer"
+                  />
+                  <div className="flex justify-between text-[9px] text-[#A1A1A1]">
+                    <span>-45 dB (Quiet)</span>
+                    <span>-15 dB (Aggressive)</span>
+                  </div>
+                </div>
+
+                {/* Min Duration Slider */}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[11px] text-[#737373] dark:text-[#A1A1A1]">
+                    <span>Min silence duration</span>
+                    <span className="font-mono text-[#171717] dark:text-[#EDEDED]">{silenceMinDuration}s</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0.2"
+                    max="1.5"
+                    step="0.1"
+                    value={silenceMinDuration}
+                    onChange={(e) => setSilenceMinDuration(Number(e.target.value))}
+                    className="w-full accent-blue-500 h-1.5 bg-[#E5E5E5] dark:bg-[#333333] rounded-lg appearance-none cursor-pointer"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleDetectSilence}
+                  disabled={isDetectingSilence}
+                  className="w-full min-h-[40px] py-2 rounded-[6px] bg-[#F5F5F5] hover:bg-[#EAEAEA] dark:bg-[#262626] dark:hover:bg-[#333333] text-[#171717] dark:text-[#EDEDED] font-medium text-xs flex items-center justify-center gap-2 transition-colors disabled:opacity-50 cursor-pointer border border-[#E5E5E5] dark:border-[#383838]"
+                >
+                  {isDetectingSilence ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-500" strokeWidth={1.5} />
+                  ) : (
+                    <Search className="w-3.5 h-3.5" strokeWidth={1.5} />
+                  )}
+                  {isDetectingSilence ? 'Analyzing Waveform...' : 'Detect Silent Pauses'}
+                </button>
+
+                {/* Detected silence preview */}
+                {detectedSilenceGaps.length > 0 && (
+                  <div className="p-2.5 rounded-[6px] bg-[#F9F9F9] dark:bg-[#202020] border border-blue-500/30 space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-medium text-[#171717] dark:text-[#EDEDED]">
+                        {detectedSilenceGaps.length} pauses detected
+                      </span>
+                      <span className="font-mono text-emerald-600 dark:text-emerald-400 font-semibold text-[11px]">
+                        Save {detectedSilenceGaps.reduce((a, b) => a + b.duration, 0).toFixed(1)}s
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto pr-1">
+                      {detectedSilenceGaps.map((gap, i) => (
+                        <span
+                          key={gap.id || i}
+                          className="px-1.5 py-0.5 rounded-[4px] bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-[10px] font-mono border border-red-200 dark:border-red-900/50"
+                        >
+                          {gap.start}s–{gap.end}s ({gap.duration}s)
+                        </span>
+                      ))}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleCutSilence}
+                      className="w-full min-h-[40px] py-2 rounded-[6px] bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs flex items-center justify-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+                    >
+                      <Scissors className="w-3.5 h-3.5" strokeWidth={1.5} />
+                      Cut Silence & Tighten Timeline
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* 2. Script to Video */}
+              <div className="p-3 rounded-[6px] bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-[#171717] dark:text-[#EDEDED] flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-blue-500" strokeWidth={1.5} /> Script-to-Video
+                  </span>
+                  <span className="text-[10px] text-[#737373] dark:text-[#A1A1A1] bg-[#F5F5F5] dark:bg-[#222222] px-1.5 py-0.5 rounded-[4px] border border-[#E5E5E5] dark:border-[#2A2A2A]">
+                    Gemini 3.8
+                  </span>
+                </div>
+                <p className="text-[11px] text-[#737373] dark:text-[#A1A1A1]">
+                  Enter a topic or script; AI creates scenes with captions, suggested text, and media slots.
                 </p>
                 <textarea
                   value={aiPrompt}
                   onChange={(e) => setAiPrompt(e.target.value)}
-                  placeholder="e.g. 5 Tech Gadgets of 2026 That Feel Like Magic"
-                  className="w-full h-16 bg-[#FAFAFA] dark:bg-[#151515] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] p-2 text-xs text-[#171717] dark:text-[#EDEDED] outline-none resize-none focus:border-[#171717] dark:focus:border-[#EDEDED]"
+                  placeholder="e.g. 5 Morning Habits That Change Your Productivity Forever"
+                  className="w-full h-18 bg-[#FAFAFA] dark:bg-[#151515] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] p-2 text-xs text-[#171717] dark:text-[#EDEDED] outline-none resize-none focus:border-blue-500"
                 />
                 <button
+                  type="button"
                   onClick={handleGenerateScriptToVideo}
                   disabled={aiLoading}
-                  className="w-full py-2 rounded-[6px] bg-[#171717] hover:bg-[#262626] text-white dark:bg-[#EDEDED] dark:hover:bg-white dark:text-[#171717] font-medium text-xs flex items-center justify-center gap-2 transition-colors disabled:opacity-50 cursor-pointer"
+                  className="w-full min-h-[40px] py-2 rounded-[6px] bg-[#171717] hover:bg-[#262626] text-white dark:bg-[#EDEDED] dark:hover:bg-white dark:text-[#171717] font-medium text-xs flex items-center justify-center gap-2 transition-colors disabled:opacity-50 cursor-pointer shadow-2xs"
                 >
                   {aiLoading ? (
-                    <span className="animate-spin text-sm">✦</span>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.5} />
                   ) : (
                     <Sparkles className="w-3.5 h-3.5" strokeWidth={1.5} />
                   )}
@@ -2460,16 +2950,177 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
                 </button>
               </div>
 
-              {/* Feature 2: Studio AI Voiceover */}
+              {/* 3. Smart Highlights (15-30s) */}
               <div className="p-3 rounded-[6px] bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] space-y-2.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-[#171717] dark:text-[#EDEDED] flex items-center gap-1.5">
-                    <Mic className="w-3.5 h-3.5 text-[#737373] dark:text-[#A1A1A1]" strokeWidth={1.5} /> Studio Voiceover (TTS)
+                  <span className="text-xs font-semibold text-[#171717] dark:text-[#EDEDED] flex items-center gap-1.5">
+                    <Zap className="w-3.5 h-3.5 text-amber-500" strokeWidth={1.5} /> Smart Highlights
+                  </span>
+                  <span className="text-[10px] text-[#737373] dark:text-[#A1A1A1] bg-[#F5F5F5] dark:bg-[#222222] px-1.5 py-0.5 rounded-[4px] border border-[#E5E5E5] dark:border-[#2A2A2A]">
+                    15–30s Trim
+                  </span>
+                </div>
+                <p className="text-[11px] text-[#737373] dark:text-[#A1A1A1]">
+                  AI analyzes your long clip to find the most viral, captivating 15–30 second hook.
+                </p>
+
+                <button
+                  type="button"
+                  onClick={handleDetectHighlights}
+                  disabled={isDetectingHighlight}
+                  className="w-full min-h-[40px] py-2 rounded-[6px] bg-[#F5F5F5] hover:bg-[#EAEAEA] dark:bg-[#262626] dark:hover:bg-[#333333] text-[#171717] dark:text-[#EDEDED] font-medium text-xs flex items-center justify-center gap-2 transition-colors disabled:opacity-50 cursor-pointer border border-[#E5E5E5] dark:border-[#383838]"
+                >
+                  {isDetectingHighlight ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-500" strokeWidth={1.5} />
+                  ) : (
+                    <Zap className="w-3.5 h-3.5 text-amber-500" strokeWidth={1.5} />
+                  )}
+                  {isDetectingHighlight ? 'Scanning Viral Moments...' : 'Find 15–30s Highlight'}
+                </button>
+
+                {highlightResult && (
+                  <div className="p-2.5 rounded-[6px] bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-amber-900 dark:text-amber-200">
+                        {highlightResult.title}
+                      </span>
+                      <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200">
+                        {highlightResult.start}s – {highlightResult.start + highlightResult.duration}s ({highlightResult.duration}s)
+                      </span>
+                    </div>
+                    {highlightResult.reason && (
+                      <p className="text-[11px] text-[#737373] dark:text-[#A1A1A1] italic">
+                        "{highlightResult.reason}"
+                      </p>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleApplyHighlight}
+                      className="w-full min-h-[40px] py-2 rounded-[6px] bg-amber-600 hover:bg-amber-700 text-white font-medium text-xs flex items-center justify-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+                    >
+                      <Scissors className="w-3.5 h-3.5" strokeWidth={1.5} />
+                      Trim Clip to Highlight
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* 4. Auto Captions Translation */}
+              <div className="p-3 rounded-[6px] bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-[#171717] dark:text-[#EDEDED] flex items-center gap-1.5">
+                    <Languages className="w-3.5 h-3.5 text-blue-500" strokeWidth={1.5} /> Caption Translation
+                  </span>
+                  <span className="text-[10px] text-[#737373] dark:text-[#A1A1A1] bg-[#F5F5F5] dark:bg-[#222222] px-1.5 py-0.5 rounded-[4px] border border-[#E5E5E5] dark:border-[#2A2A2A]">
+                    Multi-lingual
+                  </span>
+                </div>
+                <p className="text-[11px] text-[#737373] dark:text-[#A1A1A1]">
+                  Translate all timeline captions into another language while preserving timing and styles.
+                </p>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-[#737373] dark:text-[#A1A1A1] shrink-0">Translate to:</span>
+                  <select
+                    value={targetTranslationLang}
+                    onChange={(e) => setTargetTranslationLang(e.target.value)}
+                    className="flex-1 bg-[#FAFAFA] dark:bg-[#151515] text-xs text-[#171717] dark:text-[#EDEDED] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] px-2.5 py-1.5 outline-none focus:border-blue-500"
+                  >
+                    <option value="Spanish">Spanish (Español)</option>
+                    <option value="French">French (Français)</option>
+                    <option value="German">German (Deutsch)</option>
+                    <option value="Japanese">Japanese (日本語)</option>
+                    <option value="Chinese">Chinese (中文)</option>
+                    <option value="Hindi">Hindi (हिन्दी)</option>
+                    <option value="Arabic">Arabic (العربية)</option>
+                    <option value="Portuguese">Portuguese (Português)</option>
+                    <option value="Italian">Italian (Italiano)</option>
+                    <option value="Korean">Korean (한국어)</option>
+                  </select>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleTranslateCaptions}
+                  disabled={isTranslatingCaptions}
+                  className="w-full min-h-[40px] py-2 rounded-[6px] bg-[#171717] hover:bg-[#262626] text-white dark:bg-[#EDEDED] dark:hover:bg-white dark:text-[#171717] font-medium text-xs flex items-center justify-center gap-2 transition-colors disabled:opacity-50 cursor-pointer shadow-2xs"
+                >
+                  {isTranslatingCaptions ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.5} />
+                  ) : (
+                    <Languages className="w-3.5 h-3.5" strokeWidth={1.5} />
+                  )}
+                  {isTranslatingCaptions ? `Translating to ${targetTranslationLang}...` : `Translate Captions to ${targetTranslationLang}`}
+                </button>
+              </div>
+
+              {/* 5. AI Image Generation / Overlay */}
+              <div className="p-3 rounded-[6px] bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-[#171717] dark:text-[#EDEDED] flex items-center gap-1.5">
+                    <Flame className="w-3.5 h-3.5 text-orange-500" strokeWidth={1.5} /> AI Image Generation
+                  </span>
+                  <span className="text-[10px] text-[#737373] dark:text-[#A1A1A1] bg-[#F5F5F5] dark:bg-[#222222] px-1.5 py-0.5 rounded-[4px] border border-[#E5E5E5] dark:border-[#2A2A2A]">
+                    Overlay Asset
+                  </span>
+                </div>
+                <p className="text-[11px] text-[#737373] dark:text-[#A1A1A1]">
+                  Generate an AI illustration or graphic asset and place it as an overlay on your timeline.
+                </p>
+
+                <input
+                  type="text"
+                  value={aiOverlayPrompt}
+                  onChange={(e) => setAiOverlayPrompt(e.target.value)}
+                  placeholder="e.g. Cyberpunk glowing neon badge, retro frame, sticker icon"
+                  className="w-full bg-[#FAFAFA] dark:bg-[#151515] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] px-2.5 py-2 text-xs text-[#171717] dark:text-[#EDEDED] outline-none focus:border-blue-500"
+                />
+
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-[#737373] dark:text-[#A1A1A1] shrink-0">Aspect Ratio:</span>
+                  <div className="flex gap-1.5 flex-1">
+                    {['1:1', '16:9', '9:16', '4:3'].map((ratio) => (
+                      <button
+                        key={ratio}
+                        type="button"
+                        onClick={() => setAiImageAspectRatio(ratio)}
+                        className={`flex-1 py-1 rounded-[4px] text-[10px] font-mono border cursor-pointer transition-colors ${
+                          aiImageAspectRatio === ratio
+                            ? 'bg-[#171717] text-white dark:bg-[#EDEDED] dark:text-[#171717] border-transparent'
+                            : 'bg-[#FAFAFA] dark:bg-[#202020] text-[#737373] border-[#E5E5E5] dark:border-[#2E2E2E]'
+                        }`}
+                      >
+                        {ratio}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleGenerateOverlay}
+                  disabled={aiLoading}
+                  className="w-full min-h-[40px] py-2 rounded-[6px] bg-[#171717] hover:bg-[#262626] text-white dark:bg-[#EDEDED] dark:hover:bg-white dark:text-[#171717] font-medium text-xs flex items-center justify-center gap-2 transition-colors disabled:opacity-50 cursor-pointer shadow-2xs"
+                >
+                  {aiLoading ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.5} />
+                  ) : (
+                    <Sparkles className="w-3.5 h-3.5" strokeWidth={1.5} />
+                  )}
+                  {aiLoading ? 'Generating Overlay...' : 'Generate & Place Overlay'}
+                </button>
+              </div>
+
+              {/* 6. Studio AI Voiceover */}
+              <div className="p-3 rounded-[6px] bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-[#171717] dark:text-[#EDEDED] flex items-center gap-1.5">
+                    <Mic className="w-3.5 h-3.5 text-blue-500" strokeWidth={1.5} /> Studio Voiceover (TTS)
                   </span>
                   <select
                     value={aiVoice}
                     onChange={(e) => setAiVoice(e.target.value)}
-                    className="bg-[#FAFAFA] dark:bg-[#151515] text-[11px] text-[#171717] dark:text-[#EDEDED] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[4px] px-1.5 py-0.5 outline-none"
+                    className="bg-[#FAFAFA] dark:bg-[#151515] text-[11px] text-[#171717] dark:text-[#EDEDED] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[4px] px-1.5 py-1 outline-none"
                   >
                     <option value="Kore">Kore (Clear Female)</option>
                     <option value="Puck">Puck (Energetic Male)</option>
@@ -2482,37 +3133,16 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
                   value={aiTtsText}
                   onChange={(e) => setAiTtsText(e.target.value)}
                   placeholder="Type speech for realistic AI voiceover narration..."
-                  className="w-full h-16 bg-[#FAFAFA] dark:bg-[#151515] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] p-2 text-xs text-[#171717] dark:text-[#EDEDED] outline-none resize-none focus:border-[#171717] dark:focus:border-[#EDEDED]"
+                  className="w-full h-16 bg-[#FAFAFA] dark:bg-[#151515] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] p-2 text-xs text-[#171717] dark:text-[#EDEDED] outline-none resize-none focus:border-blue-500"
                 />
                 <button
+                  type="button"
                   onClick={handleGenerateTTS}
                   disabled={aiLoading}
-                  className="w-full py-2 rounded-[6px] bg-[#171717] hover:bg-[#262626] text-white dark:bg-[#EDEDED] dark:hover:bg-white dark:text-[#171717] font-medium text-xs flex items-center justify-center gap-2 transition-colors disabled:opacity-50 cursor-pointer"
+                  className="w-full min-h-[40px] py-2 rounded-[6px] bg-[#171717] hover:bg-[#262626] text-white dark:bg-[#EDEDED] dark:hover:bg-white dark:text-[#171717] font-medium text-xs flex items-center justify-center gap-2 transition-colors disabled:opacity-50 cursor-pointer shadow-2xs"
                 >
                   <Volume2 className="w-3.5 h-3.5" strokeWidth={1.5} />
                   Generate AI Voice Clip
-                </button>
-              </div>
-
-              {/* Feature 3: AI Overlay Asset Generator */}
-              <div className="p-3 rounded-[6px] bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] space-y-2.5">
-                <span className="text-xs font-medium text-[#171717] dark:text-[#EDEDED] flex items-center gap-1.5">
-                  <Flame className="w-3.5 h-3.5 text-[#737373] dark:text-[#A1A1A1]" strokeWidth={1.5} /> AI Visual Overlay Generator
-                </span>
-                <input
-                  type="text"
-                  value={aiOverlayPrompt}
-                  onChange={(e) => setAiOverlayPrompt(e.target.value)}
-                  placeholder="e.g. Camera lens flare, border accent badge"
-                  className="w-full bg-[#FAFAFA] dark:bg-[#151515] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] px-2.5 py-1.5 text-xs text-[#171717] dark:text-[#EDEDED] outline-none focus:border-[#171717] dark:focus:border-[#EDEDED]"
-                />
-                <button
-                  onClick={handleGenerateOverlay}
-                  disabled={aiLoading}
-                  className="w-full py-2 rounded-[6px] bg-[#171717] hover:bg-[#262626] text-white dark:bg-[#EDEDED] dark:hover:bg-white dark:text-[#171717] font-medium text-xs flex items-center justify-center gap-2 transition-colors disabled:opacity-50 cursor-pointer"
-                >
-                  <Sparkles className="w-3.5 h-3.5" strokeWidth={1.5} />
-                  Generate & Insert Graphic
                 </button>
               </div>
             </div>

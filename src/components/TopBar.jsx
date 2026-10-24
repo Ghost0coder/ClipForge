@@ -23,6 +23,7 @@ import {
   Keyboard,
   Sun,
   Moon,
+  HelpCircle,
 } from 'lucide-react';
 import { useEditorStore } from '../store/editorStore';
 import { ASPECT_RATIOS } from '../types/editor';
@@ -52,6 +53,7 @@ export const TopBar = () => {
     devMobilePreview,
     toggleDevMobilePreview,
     toggleShortcutsModal,
+    openOnboarding,
     theme,
     toggleTheme,
   } = useEditorStore();
@@ -302,6 +304,21 @@ export const TopBar = () => {
                 </div>
               </div>
 
+              {/* Guided Tour / Help */}
+              <div className="pt-2 border-t border-[#E5E5E5] dark:border-[#2A2A2A] flex items-center justify-between">
+                <span className="text-xs text-[#737373] dark:text-[#A1A1A1]">Guided Tour & Help</span>
+                <button
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    openOnboarding();
+                  }}
+                  className="px-2.5 py-1 rounded-[6px] border border-[#E5E5E5] dark:border-[#2A2A2A] text-[#171717] dark:text-[#EDEDED] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] text-xs flex items-center gap-1.5 cursor-pointer"
+                >
+                  <HelpCircle className="w-3.5 h-3.5 text-blue-500" strokeWidth={1.5} />
+                  <span>5-Step Tour</span>
+                </button>
+              </div>
+
               {/* Keyboard Shortcuts Dialog */}
               <div className="pt-2 border-t border-[#E5E5E5] dark:border-[#2A2A2A] flex items-center justify-between">
                 <span className="text-xs text-[#737373] dark:text-[#A1A1A1]">Keyboard Shortcuts</span>
@@ -489,6 +506,13 @@ export const TopBar = () => {
             title="Keyboard Shortcuts (?)"
           >
             <Keyboard className="w-3.5 h-3.5" strokeWidth={1.5} />
+          </button>
+          <button
+            onClick={openOnboarding}
+            className="p-1 rounded-[4px] transition-colors text-[#737373] dark:text-[#A1A1A1] hover:text-blue-500 dark:hover:text-blue-400 cursor-pointer"
+            title="Interactive Studio Tour (5 Steps)"
+          >
+            <HelpCircle className="w-3.5 h-3.5" strokeWidth={1.5} />
           </button>
         </div>
       </div>

@@ -2,15 +2,17 @@ function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { 
 function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }
 
 import { getInterpolatedProperty } from './previewRenderer';
+import { applyAudioFilters, getEqualizerValues } from './audioFilterUtils';
 
-class AudioEngine {constructor() { AudioEngine.prototype.__init.call(this);AudioEngine.prototype.__init2.call(this);AudioEngine.prototype.__init3.call(this);AudioEngine.prototype.__init4.call(this);AudioEngine.prototype.__init5.call(this);AudioEngine.prototype.__init6.call(this);AudioEngine.prototype.__init7.call(this); }
+class AudioEngine {constructor() { AudioEngine.prototype.__init.call(this);AudioEngine.prototype.__init2.call(this);AudioEngine.prototype.__init3.call(this);AudioEngine.prototype.__init4.call(this);AudioEngine.prototype.__init5.call(this);AudioEngine.prototype.__init6.call(this);AudioEngine.prototype.__init7.call(this);AudioEngine.prototype.__init8.call(this); }
    __init() {this.ctx = null}
    __init2() {this.activeSources = new Map()}
    __init3() {this.mediaElements = new Map()}
-   __init4() {this.isPlaying = false}
-   __init5() {this.mediaRecorder = null}
-   __init6() {this.micStream = null}
-   __init7() {this.recordedChunks = []}
+   __init4() {this.mediaElementChains = new Map()}
+   __init5() {this.isPlaying = false}
+   __init6() {this.mediaRecorder = null}
+   __init7() {this.micStream = null}
+   __init8() {this.recordedChunks = []}
 
    getContext() {
     if (!this.ctx) {
@@ -202,7 +204,52 @@ class AudioEngine {constructor() { AudioEngine.prototype.__init.call(this);Audio
           fadeGain = Math.min(fadeGain, Math.max(0, clipRemaining / fadeOutDur));
         }
 
-        audioEl.volume = Math.min(Math.max(clipVolume * fadeGain, 0), 1);
+        // Connect Web Audio filter chain for Noise Reduction & 3-Band Equalizer
+        if (!this.masterBus) {
+          const masterGain = ctx.createGain();
+          const limiter = ctx.createDynamicsCompressor();
+          limiter.threshold.value = -1.0;
+          limiter.knee.value = 0;
+          limiter.ratio.value = 20;
+          limiter.attack.value = 0.003;
+          limiter.release.value = 0.1;
+          masterGain.connect(limiter);
+          limiter.connect(ctx.destination);
+          this.masterBus = { masterGain, limiter };
+        }
+
+        let chain = this.mediaElementChains.get(clip.id);
+        if (!chain) {
+          try {
+            const sourceNode = ctx.createMediaElementSource(audioEl);
+            const gainNode = ctx.createGain();
+            const filterNodes = applyAudioFilters(ctx, clip, sourceNode, gainNode);
+            if (ctx.createStereoPanner && track.pan !== undefined && track.pan !== 0) {
+              const panner = ctx.createStereoPanner();
+              panner.pan.value = Math.max(-1, Math.min(1, track.pan));
+              gainNode.connect(panner);
+              panner.connect(this.masterBus.masterGain);
+            } else {
+              gainNode.connect(this.masterBus.masterGain);
+            }
+            chain = { sourceNode, gainNode, filterNodes };
+            this.mediaElementChains.set(clip.id, chain);
+          } catch (chainErr) {
+            // MediaElementSource may already be attached or cross-origin
+          }
+        }
+
+        if (chain && chain.gainNode) {
+          chain.gainNode.gain.value = Math.min(Math.max(clipVolume * fadeGain, 0), 1);
+          // Keep equalizer reactive to live slider updates
+          const eq = (clip.audioProps && clip.audioProps.equalizer) || {};
+          const { bass, mid, treble } = getEqualizerValues(eq);
+          if (chain.filterNodes.bassFilter) chain.filterNodes.bassFilter.gain.value = bass;
+          if (chain.filterNodes.midFilter) chain.filterNodes.midFilter.gain.value = mid;
+          if (chain.filterNodes.trebleFilter) chain.filterNodes.trebleFilter.gain.value = treble;
+        } else {
+          audioEl.volume = Math.min(Math.max(clipVolume * fadeGain, 0), 1);
+        }
 
         // Voice changer & Pitch shift calculation
         const pitchShiftSt = _optionalChain([clip, 'access', _9 => _9.audioProps, 'optionalAccess', _10 => _10.pitchShift]) || 0;
@@ -237,7 +284,7 @@ class AudioEngine {constructor() { AudioEngine.prototype.__init.call(this);Audio
       const baseFreq = clip.name.includes('Lofi') ? 220 : 164.81;
       osc.frequency.setValueAtTime(baseFreq, ctx.currentTime);
 
-      osc.connect(gain);
+      applyAudioFilters(ctx, clip, osc, gain);
       gain.connect(ctx.destination);
       osc.start();
 

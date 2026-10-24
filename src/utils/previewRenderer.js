@@ -1,6 +1,8 @@
  function _nullishCoalesce(lhs, rhsFn) { if (lhs != null) { return lhs; } else { return rhsFn(); } } function _optionalChain(ops) { let lastAccessLHS = undefined; let value = ops[0]; let i = 1; while (i < ops.length) { const op = ops[i]; const fn = ops[i + 1]; i += 2; if ((op === 'optionalAccess' || op === 'optionalCall') && value == null) { return undefined; } if (op === 'access' || op === 'optionalAccess') { lastAccessLHS = value; value = fn(value); } else if (op === 'call' || op === 'optionalCall') { value = fn((...args) => value.call(lastAccessLHS, ...args)); lastAccessLHS = undefined; } } return value; }import { ASPECT_RATIOS, } from '../types/editor';
 import { FILTERS_LIST } from './sampleData';
 import { toastError } from '../store/toastStore';
+import { useEditorStore } from '../store/editorStore';
+import { getSpeedCurveSourceTime, applyAdvancedColorGrading } from './colorGradingUtils';
 
 
 
@@ -369,9 +371,11 @@ function renderClip(
     ctx.scale(pulseFactor, pulseFactor);
   }
 
+  const isComparingOriginal = Boolean(options.compareOriginal || (typeof window !== 'undefined' && useEditorStore.getState().compareOriginal));
+
   // Combined CSS Filter: Preset + Brightness, Contrast, Saturation, Exposure, Highlights, Shadows, Temp, Tint, Sharpen, Blur
-  let baseFilter = buildClipFilterString(clip);
-  if (animBlur > 0.5) {
+  let baseFilter = isComparingOriginal ? 'none' : buildClipFilterString(clip);
+  if (animBlur > 0.5 && !isComparingOriginal) {
     baseFilter = baseFilter === 'none' ? `blur(${animBlur.toFixed(1)}px)` : `${baseFilter} blur(${animBlur.toFixed(1)}px)`;
   }
   ctx.filter = baseFilter;
@@ -399,9 +403,11 @@ function renderClip(
   if (clip.type === 'color') {
     drawColorClip(ctx, clip, canvasW, canvasH, currentTime);
   } else if (clip.type === 'video' && clip.mediaUrl) {
-    drawVideoClip(ctx, clip, currentTime, canvasW, canvasH, options.isPlaying, track);
+    drawVideoClip(ctx, clip, currentTime, canvasW, canvasH, options.isPlaying, track, isComparingOriginal);
   } else if (clip.type === 'image' && clip.mediaUrl) {
-    drawImageClip(ctx, clip, canvasW, canvasH);
+    drawImageClip(ctx, clip, canvasW, canvasH, isComparingOriginal);
+  } else if (clip.type === 'compound' && clip.compoundData) {
+    drawCompoundClip(ctx, clip, currentTime, canvasW, canvasH, options);
   } else if (clip.type === 'text' && clip.textProps) {
     drawTextClip(ctx, clip.textProps, clipElapsed, canvasW, canvasH, clip);
   } else if (clip.type === 'sticker') {
@@ -411,12 +417,12 @@ function renderClip(
   }
 
   // Apply Vignette from adjustments
-  if (clip.adjustments && clip.adjustments.vignette > 0) {
+  if (!isComparingOriginal && clip.adjustments && clip.adjustments.vignette > 0) {
     applyVignette(ctx, clip.adjustments.vignette, canvasW, canvasH);
   }
 
   // Apply Grain from adjustments
-  if (clip.adjustments && clip.adjustments.grain > 0) {
+  if (!isComparingOriginal && clip.adjustments && clip.adjustments.grain > 0) {
     applyGrain(ctx, clip.adjustments.grain, canvasW, canvasH, currentTime);
   }
 
@@ -486,6 +492,64 @@ function drawColorClip(
   ctx.restore();
 }
 
+function drawCompoundClip(ctx, clip, currentTime, canvasW, canvasH, options) {
+  if (!clip.compoundData || !clip.compoundData.tracks) return;
+  const relTime = currentTime - clip.start + (clip.sourceStart || 0);
+  const visualTracks = [...clip.compoundData.tracks].reverse().filter((t) => !t.hidden && t.type !== 'audio');
+  for (const track of visualTracks) {
+    for (const nestedClip of track.clips) {
+      if (relTime >= nestedClip.start && relTime < nestedClip.start + nestedClip.duration) {
+        renderClip(ctx, nestedClip, track, relTime, canvasW, canvasH, options);
+      }
+    }
+  }
+}
+
+let gradingCanvas = null;
+let gradingCtx = null;
+
+function hasAdvancedGrading(clip) {
+  if (!clip) return false;
+  const hasCurves = clip.colorCurves && Object.values(clip.colorCurves).some((pts) => pts && pts.length > 2);
+  const hasHsl = clip.hsl && Object.values(clip.hsl).some((r) => r && (r.hue !== 0 || r.sat !== 0 || r.light !== 0));
+  const hasWheels = clip.colorWheels && Object.values(clip.colorWheels).some((w) => w && (w.r !== 0 || w.g !== 0 || w.b !== 0 || w.brightness !== 0));
+  const hasLut = clip.lut && clip.lut.id;
+  return Boolean(hasCurves || hasHsl || hasWheels || hasLut);
+}
+
+function drawWithGrading(ctx, sourceEl, clip, drawW, drawH, isComparingOriginal) {
+  if (isComparingOriginal || !hasAdvancedGrading(clip)) {
+    ctx.drawImage(sourceEl, -drawW / 2, -drawH / 2, drawW, drawH);
+    return;
+  }
+
+  const maxW = 960;
+  const scale = drawW > maxW ? maxW / drawW : 1;
+  const procW = Math.max(64, Math.round(drawW * scale));
+  const procH = Math.max(64, Math.round(drawH * scale));
+
+  if (!gradingCanvas) {
+    gradingCanvas = document.createElement('canvas');
+    gradingCtx = gradingCanvas.getContext('2d', { willReadFrequently: true });
+  }
+  if (gradingCanvas.width !== procW || gradingCanvas.height !== procH) {
+    gradingCanvas.width = procW;
+    gradingCanvas.height = procH;
+  }
+
+  gradingCtx.clearRect(0, 0, procW, procH);
+  gradingCtx.drawImage(sourceEl, 0, 0, procW, procH);
+
+  try {
+    const imgData = gradingCtx.getImageData(0, 0, procW, procH);
+    applyAdvancedColorGrading(imgData, clip);
+    gradingCtx.putImageData(imgData, 0, 0);
+    ctx.drawImage(gradingCanvas, -drawW / 2, -drawH / 2, drawW, drawH);
+  } catch (e) {
+    ctx.drawImage(sourceEl, -drawW / 2, -drawH / 2, drawW, drawH);
+  }
+}
+
 function drawVideoClip(
   ctx,
   clip,
@@ -493,17 +557,40 @@ function drawVideoClip(
   canvasW,
   canvasH,
   isPlaying,
-  track
+  track,
+  isComparingOriginal = false
 ) {
   const videoEl = getVideoElement(clip.id, clip.mediaUrl);
   const speed = clip.speed || 1;
   const elapsed = currentTime - clip.start;
   const isReverse = Boolean(clip.reverse);
-  const targetTime = clip.freezeFrame
-    ? clip.sourceStart
-    : isReverse
-    ? Math.max(0, clip.sourceStart + (clip.duration - elapsed) * speed)
-    : Math.max(0, clip.sourceStart + elapsed * speed);
+  let effectiveSpeed = speed;
+  let targetTime = 0;
+
+  if (clip.speedMode === 'curve' && clip.speedCurvePoints && clip.speedCurvePoints.length >= 2) {
+    const curveOffset = isReverse
+      ? getSpeedCurveSourceTime(clip, Math.max(0, clip.duration - elapsed))
+      : getSpeedCurveSourceTime(clip, Math.max(0, elapsed));
+    targetTime = clip.freezeFrame ? clip.sourceStart : Math.max(0, clip.sourceStart + curveOffset);
+
+    // Instantaneous speed calculation for smooth video playback rate
+    const normT = Math.max(0, Math.min(1, elapsed / Math.max(0.1, clip.duration)));
+    const sortedPts = [...clip.speedCurvePoints].sort((a, b) => a.x - b.x);
+    for (let i = 0; i < sortedPts.length - 1; i++) {
+      if (normT >= sortedPts[i].x && normT <= sortedPts[i + 1].x) {
+        const span = Math.max(0.001, sortedPts[i + 1].x - sortedPts[i].x);
+        const segT = (normT - sortedPts[i].x) / span;
+        effectiveSpeed = sortedPts[i].y + segT * (sortedPts[i + 1].y - sortedPts[i].y);
+        break;
+      }
+    }
+  } else {
+    targetTime = clip.freezeFrame
+      ? clip.sourceStart
+      : isReverse
+      ? Math.max(0, clip.sourceStart + (clip.duration - elapsed) * speed)
+      : Math.max(0, clip.sourceStart + elapsed * speed);
+  }
 
   // Sync Video Audio volume and Mute directly on the video element for native, perfectly synchronized AV playback
   const isMuted = Boolean(_optionalChain([track, 'optionalAccess', _ => _.muted]) || _optionalChain([clip, 'access', _2 => _2.audioProps, 'optionalAccess', _3 => _3.mute]));
@@ -518,22 +605,14 @@ function drawVideoClip(
   if ('webkitPreservesPitch' in videoEl) videoEl.webkitPreservesPitch = true;
 
   if (isPlaying && !clip.freezeFrame) {
-    videoEl.playbackRate = speed;
+    videoEl.playbackRate = Math.max(0.2, Math.min(effectiveSpeed, 8.0));
     // Only seek if video drifted by more than 0.25s or is paused/unstarted
     if (videoEl.paused || Math.abs(videoEl.currentTime - targetTime) > 0.25) {
       videoEl.currentTime = targetTime;
     }
     if (videoEl.paused) {
-      console.log('[ClipForge:Play] Starting video playback for clip:', {
-        clipId: clip.id,
-        name: clip.name,
-        targetTime,
-        speed,
-        reverse: isReverse,
-      });
       videoEl.play().catch((err) => {
         console.error('[ClipForge:Play] Failed to play video element for clip:', clip.id, err);
-        toastError(`Playback error for "${clip.name}": ${_optionalChain([err, 'optionalAccess', _7 => _7.message]) || 'Media playback restricted'}`, 'Playback Error');
       });
     }
   } else {
@@ -561,12 +640,12 @@ function drawVideoClip(
       if ((clip.chromaKey && clip.chromaKey.enabled) || (clip.bgRemoval && clip.bgRemoval.enabled)) {
         drawChromaOrBgRemoved(ctx, videoEl, clip, drawW, drawH);
       } else {
-        ctx.drawImage(videoEl, -drawW / 2, -drawH / 2, drawW, drawH);
+        drawWithGrading(ctx, videoEl, clip, drawW, drawH, isComparingOriginal);
       }
       // Smooth slow motion (frame blending) when speed is under 0.5x
-      if (clip.smoothSlowMo && speed < 0.5) {
+      if (clip.smoothSlowMo && effectiveSpeed < 0.5) {
         ctx.save();
-        ctx.globalAlpha = 0.35 * (1 - speed * 2);
+        ctx.globalAlpha = 0.35 * (1 - effectiveSpeed * 2);
         ctx.drawImage(videoEl, -drawW / 2 + 1, -drawH / 2, drawW, drawH);
         ctx.restore();
       }
@@ -575,7 +654,6 @@ function drawVideoClip(
       ctx.fillRect(-drawW / 2, -drawH / 2, drawW, drawH);
     }
   } catch (e) {
-    // If not ready yet, draw placeholder
     ctx.fillStyle = '#1e293b';
     ctx.fillRect(-drawW / 2, -drawH / 2, drawW, drawH);
   }
@@ -703,7 +781,8 @@ function drawImageClip(
   ctx,
   clip,
   canvasW,
-  canvasH
+  canvasH,
+  isComparingOriginal = false
 ) {
   const imgEl = getImageElement(clip.id, clip.mediaUrl);
   if (!imgEl.complete) {
@@ -726,7 +805,7 @@ function drawImageClip(
   if ((clip.chromaKey && clip.chromaKey.enabled) || (clip.bgRemoval && clip.bgRemoval.enabled)) {
     drawChromaOrBgRemoved(ctx, imgEl, clip, drawW, drawH);
   } else {
-    ctx.drawImage(imgEl, -drawW / 2, -drawH / 2, drawW, drawH);
+    drawWithGrading(ctx, imgEl, clip, drawW, drawH, isComparingOriginal);
   }
 }
 
