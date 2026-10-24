@@ -1,4 +1,4 @@
-name: Deploy to Vercel
+name: Deploy
 
 on:
   push:
@@ -12,12 +12,9 @@ permissions:
 
 jobs:
   deploy-preview:
-    name: Deploy Preview (Push to main)
+    name: Deploy to Vercel (Preview)
     runs-on: ubuntu-latest
     if: github.event_name == 'push'
-    environment:
-      name: preview
-      url: ${{ steps.deploy.outputs.preview-url }}
 
     steps:
       - name: Checkout code
@@ -27,18 +24,28 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install
 
       - name: Build
         run: npm run build
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          APP_URL: ${{ secrets.APP_URL }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY || 'ci_placeholder_key' }}
+          APP_URL: ${{ secrets.APP_URL || 'https://clipforge.vercel.app' }}
+
+      - name: Check Vercel Token
+        id: check-token
+        run: |
+          if [ -n "${{ secrets.VERCEL_TOKEN }}" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice ::VERCEL_TOKEN secret is not set. To enable automatic preview deploys to Vercel via GitHub Actions, add VERCEL_TOKEN, VERCEL_ORG_ID, and VERCEL_PROJECT_ID under Repository Settings > Secrets and variables > Actions. (Alternatively, import the repository directly in the Vercel dashboard for zero-config automatic git deployments)."
+          fi
 
       - name: Deploy to Vercel (Preview)
+        if: steps.check-token.outputs.configured == 'true'
         id: deploy
         uses: amondnet/vercel-action@v25
         with:
@@ -48,12 +55,9 @@ jobs:
           working-directory: ./
 
   deploy-production:
-    name: Deploy Production (On Release)
+    name: Deploy to Vercel (Production)
     runs-on: ubuntu-latest
     if: github.event_name == 'release'
-    environment:
-      name: production
-      url: ${{ steps.deploy.outputs.preview-url }}
 
     steps:
       - name: Checkout code
@@ -63,18 +67,28 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install
 
       - name: Build
         run: npm run build
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          APP_URL: ${{ secrets.APP_URL }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY || 'ci_placeholder_key' }}
+          APP_URL: ${{ secrets.APP_URL || 'https://clipforge.vercel.app' }}
+
+      - name: Check Vercel Token
+        id: check-token
+        run: |
+          if [ -n "${{ secrets.VERCEL_TOKEN }}" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice ::VERCEL_TOKEN secret is not set. To enable automatic production deploys to Vercel via GitHub Actions, add VERCEL_TOKEN, VERCEL_ORG_ID, and VERCEL_PROJECT_ID under Repository Settings > Secrets and variables > Actions. (Alternatively, import the repository directly in the Vercel dashboard for zero-config automatic git deployments)."
+          fi
 
       - name: Deploy to Vercel (Production)
+        if: steps.check-token.outputs.configured == 'true'
         id: deploy
         uses: amondnet/vercel-action@v25
         with:
