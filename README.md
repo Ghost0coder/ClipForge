@@ -8,7 +8,7 @@
   <a href="https://github.com/Ghost0coder/ClipForge/releases"><img src="https://img.shields.io/github/v/release/Ghost0coder/ClipForge?style=flat-square&color=6366f1&label=version" alt="Latest Release" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/Ghost0coder/ClipForge?style=flat-square&color=22c55e" alt="MIT License" /></a>
   <a href="https://github.com/Ghost0coder/ClipForge/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/Ghost0coder/ClipForge/ci.yml?branch=main&style=flat-square&label=CI&logo=githubactions&logoColor=white" alt="CI Status" /></a>
-  <a href="https://github.com/Ghost0coder/ClipForge/actions/workflows/deploy.yml"><img src="https://img.shields.io/github/deployments/Ghost0coder/ClipForge/production?style=flat-square&label=deploy&logo=vercel&logoColor=white" alt="Deploy Status" /></a>
+  <a href="https://github.com/Ghost0coder/ClipForge/actions/workflows/deploy.yml"><img src="https://img.shields.io/github/actions/workflow/status/Ghost0coder/ClipForge/deploy.yml?branch=main&style=flat-square&label=deploy&logo=vercel&logoColor=white" alt="Deploy Status" /></a>
   <img src="https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black" alt="React 19" />
   <img src="https://img.shields.io/badge/Vite-8-646CFF?style=flat-square&logo=vite&logoColor=white" alt="Vite 8" />
   <img src="https://img.shields.io/badge/Gemini_AI-2.x-4285F4?style=flat-square&logo=google&logoColor=white" alt="Gemini AI" />
