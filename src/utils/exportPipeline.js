@@ -62,13 +62,17 @@ function applyVolumeAutomation(gainNode, clip, track, when, duration) {
 
   const fadeIn = clip.audioProps?.fadeIn || 0;
   const fadeOut = clip.audioProps?.fadeOut || 0;
+  const transIn = (clip.transitionIn && clip.transitionIn.duration) ? clip.transitionIn.duration : 0;
+  const transOut = (clip.transitionOut && clip.transitionOut.duration) ? clip.transitionOut.duration : 0;
+  const effectiveFadeIn = Math.max(fadeIn, transIn);
+  const effectiveFadeOut = Math.max(fadeOut, transOut);
 
-  if (fadeIn > 0) {
+  if (effectiveFadeIn > 0) {
     gainNode.gain.setValueAtTime(0, when);
-    gainNode.gain.linearRampToValueAtTime(targetVol, when + Math.min(fadeIn, duration));
+    gainNode.gain.linearRampToValueAtTime(targetVol, when + Math.min(effectiveFadeIn, duration));
   }
-  if (fadeOut > 0) {
-    const fadeOutStart = when + Math.max(0, duration - fadeOut);
+  if (effectiveFadeOut > 0) {
+    const fadeOutStart = when + Math.max(0, duration - effectiveFadeOut);
     gainNode.gain.setValueAtTime(targetVol, fadeOutStart);
     gainNode.gain.linearRampToValueAtTime(0, when + duration);
   }

@@ -1,4 +1,3 @@
-import React from 'react';
 import {
   Scissors,
   Trash2,
@@ -6,6 +5,8 @@ import {
   Snowflake,
   Sliders,
   X,
+  Layers,
+  FolderOpen,
 } from 'lucide-react';
 import { useEditorStore } from '../store/editorStore';
 
@@ -20,6 +21,8 @@ export const MobileFloatingClipBar = () => {
     deselectAll,
     setMobileInspectorOpen,
     isMobileInspectorOpen,
+    groupSelectedIntoCompoundClip,
+    enterCompoundClip,
   } = useEditorStore();
 
   const selectedClip = getSelectedClip();
@@ -84,6 +87,27 @@ export const MobileFloatingClipBar = () => {
         >
           <Snowflake className="w-4 h-4" strokeWidth={1.5} />
           <span className="text-[9px] font-normal mt-0.5">Freeze</span>
+        </button>
+      )}
+
+      {/* Compound Clip Actions */}
+      {selectedClip.type === 'compound' ? (
+        <button
+          onClick={() => enterCompoundClip(selectedClip.id)}
+          className="flex flex-col items-center justify-center min-w-[44px] min-h-[44px] px-2 rounded-[6px] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] text-[#737373] dark:text-[#A1A1A1] hover:text-[#171717] dark:hover:text-[#EDEDED] transition-colors cursor-pointer"
+          title="Open Compound Clip"
+        >
+          <FolderOpen className="w-4 h-4 text-[#3B82F6]" strokeWidth={1.5} />
+          <span className="text-[9px] font-normal mt-0.5 text-[#3B82F6]">Open</span>
+        </button>
+      ) : (
+        <button
+          onClick={() => groupSelectedIntoCompoundClip()}
+          className="flex flex-col items-center justify-center min-w-[44px] min-h-[44px] px-2 rounded-[6px] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] text-[#737373] dark:text-[#A1A1A1] hover:text-[#171717] dark:hover:text-[#EDEDED] transition-colors cursor-pointer"
+          title="Group into Compound Clip"
+        >
+          <Layers className="w-4 h-4" strokeWidth={1.5} />
+          <span className="text-[9px] font-normal mt-0.5">Group</span>
         </button>
       )}
 

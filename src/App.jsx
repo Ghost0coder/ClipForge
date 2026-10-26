@@ -10,6 +10,7 @@ import { ProjectManagerModal } from './components/ProjectManagerModal';
 import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
 import { OnboardingModal } from './components/OnboardingModal';
 import { TemplateModal } from './components/TemplateModal';
+import { AudioMixerModal } from './components/AudioMixerModal';
 import { ToastContainer } from './components/ToastContainer';
 import { MobileBottomToolbar } from './components/MobileBottomToolbar';
 import { useEditorStore } from './store/editorStore';
@@ -204,6 +205,7 @@ export default function App() {
       <KeyboardShortcutsModal />
       <OnboardingModal isOpen={isOnboardingOpen} onClose={closeOnboarding} />
       <TemplateModal />
+      <AudioMixerModal />
 
       {/* Global Error & Notification Toasts */}
       <ToastContainer />

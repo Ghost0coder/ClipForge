@@ -151,12 +151,18 @@ class AudioEngine {constructor() { AudioEngine.prototype.__init.call(this);Audio
             const trackVol = track.volume != null ? track.volume : 1;
             const isMute = Boolean(clip.audioProps && clip.audioProps.mute);
 
-            // Compute dynamic Fade In / Fade Out envelope
+            // Compute dynamic Fade In / Fade Out envelope with Transition crossfade
             const clipElapsed = currentTime - clipStart;
             const clipRemaining = clipEnd - currentTime;
             let fadeGain = 1.0;
-            const fadeInDur = _optionalChain([clip, 'access', _ => _.audioProps, 'optionalAccess', _2 => _2.fadeIn]) || 0;
-            const fadeOutDur = _optionalChain([clip, 'access', _3 => _3.audioProps, 'optionalAccess', _4 => _4.fadeOut]) || 0;
+            const fadeInDur = Math.max(
+              _optionalChain([clip, 'access', _ => _.audioProps, 'optionalAccess', _2 => _2.fadeIn]) || 0,
+              (clip.transitionIn && clip.transitionIn.duration) ? clip.transitionIn.duration : 0
+            );
+            const fadeOutDur = Math.max(
+              _optionalChain([clip, 'access', _3 => _3.audioProps, 'optionalAccess', _4 => _4.fadeOut]) || 0,
+              (clip.transitionOut && clip.transitionOut.duration) ? clip.transitionOut.duration : 0
+            );
             if (fadeInDur > 0 && clipElapsed < fadeInDur) {
               fadeGain = Math.max(0, clipElapsed / fadeInDur);
             }
@@ -195,8 +201,14 @@ class AudioEngine {constructor() { AudioEngine.prototype.__init.call(this);Audio
         const clipElapsed = Math.max(0, currentTime - clip.start);
         const clipRemaining = Math.max(0, clip.duration - clipElapsed);
         let fadeGain = 1.0;
-        const fadeInDur = _optionalChain([clip, 'access', _5 => _5.audioProps, 'optionalAccess', _6 => _6.fadeIn]) || 0;
-        const fadeOutDur = _optionalChain([clip, 'access', _7 => _7.audioProps, 'optionalAccess', _8 => _8.fadeOut]) || 0;
+        const fadeInDur = Math.max(
+          _optionalChain([clip, 'access', _5 => _5.audioProps, 'optionalAccess', _6 => _6.fadeIn]) || 0,
+          (clip.transitionIn && clip.transitionIn.duration) ? clip.transitionIn.duration : 0
+        );
+        const fadeOutDur = Math.max(
+          _optionalChain([clip, 'access', _7 => _7.audioProps, 'optionalAccess', _8 => _8.fadeOut]) || 0,
+          (clip.transitionOut && clip.transitionOut.duration) ? clip.transitionOut.duration : 0
+        );
         if (fadeInDur > 0 && clipElapsed < fadeInDur) {
           fadeGain = Math.max(0, clipElapsed / fadeInDur);
         }

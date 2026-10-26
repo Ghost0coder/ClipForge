@@ -3,6 +3,7 @@ import { FILTERS_LIST } from './sampleData';
 import { toastError } from '../store/toastStore';
 import { useEditorStore } from '../store/editorStore';
 import { getSpeedCurveSourceTime, applyAdvancedColorGrading } from './colorGradingUtils';
+import { renderTransition, TRANSITIONS_REGISTRY } from './transitions';
 
 
 
@@ -114,6 +115,28 @@ export function getInterpolatedProperty(
   return defaultValue;
 }
 
+let scratchCanvasOut = null;
+let scratchCanvasIn = null;
+
+function getScratchCanvases(w, h) {
+  if (typeof document === 'undefined') return { canvasOut: null, ctxOut: null, canvasIn: null, ctxIn: null };
+  if (!scratchCanvasOut || scratchCanvasOut.width !== w || scratchCanvasOut.height !== h) {
+    scratchCanvasOut = document.createElement('canvas');
+    scratchCanvasOut.width = w;
+    scratchCanvasOut.height = h;
+  }
+  if (!scratchCanvasIn || scratchCanvasIn.width !== w || scratchCanvasIn.height !== h) {
+    scratchCanvasIn = document.createElement('canvas');
+    scratchCanvasIn.width = w;
+    scratchCanvasIn.height = h;
+  }
+  const ctxOut = scratchCanvasOut.getContext('2d');
+  const ctxIn = scratchCanvasIn.getContext('2d');
+  ctxOut.clearRect(0, 0, w, h);
+  ctxIn.clearRect(0, 0, w, h);
+  return { canvasOut: scratchCanvasOut, ctxOut, canvasIn: scratchCanvasIn, ctxIn };
+}
+
 export function renderFrame(
   ctx,
   project,
@@ -150,15 +173,86 @@ export function renderFrame(
   const activeVideoClipIds = new Set();
 
   for (const track of visualTracks) {
-    for (const clip of track.clips) {
-      const clipStart = clip.start;
-      const clipEnd = clip.start + clip.duration;
+    const sortedClips = [...track.clips].sort((a, b) => a.start - b.start);
+    const handledClipIds = new Set();
 
-      if (currentTime >= clipStart && currentTime < clipEnd) {
-        if (clip.type === 'video' && clip.mediaUrl) {
-          activeVideoClipIds.add(clip.id);
+    // 1. Check for cut transitions between adjacent clips
+    for (let i = 0; i < sortedClips.length; i++) {
+      const clipB = sortedClips[i];
+      if (i > 0) {
+        const clipA = sortedClips[i - 1];
+        const gap = clipB.start - (clipA.start + clipA.duration);
+        if (gap < 0.5 && gap > -0.5 && clipB.transitionIn && clipB.transitionIn.type) {
+          const transDur = clipB.transitionIn.duration || 0.6;
+          const cutTime = clipB.start;
+          const transStart = cutTime - transDur / 2;
+          const transEnd = cutTime + transDur / 2;
+
+          if (currentTime >= transStart && currentTime < transEnd) {
+            const rawProgress = (currentTime - transStart) / transDur;
+            const { canvasOut, ctxOut, canvasIn, ctxIn } = getScratchCanvases(cw, ch);
+            if (canvasOut && canvasIn) {
+              if (clipA.type === 'video' && clipA.mediaUrl) activeVideoClipIds.add(clipA.id);
+              if (clipB.type === 'video' && clipB.mediaUrl) activeVideoClipIds.add(clipB.id);
+
+              renderClip(ctxOut, clipA, track, Math.min(clipA.start + clipA.duration - 0.001, currentTime), cw, ch, { ...options, isTransitionSubrender: true });
+              renderClip(ctxIn, clipB, track, Math.max(clipB.start, currentTime), cw, ch, { ...options, isTransitionSubrender: true });
+
+              renderTransition(ctx, clipB.transitionIn.type, canvasOut, canvasIn, rawProgress, cw, ch, clipB.transitionIn);
+              handledClipIds.add(clipA.id);
+              handledClipIds.add(clipB.id);
+              continue;
+            }
+          }
         }
-        renderClip(ctx, clip, track, currentTime, cw, ch, options);
+      }
+
+      // 2. Check first clip In-Transition (Fade/wipe from black or transparent)
+      if (i === 0 && clipB.transitionIn && clipB.transitionIn.type) {
+        const transDur = clipB.transitionIn.duration || 0.6;
+        if (currentTime >= clipB.start && currentTime < clipB.start + transDur) {
+          const rawProgress = (currentTime - clipB.start) / transDur;
+          const { canvasOut, ctxOut, canvasIn, ctxIn } = getScratchCanvases(cw, ch);
+          if (canvasOut && canvasIn) {
+            if (clipB.type === 'video' && clipB.mediaUrl) activeVideoClipIds.add(clipB.id);
+            renderClip(ctxIn, clipB, track, currentTime, cw, ch, { ...options, isTransitionSubrender: true });
+            renderTransition(ctx, clipB.transitionIn.type, canvasOut, canvasIn, rawProgress, cw, ch, clipB.transitionIn);
+            handledClipIds.add(clipB.id);
+            continue;
+          }
+        }
+      }
+
+      // 3. Check last clip Out-Transition (Fade/wipe to black or transparent)
+      if (clipB.transitionOut && clipB.transitionOut.type) {
+        const isLastOnTrack = (i === sortedClips.length - 1) || (sortedClips[i + 1].start - (clipB.start + clipB.duration) >= 0.5);
+        if (isLastOnTrack) {
+          const transDur = clipB.transitionOut.duration || 0.6;
+          const transStart = clipB.start + clipB.duration - transDur;
+          if (currentTime >= transStart && currentTime < clipB.start + clipB.duration) {
+            const rawProgress = (currentTime - transStart) / transDur;
+            const { canvasOut, ctxOut, canvasIn, ctxIn } = getScratchCanvases(cw, ch);
+            if (canvasOut && canvasIn) {
+              if (clipB.type === 'video' && clipB.mediaUrl) activeVideoClipIds.add(clipB.id);
+              renderClip(ctxOut, clipB, track, currentTime, cw, ch, { ...options, isTransitionSubrender: true });
+              renderTransition(ctx, clipB.transitionOut.type, canvasOut, canvasIn, rawProgress, cw, ch, clipB.transitionOut);
+              handledClipIds.add(clipB.id);
+              continue;
+            }
+          }
+        }
+      }
+
+      // Default rendering if not inside a transition window
+      if (!handledClipIds.has(clipB.id)) {
+        const clipStart = clipB.start;
+        const clipEnd = clipB.start + clipB.duration;
+        if (currentTime >= clipStart && currentTime < clipEnd) {
+          if (clipB.type === 'video' && clipB.mediaUrl) {
+            activeVideoClipIds.add(clipB.id);
+          }
+          renderClip(ctx, clipB, track, currentTime, cw, ch, options);
+        }
       }
     }
   }
@@ -211,7 +305,9 @@ function renderClip(
   let transitionScale = 1;
   let transitionRotation = 0;
 
-  if (clip.transitionIn && clip.transitionIn.duration > 0 && clipElapsed < clip.transitionIn.duration) {
+  const isTransitionSubrender = Boolean(options.isTransitionSubrender);
+
+  if (!isTransitionSubrender && clip.transitionIn && clip.transitionIn.duration > 0 && clipElapsed < clip.transitionIn.duration) {
     const t = Math.max(0, Math.min(1, clipElapsed / clip.transitionIn.duration));
     const transType = clip.transitionIn.type;
 
@@ -255,7 +351,7 @@ function renderClip(
     }
   }
 
-  if (clip.transitionOut && clip.transitionOut.duration > 0 && clipRemaining < clip.transitionOut.duration) {
+  if (!isTransitionSubrender && clip.transitionOut && clip.transitionOut.duration > 0 && clipRemaining < clip.transitionOut.duration) {
     const t = Math.max(0, Math.min(1, clipRemaining / clip.transitionOut.duration));
     const transType = clip.transitionOut.type;
 

@@ -27,11 +27,16 @@ import {
   Check,
   Magnet,
   Activity,
+  Sliders,
+  ChevronLeft,
+  FolderPlus,
 } from 'lucide-react';
 import { useEditorStore } from '../store/editorStore';
 import { TRANSITIONS_LIST, EFFECTS_LIST } from '../utils/sampleData';
 import { useResponsive } from '../utils/useResponsive';
 import { MobileFloatingClipBar } from './MobileFloatingClipBar';
+import { TransitionModal } from './TransitionModal';
+import { toastSuccess } from '../store/toastStore';
 
 export const Timeline = () => {
   const {
@@ -70,6 +75,13 @@ export const Timeline = () => {
     selectedKeyframeId,
     setSelectedKeyframeId,
     updateKeyframeTime,
+    trackHeightMode,
+    setTrackHeightMode,
+    activeCompoundClipId,
+    enterCompoundClip,
+    exitCompoundClip,
+    groupSelectedIntoCompoundClip,
+    setMixerModalOpen,
   } = useEditorStore();
 
   const { isMobile } = useResponsive();
@@ -301,6 +313,12 @@ export const Timeline = () => {
   };
 
   const getClipBgColor = (clip) => {
+    if (clip.colorLabel) {
+      return 'border-black/25 text-white shadow-xs';
+    }
+    if (clip.type === 'compound') {
+      return 'bg-[#EDE9FE] dark:bg-[#2E1065]/70 border-[#C4B5FD] dark:border-[#581C87] text-[#5B21B6] dark:text-[#DDD6FE]';
+    }
     switch (clip.type) {
       case 'video':
       case 'color':
@@ -318,6 +336,23 @@ export const Timeline = () => {
         return 'bg-[#F5F5F5] dark:bg-[#222222] border-[#E5E5E5] dark:border-[#2A2A2A] text-[#171717] dark:text-[#EDEDED]';
     }
   };
+
+  let activeCompoundClip = null;
+  if (activeCompoundClipId) {
+    for (const t of project.tracks) {
+      const found = t.clips.find((c) => c.id === activeCompoundClipId);
+      if (found) {
+        activeCompoundClip = found;
+        break;
+      }
+    }
+  }
+  const tracksToRender = activeCompoundClipId && activeCompoundClip?.compoundData?.tracks
+    ? activeCompoundClip.compoundData.tracks
+    : project.tracks;
+
+  const trackHeightClass =
+    trackHeightMode === 'small' ? 'h-10' : trackHeightMode === 'large' ? 'h-20' : 'h-14';
 
   return (
     <footer
@@ -415,12 +450,70 @@ export const Timeline = () => {
             title={snapToBeats ? 'Snap to Beats Active' : 'Snap to Beats Off'}
           >
             <Magnet className="w-3.5 h-3.5" strokeWidth={1.5} />
-            <span className="hidden sm:inline">Snap to Beats</span>
+            <span className="hidden sm:inline">Snap Beats</span>
+          </button>
+
+          {/* Magnetic Timeline Toggle */}
+          <button
+            onClick={toggleMagnetic}
+            className={`flex items-center gap-1 px-2 py-1 rounded-[6px] border text-xs transition-colors cursor-pointer shrink-0 ${
+              magneticTimeline
+                ? 'bg-[#3B82F6]/10 text-[#3B82F6] border-[#3B82F6]'
+                : 'bg-white dark:bg-[#1A1A1A] text-[#737373] dark:text-[#A1A1A1] hover:text-[#171717] dark:hover:text-[#EDEDED] border-[#E5E5E5] dark:border-[#2A2A2A]'
+            }`}
+            title={magneticTimeline ? 'Magnetic Timeline: On (clips snap with no gaps)' : 'Magnetic Timeline: Off'}
+          >
+            <Magnet className="w-3.5 h-3.5" strokeWidth={1.5} />
+            <span className="hidden sm:inline">Magnetic</span>
+          </button>
+
+          {/* Group into Compound Clip */}
+          <button
+            onClick={() => groupSelectedIntoCompoundClip()}
+            disabled={selectedClipIds.length === 0}
+            className="flex items-center gap-1 px-2 py-1 rounded-[6px] bg-white dark:bg-[#1A1A1A] hover:bg-purple-50 dark:hover:bg-purple-950/30 text-xs text-[#737373] dark:text-[#A1A1A1] hover:text-purple-600 dark:hover:text-purple-400 border border-[#E5E5E5] dark:border-[#2A2A2A] disabled:opacity-30 transition-colors cursor-pointer shrink-0"
+            title="Group Selected Clips into Compound Clip"
+          >
+            <FolderPlus className="w-3.5 h-3.5" strokeWidth={1.5} />
+            <span className="hidden sm:inline">Compound</span>
+          </button>
+
+          {/* Audio Mixer Modal Button */}
+          <button
+            onClick={() => setMixerModalOpen(true)}
+            className="flex items-center gap-1 px-2 py-1 rounded-[6px] bg-white dark:bg-[#1A1A1A] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] text-xs text-[#737373] dark:text-[#A1A1A1] hover:text-[#171717] dark:hover:text-[#EDEDED] border border-[#E5E5E5] dark:border-[#2A2A2A] transition-colors cursor-pointer shrink-0"
+            title="Open Audio Mixer & Limiter"
+          >
+            <Sliders className="w-3.5 h-3.5 text-[#3B82F6]" strokeWidth={1.5} />
+            <span className="hidden sm:inline">Mixer</span>
           </button>
         </div>
 
-        {/* Right Tools: Zoom Slider & Controls */}
+        {/* Right Tools: Track Height & Zoom Slider */}
         <div className="flex items-center gap-2 shrink-0">
+          {/* Track Height Switcher */}
+          <div className="flex items-center border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] p-0.5 bg-white dark:bg-[#1A1A1A]">
+            {[
+              { id: 'small', label: 'S', title: 'Small track height (38px)' },
+              { id: 'medium', label: 'M', title: 'Medium track height (56px)' },
+              { id: 'large', label: 'L', title: 'Large track height (78px)' },
+            ].map((th) => (
+              <button
+                key={th.id}
+                type="button"
+                onClick={() => setTrackHeightMode(th.id)}
+                className={`px-1.5 py-0.5 text-[10px] rounded-[3px] transition-colors cursor-pointer ${
+                  trackHeightMode === th.id
+                    ? 'bg-[#171717] text-white dark:bg-[#EDEDED] dark:text-[#171717] font-medium'
+                    : 'text-[#737373] dark:text-[#A1A1A1] hover:text-[#171717] dark:hover:text-[#EDEDED]'
+                }`}
+                title={th.title}
+              >
+                {th.label}
+              </button>
+            ))}
+          </div>
+
           <div className="flex items-center gap-1">
             <button
               onClick={() => setZoom(Math.max(10, zoom - 15))}
@@ -451,6 +544,28 @@ export const Timeline = () => {
         </div>
       </div>
 
+      {/* Compound Clip Breadcrumb Navigation Bar */}
+      {activeCompoundClipId && (
+        <div className="h-8 px-3 bg-purple-50 dark:bg-purple-950/40 border-b border-purple-200 dark:border-purple-800/60 flex items-center justify-between text-xs text-purple-700 dark:text-purple-300 shrink-0">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={exitCompoundClip}
+              className="px-2 py-0.5 rounded bg-white dark:bg-[#1A1A1A] border border-purple-300 dark:border-purple-700 hover:bg-purple-100 dark:hover:bg-purple-900/50 flex items-center gap-1 font-medium transition-colors cursor-pointer"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+              <span>Back to Main Timeline</span>
+            </button>
+            <span className="font-semibold truncate">
+              Editing: {activeCompoundClip?.name || 'Compound Clip'}
+            </span>
+          </div>
+          <span className="text-[10px] opacity-75 hidden sm:inline">
+            Double-click exit or click Back to return
+          </span>
+        </div>
+      )}
+
       {/* Multi-Track Body: Left Headers + Right Timeline Canvas */}
       <div className="flex-1 flex overflow-hidden min-h-0">
         {/* Left Track Headers Column */}
@@ -468,15 +583,15 @@ export const Timeline = () => {
           {/* Header spacer matching ruler height */}
           <div className="h-7 border-b border-[#E5E5E5] dark:border-[#2A2A2A] bg-[#FAFAFA] dark:bg-[#111111] px-2 flex items-center justify-between text-[10px] text-[#737373] dark:text-[#A1A1A1] font-normal shrink-0 sticky top-0 z-10">
             <span>{isMobile ? '#' : 'Tracks'}</span>
-            <span className="tabular-nums font-normal text-[10px]">{project.tracks.length}</span>
+            <span className="tabular-nums font-normal text-[10px]">{tracksToRender.length}</span>
           </div>
 
           {/* Track Header Rows */}
           <div className="flex-1 space-y-1 py-1 px-1">
-            {project.tracks.map((track) => (
+            {tracksToRender.map((track) => (
               <div
                 key={track.id}
-                className="h-14 px-1 rounded-[6px] bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] flex flex-col justify-between py-1 transition-colors group"
+                className={`${trackHeightClass} px-1 rounded-[6px] bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] flex flex-col justify-between py-1 transition-colors group`}
               >
                 <div className="flex items-center justify-center sm:justify-between min-w-0">
                   <div className="flex items-center gap-1 min-w-0" title={track.name}>
@@ -652,10 +767,10 @@ export const Timeline = () => {
                 }
               }}
             >
-              {project.tracks.map((track) => (
+              {tracksToRender.map((track) => (
                 <div
                   key={track.id}
-                  className={`h-14 relative bg-white/70 dark:bg-[#1A1A1A]/70 border-y border-r border-[#E5E5E5] dark:border-[#2A2A2A] border-l-0 rounded-r-[6px] transition-colors ${
+                  className={`${trackHeightClass} relative bg-white/70 dark:bg-[#1A1A1A]/70 border-y border-r border-[#E5E5E5] dark:border-[#2A2A2A] border-l-0 rounded-r-[6px] transition-colors ${
                     track.locked ? 'opacity-60 pointer-events-none' : ''
                   }`}
                 >
@@ -671,6 +786,12 @@ export const Timeline = () => {
                         onClick={(e) => {
                           e.stopPropagation();
                           selectClip(clip.id, e.shiftKey);
+                        }}
+                        onDoubleClick={(e) => {
+                          e.stopPropagation();
+                          if (clip.type === 'compound') {
+                            enterCompoundClip(clip.id);
+                          }
                         }}
                         onMouseDown={(e) => {
                           if (e.target !== e.currentTarget && (e.target ).dataset.handle) {
@@ -721,6 +842,7 @@ export const Timeline = () => {
                         style={{
                           left: `${leftPx}px`,
                           width: `${widthPx}px`,
+                          backgroundColor: clip.colorLabel || undefined,
                         }}
                         className={`absolute top-1 bottom-1 rounded-[6px] border text-xs px-2 py-1 flex items-center justify-between cursor-move overflow-hidden transition-all ${getClipBgColor(
                           clip
@@ -904,55 +1026,203 @@ export const Timeline = () => {
                     );
                   })}
 
-                  {/* Transition Cut Buttons between adjacent clips on visual tracks */}
+                  {/* Transition Cut Buttons on visual tracks */}
                   {track.type !== 'audio' && (() => {
                     const sortedClips = [...track.clips].sort((a, b) => a.start - b.start);
-                    return sortedClips.slice(0, -1).map((clipA, idx) => {
-                      const clipB = sortedClips[idx + 1];
-                      const gap = clipB.start - (clipA.start + clipA.duration);
-                      if (gap < 0.4 && gap > -0.1) {
-                        const cutPosPx = clipB.start * zoom;
-                        const hasTransition = Boolean(clipB.transitionIn && clipB.transitionIn.type);
-                        const transItem = hasTransition ? TRANSITIONS_LIST.find((t) => t.id === clipB.transitionIn.type) : null;
-                        const transName = transItem ? transItem.name : (clipB.transitionIn ? clipB.transitionIn.type : '');
+                    if (sortedClips.length === 0) return null;
 
-                        return (
-                          <div
-                            key={`trans-cut-${clipA.id}-${clipB.id}`}
-                            style={{ left: `${cutPosPx}px` }}
-                            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 z-35 flex items-center justify-center pointer-events-auto"
+                    const firstClip = sortedClips[0];
+                    const lastClip = sortedClips[sortedClips.length - 1];
+
+                    const firstCutPosPx = firstClip.start * zoom;
+                    const hasFirstTrans = Boolean(firstClip.transitionIn && firstClip.transitionIn.type);
+                    const firstTransItem = hasFirstTrans ? TRANSITIONS_LIST.find((t) => t.id === firstClip.transitionIn.type) : null;
+                    const firstTransName = firstTransItem ? firstTransItem.name : (firstClip.transitionIn ? firstClip.transitionIn.type : '');
+
+                    const lastCutPosPx = (lastClip.start + lastClip.duration) * zoom;
+                    const hasLastTrans = Boolean(lastClip.transitionOut && lastClip.transitionOut.type);
+                    const lastTransItem = hasLastTrans ? TRANSITIONS_LIST.find((t) => t.id === lastClip.transitionOut.type) : null;
+                    const lastTransName = lastTransItem ? lastTransItem.name : (lastClip.transitionOut ? lastClip.transitionOut.type : '');
+
+                    return (
+                      <>
+                        {/* 1. First clip In-Transition (Fade in from black / cut) */}
+                        <div
+                          key={`trans-first-${firstClip.id}`}
+                          style={{ left: `${firstCutPosPx}px` }}
+                          className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 z-35 flex items-center justify-center pointer-events-auto"
+                        >
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setTransitionModal({
+                                clipId: firstClip.id,
+                                clipName: firstClip.name,
+                                currentTransition: firstClip.transitionIn || { type: 'fade', duration: 0.6 },
+                                mode: 'in',
+                              });
+                            }}
+                            onDragOver={(e) => {
+                              e.preventDefault();
+                              e.dataTransfer.dropEffect = 'copy';
+                            }}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              try {
+                                const raw = e.dataTransfer.getData('application/json');
+                                if (raw) {
+                                  const data = JSON.parse(raw);
+                                  if (data.type === 'transition') {
+                                    useEditorStore.getState().pushHistory();
+                                    updateClip(firstClip.id, { transitionIn: { type: data.transitionId, duration: 0.6 } });
+                                    toastSuccess('Applied In-Transition (Fade in from Black)', 'Transition Added');
+                                  }
+                                }
+                              } catch (err) {}
+                            }}
+                            className={`group flex items-center justify-center transition-transform hover:scale-110 active:scale-95 cursor-pointer ${
+                              isMobile ? 'min-w-[44px] min-h-[44px]' : 'p-0.5'
+                            }`}
+                            title={hasFirstTrans ? `In-Transition: ${firstTransName} (${firstClip.transitionIn.duration}s). Click to edit.` : 'Add In-Transition (Fade in from black)'}
                           >
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setTransitionModal({
-                                  clipId: clipB.id,
-                                  clipName: clipB.name,
-                                  currentTransition: clipB.transitionIn || { type: 'dissolve', duration: 0.5 },
-                                });
-                              }}
-                              className={`group flex items-center justify-center transition-transform hover:scale-110 active:scale-95 cursor-pointer ${
-                                isMobile ? 'min-w-[44px] min-h-[44px]' : 'p-0.5'
-                              }`}
-                              title={hasTransition ? `Transition: ${transName} (${clipB.transitionIn.duration}s). Click to edit.` : 'Add Transition between clips (+)'}
-                            >
-                              {hasTransition ? (
-                                <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-[4px] bg-[#3B82F6] text-white text-[10px] font-medium border border-blue-400 shadow-xs">
-                                  <Shuffle className="w-2.5 h-2.5" strokeWidth={2} />
-                                  <span className="hidden sm:inline max-w-[50px] truncate">{transName}</span>
-                                </div>
-                              ) : (
-                                <div className="w-5 h-5 rounded-[4px] bg-white dark:bg-[#1A1A1A] border border-[#CBD5E1] dark:border-[#404040] hover:border-[#3B82F6] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] flex items-center justify-center text-[11px] font-semibold text-[#525252] dark:text-[#A3A3A3] hover:text-[#171717] dark:hover:text-[#EDEDED] shadow-xs">
-                                  <Plus className="w-3 h-3" strokeWidth={2} />
-                                </div>
-                              )}
-                            </button>
-                          </div>
-                        );
-                      }
-                      return null;
-                    });
+                            {hasFirstTrans ? (
+                              <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-[4px] bg-[#3B82F6] text-white text-[10px] font-medium border border-blue-400 shadow-xs">
+                                <Shuffle className="w-2.5 h-2.5" strokeWidth={2} />
+                                <span className="hidden sm:inline max-w-[50px] truncate">{firstTransName}</span>
+                              </div>
+                            ) : (
+                              <div className="w-4 h-4 rounded-[3px] bg-white dark:bg-[#1A1A1A] border border-[#CBD5E1] dark:border-[#404040] hover:border-[#3B82F6] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] flex items-center justify-center text-[10px] text-[#525252] dark:text-[#A3A3A3] hover:text-[#171717] dark:hover:text-[#EDEDED] shadow-xs">
+                                <Plus className="w-2.5 h-2.5" strokeWidth={2} />
+                              </div>
+                            )}
+                          </button>
+                        </div>
+
+                        {/* 2. Adjacent clips cuts */}
+                        {sortedClips.slice(0, -1).map((clipA, idx) => {
+                          const clipB = sortedClips[idx + 1];
+                          const gap = clipB.start - (clipA.start + clipA.duration);
+                          if (gap < 0.4 && gap > -0.1) {
+                            const cutPosPx = clipB.start * zoom;
+                            const hasTransition = Boolean(clipB.transitionIn && clipB.transitionIn.type);
+                            const transItem = hasTransition ? TRANSITIONS_LIST.find((t) => t.id === clipB.transitionIn.type) : null;
+                            const transName = transItem ? transItem.name : (clipB.transitionIn ? clipB.transitionIn.type : '');
+
+                            return (
+                              <div
+                                key={`trans-cut-${clipA.id}-${clipB.id}`}
+                                style={{ left: `${cutPosPx}px` }}
+                                className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 z-35 flex items-center justify-center pointer-events-auto"
+                              >
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setTransitionModal({
+                                      clipId: clipB.id,
+                                      clipName: clipB.name,
+                                      currentTransition: clipB.transitionIn || { type: 'dissolve', duration: 0.5 },
+                                      mode: 'in',
+                                    });
+                                  }}
+                                  onDragOver={(e) => {
+                                    e.preventDefault();
+                                    e.dataTransfer.dropEffect = 'copy';
+                                  }}
+                                  onDrop={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    try {
+                                      const raw = e.dataTransfer.getData('application/json');
+                                      if (raw) {
+                                        const data = JSON.parse(raw);
+                                        if (data.type === 'transition') {
+                                          useEditorStore.getState().pushHistory();
+                                          updateClip(clipB.id, { transitionIn: { type: data.transitionId, duration: 0.6 } });
+                                          toastSuccess('Applied transition to cut', 'Transition Added');
+                                        }
+                                      }
+                                    } catch (err) {}
+                                  }}
+                                  className={`group flex items-center justify-center transition-transform hover:scale-110 active:scale-95 cursor-pointer ${
+                                    isMobile ? 'min-w-[44px] min-h-[44px]' : 'p-0.5'
+                                  }`}
+                                  title={hasTransition ? `Transition: ${transName} (${clipB.transitionIn.duration}s). Click to edit.` : 'Add Transition between clips (+)'}
+                                >
+                                  {hasTransition ? (
+                                    <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-[4px] bg-[#3B82F6] text-white text-[10px] font-medium border border-blue-400 shadow-xs">
+                                      <Shuffle className="w-2.5 h-2.5" strokeWidth={2} />
+                                      <span className="hidden sm:inline max-w-[50px] truncate">{transName}</span>
+                                    </div>
+                                  ) : (
+                                    <div className="w-5 h-5 rounded-[4px] bg-white dark:bg-[#1A1A1A] border border-[#CBD5E1] dark:border-[#404040] hover:border-[#3B82F6] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] flex items-center justify-center text-[11px] font-semibold text-[#525252] dark:text-[#A3A3A3] hover:text-[#171717] dark:hover:text-[#EDEDED] shadow-xs">
+                                      <Plus className="w-3 h-3" strokeWidth={2} />
+                                    </div>
+                                  )}
+                                </button>
+                              </div>
+                            );
+                          }
+                          return null;
+                        })}
+
+                        {/* 3. Last clip Out-Transition (Fade out to black / cut) */}
+                        <div
+                          key={`trans-last-${lastClip.id}`}
+                          style={{ left: `${lastCutPosPx}px` }}
+                          className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 z-35 flex items-center justify-center pointer-events-auto"
+                        >
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setTransitionModal({
+                                clipId: lastClip.id,
+                                clipName: lastClip.name,
+                                currentTransition: lastClip.transitionOut || { type: 'fade', duration: 0.6 },
+                                mode: 'out',
+                              });
+                            }}
+                            onDragOver={(e) => {
+                              e.preventDefault();
+                              e.dataTransfer.dropEffect = 'copy';
+                            }}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              try {
+                                const raw = e.dataTransfer.getData('application/json');
+                                if (raw) {
+                                  const data = JSON.parse(raw);
+                                  if (data.type === 'transition') {
+                                    useEditorStore.getState().pushHistory();
+                                    updateClip(lastClip.id, { transitionOut: { type: data.transitionId, duration: 0.6 } });
+                                    toastSuccess('Applied Out-Transition (Fade out to Black)', 'Transition Added');
+                                  }
+                                }
+                              } catch (err) {}
+                            }}
+                            className={`group flex items-center justify-center transition-transform hover:scale-110 active:scale-95 cursor-pointer ${
+                              isMobile ? 'min-w-[44px] min-h-[44px]' : 'p-0.5'
+                            }`}
+                            title={hasLastTrans ? `Out-Transition: ${lastTransName} (${lastClip.transitionOut.duration}s). Click to edit.` : 'Add Out-Transition (Fade out to black)'}
+                          >
+                            {hasLastTrans ? (
+                              <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-[4px] bg-[#3B82F6] text-white text-[10px] font-medium border border-blue-400 shadow-xs">
+                                <Shuffle className="w-2.5 h-2.5" strokeWidth={2} />
+                                <span className="hidden sm:inline max-w-[50px] truncate">{lastTransName}</span>
+                              </div>
+                            ) : (
+                              <div className="w-4 h-4 rounded-[3px] bg-white dark:bg-[#1A1A1A] border border-[#CBD5E1] dark:border-[#404040] hover:border-[#3B82F6] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] flex items-center justify-center text-[10px] text-[#525252] dark:text-[#A3A3A3] hover:text-[#171717] dark:hover:text-[#EDEDED] shadow-xs">
+                                <Plus className="w-2.5 h-2.5" strokeWidth={2} />
+                              </div>
+                            )}
+                          </button>
+                        </div>
+                      </>
+                    );
                   })()}
                 </div>
               ))}
@@ -961,165 +1231,23 @@ export const Timeline = () => {
         </div>
       </div>
 
-      {/* Transition Selector Modal */}
+      {/* Comprehensive Transition Selector Modal */}
       {transitionModal && (
-        <div
-          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4"
-          onClick={() => setTransitionModal(null)}
-        >
-          <div
-            className="bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[8px] shadow-xl w-full max-w-sm p-4 space-y-3.5 select-none animate-in fade-in zoom-in-95 duration-150"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between border-b border-[#E5E5E5] dark:border-[#2A2A2A] pb-2.5">
-              <div>
-                <h3 className="text-xs font-semibold text-[#171717] dark:text-[#EDEDED] flex items-center gap-1.5">
-                  <Shuffle className="w-3.5 h-3.5 text-[#3B82F6]" strokeWidth={1.5} />
-                  Add Transition to Cut
-                </h3>
-                <p className="text-[10px] text-[#737373] dark:text-[#A1A1A1] truncate max-w-[240px]">
-                  Clip: {transitionModal.clipName}
-                </p>
-              </div>
-              <button
-                onClick={() => setTransitionModal(null)}
-                className="p-1 rounded-[4px] text-[#737373] hover:text-[#171717] dark:hover:text-[#EDEDED] cursor-pointer"
-              >
-                <X className="w-4 h-4" strokeWidth={1.5} />
-              </button>
-            </div>
-
-            {/* Duration slider */}
-            <div className="space-y-1.5">
-              <div className="flex justify-between items-center text-xs">
-                <span className="font-normal text-[#171717] dark:text-[#EDEDED]">Duration</span>
-                <span className="font-mono text-[#737373] dark:text-[#A1A1A1] tabular-nums text-[11px]">
-                  {(transitionModal.currentTransition?.duration || 0.5).toFixed(1)}s
-                </span>
-              </div>
-              <input
-                type="range"
-                min="0.2"
-                max="2.0"
-                step="0.1"
-                value={transitionModal.currentTransition?.duration || 0.5}
-                onChange={(e) => {
-                  const dur = parseFloat(e.target.value);
-                  setTransitionModal((prev) => ({
-                    ...prev,
-                    currentTransition: {
-                      ...(prev.currentTransition || { type: 'dissolve' }),
-                      duration: dur,
-                    },
-                  }));
-                }}
-                className="w-full cursor-pointer accent-[#171717] dark:accent-[#EDEDED]"
-              />
-              <div className="flex items-center gap-1">
-                {[0.3, 0.5, 0.8, 1.0, 1.5].map((d) => (
-                  <button
-                    key={d}
-                    type="button"
-                    onClick={() => {
-                      setTransitionModal((prev) => ({
-                        ...prev,
-                        currentTransition: {
-                          ...(prev.currentTransition || { type: 'dissolve' }),
-                          duration: d,
-                        },
-                      }));
-                    }}
-                    className={`flex-1 py-0.5 rounded-[4px] text-[10px] font-normal border transition-colors cursor-pointer tabular-nums ${
-                      Math.abs((transitionModal.currentTransition?.duration || 0.5) - d) < 0.05
-                        ? 'bg-[#171717] text-white dark:bg-[#EDEDED] dark:text-[#171717] border-[#171717] dark:border-[#EDEDED]'
-                        : 'bg-white dark:bg-[#1A1A1A] text-[#737373] dark:text-[#A1A1A1] border-[#E5E5E5] dark:border-[#2A2A2A] hover:bg-[#F5F5F5] dark:hover:bg-[#262626]'
-                    }`}
-                  >
-                    {d}s
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Grid of transitions */}
-            <div className="space-y-1">
-              <span className="text-[11px] font-normal text-[#737373] dark:text-[#A1A1A1] block">
-                Preset Styles ({TRANSITIONS_LIST.length})
-              </span>
-              <div className="grid grid-cols-3 gap-1.5 max-h-48 overflow-y-auto pr-0.5">
-                {TRANSITIONS_LIST.map((t) => {
-                  const isSelected = transitionModal.currentTransition?.type === t.id;
-                  return (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => {
-                        setTransitionModal((prev) => ({
-                          ...prev,
-                          currentTransition: {
-                            type: t.id,
-                            duration: prev.currentTransition?.duration || 0.5,
-                          },
-                        }));
-                      }}
-                      className={`p-2 rounded-[6px] border flex flex-col items-center justify-center gap-1 transition-all text-center cursor-pointer ${
-                        isSelected
-                          ? 'bg-blue-50 dark:bg-blue-950/40 border-[#3B82F6] text-[#3B82F6]'
-                          : 'bg-white dark:bg-[#1A1A1A] border-[#E5E5E5] dark:border-[#2A2A2A] hover:border-[#3B82F6] text-[#171717] dark:text-[#EDEDED]'
-                      }`}
-                    >
-                      <Shuffle className="w-3.5 h-3.5 text-[#737373] dark:text-[#A1A1A1]" strokeWidth={1.5} />
-                      <span className="text-[11px] font-normal truncate w-full">{t.name}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Action buttons */}
-            <div className="pt-2 border-t border-[#E5E5E5] dark:border-[#2A2A2A] flex items-center justify-between gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  useEditorStore.getState().pushHistory();
-                  updateClip(transitionModal.clipId, { transitionIn: null });
-                  setTransitionModal(null);
-                }}
-                className="px-2.5 py-1.5 rounded-[6px] text-xs font-normal text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer"
-              >
-                Remove
-              </button>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setTransitionModal(null)}
-                  className="px-3 py-1.5 rounded-[6px] text-xs font-normal border border-[#E5E5E5] dark:border-[#2A2A2A] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] text-[#171717] dark:text-[#EDEDED] cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (transitionModal.currentTransition?.type) {
-                      useEditorStore.getState().pushHistory();
-                      updateClip(transitionModal.clipId, {
-                        transitionIn: {
-                          type: transitionModal.currentTransition.type,
-                          duration: transitionModal.currentTransition.duration || 0.5,
-                        },
-                      });
-                    }
-                    setTransitionModal(null);
-                  }}
-                  className="px-3.5 py-1.5 rounded-[6px] text-xs font-medium bg-[#171717] hover:bg-[#262626] text-white dark:bg-[#EDEDED] dark:hover:bg-white dark:text-[#171717] transition-colors cursor-pointer shadow-xs"
-                >
-                  Apply
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <TransitionModal
+          isOpen={Boolean(transitionModal)}
+          onClose={() => setTransitionModal(null)}
+          clipId={transitionModal.clipId}
+          clipName={transitionModal.clipName}
+          initialTransition={transitionModal.currentTransition}
+          onApply={(updatedTransition) => {
+            useEditorStore.getState().pushHistory();
+            if (transitionModal.mode === 'out') {
+              updateClip(transitionModal.clipId, { transitionOut: updatedTransition });
+            } else {
+              updateClip(transitionModal.clipId, { transitionIn: updatedTransition });
+            }
+          }}
+        />
       )}
     </footer>
   );

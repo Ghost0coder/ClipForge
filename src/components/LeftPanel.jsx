@@ -64,6 +64,8 @@ import { storeMediaBlob } from '../utils/storage';
 
 import { toastError, toastSuccess, } from '../store/toastStore';
 import { generateSampleVideoBlob } from '../utils/sampleVideo';
+import { TRANSITION_CATEGORIES } from '../utils/transitions';
+import { TransitionThumbnail } from './TransitionThumbnail';
 
 function audioBufferToWavBlob(buffer) {
   const numChannels = buffer.numberOfChannels;
@@ -195,6 +197,29 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
 
   // Filters, Effects & Transitions States
   const [transitionDuration, setTransitionDuration] = useState(0.5);
+  const [transitionCategory, setTransitionCategory] = useState('All');
+  const [transitionSearch, setTransitionSearch] = useState('');
+  const [transitionDirection, setTransitionDirection] = useState('left');
+  const [transitionEasing, setTransitionEasing] = useState('easeInOut');
+  const [transitionFavorites, setTransitionFavorites] = useState(() => {
+    try {
+      const saved = localStorage.getItem('clipforge_favorite_transitions');
+      return saved ? JSON.parse(saved) : ['fade', 'dissolve', 'wipe-left', 'zoom-in', 'glitch'];
+    } catch (e) {
+      return ['fade', 'dissolve', 'wipe-left', 'zoom-in'];
+    }
+  });
+
+  const toggleTransitionFavorite = (id) => {
+    setTransitionFavorites((prev) => {
+      const next = prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id];
+      try {
+        localStorage.setItem('clipforge_favorite_transitions', JSON.stringify(next));
+      } catch (e) {}
+      return next;
+    });
+  };
+
   const [filterCategory, setFilterCategory] = useState('All');
   const [effectsCategory, setEffectsCategory] = useState('All');
 
@@ -956,10 +981,17 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
   const handleApplyTransition = (transId, customDur = null) => {
     useEditorStore.getState().pushHistory();
     const dur = customDur !== null ? customDur : transitionDuration;
+    const transData = {
+      type: transId,
+      duration: Math.max(0.1, Math.min(3.0, dur)),
+      direction: transitionDirection,
+      easing: transitionEasing,
+    };
     if (selectedClip) {
       updateClip(selectedClip.id, {
-        transitionIn: { type: transId, duration: dur },
+        transitionIn: transData,
       });
+      toastSuccess(`Applied transition to ${selectedClip.name}`);
     } else {
       const targetClip = project.tracks
         .flatMap((t) => (t.type !== 'audio' ? t.clips : []))
@@ -968,10 +1000,37 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
       if (targetClip) {
         selectClip(targetClip.id);
         updateClip(targetClip.id, {
-          transitionIn: { type: transId, duration: dur },
+          transitionIn: transData,
         });
+        toastSuccess(`Applied transition to ${targetClip.name}`);
+      } else {
+        toastError('Please select or add a clip on the timeline first');
       }
     }
+  };
+
+  // Apply Transition to ALL clips across visual tracks
+  const handleApplyTransitionToAll = (transId = null) => {
+    useEditorStore.getState().pushHistory();
+    const targetType = transId || (selectedClip?.transitionIn?.type) || 'dissolve';
+    const transData = {
+      type: targetType,
+      duration: Math.max(0.1, Math.min(3.0, transitionDuration)),
+      direction: transitionDirection,
+      easing: transitionEasing,
+    };
+    const updatedTracks = project.tracks.map((track) => {
+      if (track.type === 'audio') return track;
+      return {
+        ...track,
+        clips: track.clips.map((c) => ({
+          ...c,
+          transitionIn: { ...transData },
+        })),
+      };
+    });
+    setProject({ ...project, tracks: updatedTracks, updatedAt: Date.now() });
+    toastSuccess('Applied transition to all clips on timeline', 'Applied to All');
   };
 
   // Add Effect as its own clip on the Effects track
@@ -2203,93 +2262,194 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
           )}
 
           {/* TAB: TRANSITIONS */}
-          {activeLeftTab === 'transitions' && (
-            <div className="space-y-3">
-              {/* Duration Slider */}
-              <div className="bg-[#FAFAFA] dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] p-2.5 space-y-2">
-                <div className="flex justify-between items-center text-xs">
-                  <span className="font-normal text-[#171717] dark:text-[#EDEDED]">Transition Duration</span>
-                  <span className="text-[#737373] dark:text-[#A1A1A1] tabular-nums font-mono">
-                    {transitionDuration.toFixed(1)}s
-                  </span>
-                </div>
-                <input
-                  type="range"
-                  min="0.2"
-                  max="2.0"
-                  step="0.1"
-                  value={transitionDuration}
-                  onChange={(e) => setTransitionDuration(parseFloat(e.target.value))}
-                  className="w-full cursor-pointer accent-[#171717] dark:accent-[#EDEDED]"
-                />
-                <div className="flex items-center justify-between gap-1">
-                  {[0.3, 0.5, 0.8, 1.0, 1.5].map((d) => (
+          {activeLeftTab === 'transitions' && (() => {
+            const displayTransitions = TRANSITIONS_LIST.filter((t) => {
+              if (transitionSearch.trim()) {
+                const q = transitionSearch.toLowerCase();
+                if (!t.name.toLowerCase().includes(q) && !t.category.toLowerCase().includes(q)) {
+                  return false;
+                }
+              }
+              if (transitionCategory === 'All') return true;
+              if (transitionCategory === 'Favorites') return transitionFavorites.includes(t.id);
+              return t.category.toLowerCase() === transitionCategory.toLowerCase();
+            });
+
+            return (
+              <div className="space-y-3">
+                {/* Search Box */}
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[#737373] dark:text-[#A1A1A1]" />
+                  <input
+                    type="text"
+                    value={transitionSearch}
+                    onChange={(e) => setTransitionSearch(e.target.value)}
+                    placeholder="Search 80+ transitions..."
+                    className="w-full bg-[#FAFAFA] dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] pl-8 pr-7 py-1.5 text-xs text-[#171717] dark:text-[#EDEDED] outline-none focus:border-[#3B82F6]"
+                  />
+                  {transitionSearch && (
                     <button
-                      key={d}
+                      onClick={() => setTransitionSearch('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-[#737373] hover:text-[#171717] dark:hover:text-[#EDEDED]"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Category Pills */}
+                <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5 text-xs">
+                  {TRANSITION_CATEGORIES.map((cat) => (
+                    <button
+                      key={cat}
                       type="button"
-                      onClick={() => setTransitionDuration(d)}
-                      className={`flex-1 py-0.5 rounded-[4px] text-[10px] font-normal border transition-colors cursor-pointer tabular-nums ${
-                        transitionDuration === d
+                      onClick={() => setTransitionCategory(cat)}
+                      className={`px-2.5 py-1 rounded-[6px] text-[11px] font-normal border transition-colors cursor-pointer shrink-0 ${
+                        transitionCategory === cat
                           ? 'bg-[#171717] text-white dark:bg-[#EDEDED] dark:text-[#171717] border-[#171717] dark:border-[#EDEDED]'
                           : 'bg-white dark:bg-[#1A1A1A] text-[#737373] dark:text-[#A1A1A1] border-[#E5E5E5] dark:border-[#2A2A2A] hover:bg-[#F5F5F5] dark:hover:bg-[#262626]'
                       }`}
                     >
-                      {d}s
+                      {cat === 'Favorites' ? `★ Favorites (${transitionFavorites.length})` : cat}
                     </button>
                   ))}
                 </div>
-              </div>
 
-              {/* Selected Clip indicator & Remove Option */}
-              {selectedClip && (
-                <div className="flex items-center justify-between text-xs px-1 text-[#737373] dark:text-[#A1A1A1]">
-                  <span className="truncate">
-                    Apply to: <strong className="text-[#171717] dark:text-[#EDEDED] font-normal">{selectedClip.name}</strong>
-                  </span>
-                  {selectedClip.transitionIn && (
-                    <button
-                      onClick={() => {
-                        useEditorStore.getState().pushHistory();
-                        updateClip(selectedClip.id, { transitionIn: null });
-                      }}
-                      className="text-[10px] text-red-600 dark:text-red-400 hover:underline cursor-pointer"
-                    >
-                      Remove ({selectedClip.transitionIn.type})
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {/* Tip for timeline + button */}
-              <p className="text-[10px] text-[#737373] dark:text-[#A1A1A1] leading-relaxed">
-                Tap a transition below to apply to the selected clip, or tap the <span className="font-semibold text-[#171717] dark:text-[#EDEDED]">+</span> button between two clips on the timeline.
-              </p>
-
-              {/* Transitions List */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {TRANSITIONS_LIST.map((t) => {
-                  const isSelected = selectedClip && selectedClip.transitionIn && selectedClip.transitionIn.type === t.id;
-                  return (
-                    <button
-                      key={t.id}
-                      onClick={() => handleApplyTransition(t.id, transitionDuration)}
-                      className={`p-3 rounded-[6px] border flex flex-col items-center justify-center gap-1.5 transition-all text-center cursor-pointer ${
-                        isSelected
-                          ? 'bg-blue-50 dark:bg-blue-950/40 border-[#3B82F6] text-[#3B82F6]'
-                          : 'bg-white dark:bg-[#1A1A1A] border-[#E5E5E5] dark:border-[#2A2A2A] hover:border-[#3B82F6] text-[#171717] dark:text-[#EDEDED]'
-                      }`}
-                    >
-                      <Shuffle className="w-4 h-4 text-[#737373] dark:text-[#A1A1A1]" strokeWidth={1.5} />
-                      <span className="text-xs font-medium truncate w-full">{t.name}</span>
-                      <span className="text-[10px] text-[#737373] dark:text-[#A1A1A1] tabular-nums">
+                {/* Controls Card: Duration, Direction, Easing & Apply to All */}
+                <div className="bg-[#FAFAFA] dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] p-2.5 space-y-2.5">
+                  {/* Duration Slider */}
+                  <div>
+                    <div className="flex justify-between items-center text-xs mb-1">
+                      <span className="font-normal text-[#171717] dark:text-[#EDEDED]">Duration</span>
+                      <span className="text-[#737373] dark:text-[#A1A1A1] tabular-nums font-mono text-[11px]">
                         {transitionDuration.toFixed(1)}s
                       </span>
-                    </button>
-                  );
-                })}
+                    </div>
+                    <input
+                      type="range"
+                      min="0.1"
+                      max="3.0"
+                      step="0.1"
+                      value={transitionDuration}
+                      onChange={(e) => setTransitionDuration(parseFloat(e.target.value))}
+                      className="w-full cursor-pointer accent-[#171717] dark:accent-[#EDEDED]"
+                    />
+                    <div className="flex items-center justify-between gap-1 mt-1">
+                      {[0.3, 0.5, 0.8, 1.0, 1.5].map((d) => (
+                        <button
+                          key={d}
+                          type="button"
+                          onClick={() => setTransitionDuration(d)}
+                          className={`flex-1 py-0.5 rounded-[4px] text-[10px] font-normal border transition-colors cursor-pointer tabular-nums ${
+                            Math.abs(transitionDuration - d) < 0.05
+                              ? 'bg-[#171717] text-white dark:bg-[#EDEDED] dark:text-[#171717] border-[#171717] dark:border-[#EDEDED]'
+                              : 'bg-white dark:bg-[#1A1A1A] text-[#737373] dark:text-[#A1A1A1] border-[#E5E5E5] dark:border-[#2A2A2A] hover:bg-[#F5F5F5] dark:hover:bg-[#262626]'
+                          }`}
+                        >
+                          {d}s
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Direction & Easing */}
+                  <div className="grid grid-cols-2 gap-2 pt-1 border-t border-[#E5E5E5] dark:border-[#2A2A2A]">
+                    <div>
+                      <span className="text-[10px] text-[#737373] dark:text-[#A1A1A1] block mb-1">Direction</span>
+                      <select
+                        value={transitionDirection}
+                        onChange={(e) => setTransitionDirection(e.target.value)}
+                        className="w-full h-7 bg-white dark:bg-[#151515] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[4px] px-1.5 text-[11px] text-[#171717] dark:text-[#EDEDED] outline-none cursor-pointer"
+                      >
+                        <option value="left">Left</option>
+                        <option value="right">Right</option>
+                        <option value="up">Up</option>
+                        <option value="down">Down</option>
+                        <option value="in">In</option>
+                        <option value="out">Out</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <span className="text-[10px] text-[#737373] dark:text-[#A1A1A1] block mb-1">Easing</span>
+                      <select
+                        value={transitionEasing}
+                        onChange={(e) => setTransitionEasing(e.target.value)}
+                        className="w-full h-7 bg-white dark:bg-[#151515] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[4px] px-1.5 text-[11px] text-[#171717] dark:text-[#EDEDED] outline-none cursor-pointer"
+                      >
+                        <option value="easeInOut">Ease In-Out</option>
+                        <option value="linear">Linear</option>
+                        <option value="easeIn">Ease In</option>
+                        <option value="easeOut">Ease Out</option>
+                        <option value="bounce">Bounce</option>
+                        <option value="elastic">Elastic</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Apply to All Clips Button */}
+                  <button
+                    type="button"
+                    onClick={() => handleApplyTransitionToAll()}
+                    className="w-full py-1.5 rounded-[4px] border border-[#E5E5E5] dark:border-[#2A2A2A] hover:bg-white dark:hover:bg-[#262626] text-xs font-normal text-[#171717] dark:text-[#EDEDED] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <Layers className="w-3.5 h-3.5 text-[#3B82F6]" strokeWidth={1.5} />
+                    <span>Apply to All Cuts</span>
+                  </button>
+                </div>
+
+                {/* Selected Clip indicator & Remove Option */}
+                {selectedClip && (
+                  <div className="flex items-center justify-between text-xs px-1 text-[#737373] dark:text-[#A1A1A1]">
+                    <span className="truncate">
+                      Apply to: <strong className="text-[#171717] dark:text-[#EDEDED] font-normal">{selectedClip.name}</strong>
+                    </span>
+                    {selectedClip.transitionIn && (
+                      <button
+                        onClick={() => {
+                          useEditorStore.getState().pushHistory();
+                          updateClip(selectedClip.id, { transitionIn: null });
+                        }}
+                        className="text-[10px] text-red-600 dark:text-red-400 hover:underline cursor-pointer"
+                      >
+                        Remove ({selectedClip.transitionIn.type})
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Instruction / Drag tip */}
+                <p className="text-[10px] text-[#737373] dark:text-[#A1A1A1] leading-relaxed">
+                  Hover to preview animation. Click or drag onto a timeline clip or the <span className="font-semibold text-[#171717] dark:text-[#EDEDED]">+</span> cut button.
+                </p>
+
+                {/* Transitions Grid */}
+                <div className="grid grid-cols-2 gap-2">
+                  {displayTransitions.map((t) => {
+                    const isSelected = selectedClip && selectedClip.transitionIn && selectedClip.transitionIn.type === t.id;
+                    const isFav = transitionFavorites.includes(t.id);
+                    return (
+                      <TransitionThumbnail
+                        key={t.id}
+                        transition={t}
+                        isSelected={isSelected}
+                        isFavorite={isFav}
+                        onToggleFavorite={toggleTransitionFavorite}
+                        onSelect={(sel) => handleApplyTransition(sel.id, transitionDuration)}
+                        duration={transitionDuration}
+                      />
+                    );
+                  })}
+                </div>
+
+                {displayTransitions.length === 0 && (
+                  <div className="py-8 text-center text-xs text-[#737373] dark:text-[#A1A1A1]">
+                    No transitions found in "{transitionCategory}".
+                  </div>
+                )}
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* TAB: FILTERS */}
           {activeLeftTab === 'filters' && (

@@ -365,21 +365,7 @@ export const EFFECTS_LIST = [
 
 
 
-export const TRANSITIONS_LIST = [
-  { id: 'fade', name: 'Fade', icon: 'Moon', duration: 0.5 },
-  { id: 'dissolve', name: 'Dissolve', icon: 'Blend', duration: 0.6 },
-  { id: 'slide-left', name: 'Slide Left', icon: 'ArrowLeft', duration: 0.4 },
-  { id: 'slide-right', name: 'Slide Right', icon: 'ArrowRight', duration: 0.4 },
-  { id: 'slide-up', name: 'Slide Up', icon: 'ArrowUp', duration: 0.4 },
-  { id: 'slide-down', name: 'Slide Down', icon: 'ArrowDown', duration: 0.4 },
-  { id: 'wipe-left', name: 'Wipe Left', icon: 'ChevronsLeft', duration: 0.4 },
-  { id: 'wipe-right', name: 'Wipe Right', icon: 'ChevronsRight', duration: 0.4 },
-  { id: 'zoom-in', name: 'Zoom In', icon: 'ZoomIn', duration: 0.5 },
-  { id: 'zoom-out', name: 'Zoom Out', icon: 'ZoomOut', duration: 0.5 },
-  { id: 'spin', name: 'Spin', icon: 'RotateCw', duration: 0.5 },
-  { id: 'glitch', name: 'Glitch', icon: 'Zap', duration: 0.3 },
-  { id: 'flash-white', name: 'Flash', icon: 'Sun', duration: 0.3 },
-];
+export { TRANSITIONS_LIST } from './transitions';
 
 export const GOOGLE_FONTS = [
   // Hindi & Devanagari
