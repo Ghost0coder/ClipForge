@@ -11,6 +11,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.4.0] — 2026-10-26
+
+### Added
+- **Trash & Lifecycle Management**: Dedicated `TrashPage` with soft-delete safety, restore items, permanent deletion, and empty trash controls.
+- **Media Assets Manager**: Dedicated `AssetsPage` with search, filtering, batch selection, grid/list layout, and asset inspection.
+- **Unused Media Cleanup**: `ClearUnusedMediaModal` to automatically scan timeline dependencies and purge orphaned media files to recover storage.
+- **App Navigation & Routing**: Unified `AppNavigation` bar connecting Editor, Home, Projects, Assets, Templates, Trash, Help, and Settings.
+- **Transitions Engine & Modal**: Comprehensive canvas transition renderer (`transitions.js`) with 50+ transition effects, interactive `TransitionModal`, and live `TransitionThumbnail` previews.
+- **Animations Engine**: Preset in/out/loop animations and thumbnail previews with `animations.js` and `AnimationThumbnail`.
+- **Aspect Ratio Modal**: Quick aspect ratio presets for 16:9 (YouTube), 9:16 (TikTok/Reels/Shorts), 1:1 (Square), 4:5 (Instagram), and 21:9 (Cinematic Ultrawide).
+- **Timeline & Inspector Upgrades**: Enhanced multi-track timeline interactions, audio wave rendering optimizations, and improved Right Inspector controls.
+
+---
+
 ## [0.3.0] — 2026-10-24
 
 ### Added
@@ -95,7 +109,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Client-Side Export**: 480p–4K MP4, WebM, GIF, MP3, PNG frame snapshot.
 - **Express Backend**: Proxies Gemini API calls server-side to protect API key.
 
-[Unreleased]: https://github.com/Ghost0coder/ClipForge/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/Ghost0coder/ClipForge/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/Ghost0coder/ClipForge/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/Ghost0coder/ClipForge/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Ghost0coder/ClipForge/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Ghost0coder/ClipForge/compare/823878c...v0.1.0

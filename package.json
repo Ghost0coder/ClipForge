@@ -1,6 +1,6 @@
 {
   "name": "clipforge",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "description": "Full-featured browser-based video editor inspired by CapCut with multi-track timeline, real-time effects, audio tools, keyframes, and Gemini AI creation tools.",
   "author": {
