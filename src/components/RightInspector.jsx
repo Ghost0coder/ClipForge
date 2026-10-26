@@ -32,9 +32,11 @@ import { useEditorStore } from '../store/editorStore';
 import { toastSuccess, toastInfo, toastError } from '../store/toastStore';
 import { FILTERS_LIST, GOOGLE_FONTS, EFFECTS_LIST } from '../utils/sampleData';
 import { TRANSITIONS_LIST, TRANSITION_CATEGORIES } from '../utils/transitions';
+import { ANIMATIONS_LIST } from '../utils/animations';
 import { getInterpolatedProperty } from '../utils/previewRenderer';
 import { SpeedCurveEditor } from './SpeedCurveEditor';
 import { AdvancedColorTools } from './AdvancedColorTools';
+import { AnimationThumbnail } from './AnimationThumbnail';
 
 /**
  * CapCut-Style Diamond Keyframe Controller
@@ -2277,75 +2279,99 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
           </div>
         )}
 
-        {/* ANIMATION & TRANSITIONS TAB */}
-        {activeTab === 'animation' && isVisual && (
-          <div className="space-y-4 text-xs">
-            {/* TRANSITION IN (At cut or start fade) */}
-            <div className="space-y-2.5">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-[#171717] dark:text-[#EDEDED] flex items-center gap-1.5">
-                  <Shuffle className="w-3.5 h-3.5 text-[#3B82F6]" strokeWidth={1.5} />
-                  <span>Transition In / Cut In</span>
-                </span>
-                {clip.transitionIn && (
+        {/* ANIMATIONS TAB (80+ Animations) */}
+        {activeTab === 'animation' && isVisual && (() => {
+          const [animSubTab, setAnimSubTab] = useState('In'); // In, Out, Loop, Text
+          const [animSearch, setAnimSearch] = useState('');
+          const [animCategory, setAnimCategory] = useState('All');
+          const [animFavorites, setAnimFavorites] = useState(() => {
+            try {
+              const saved = localStorage.getItem('clipforge_favorite_animations');
+              return saved ? JSON.parse(saved) : ['fade-in', 'zoom-in', 'pulse', 'typewriter'];
+            } catch (e) {
+              return ['fade-in', 'zoom-in', 'pulse'];
+            }
+          });
+
+          const toggleAnimFav = (id) => {
+            setAnimFavorites((prev) => {
+              const next = prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id];
+              try {
+                localStorage.setItem('clipforge_favorite_animations', JSON.stringify(next));
+              } catch (e) {}
+              return next;
+            });
+          };
+
+          const filteredAnimations = ANIMATIONS_LIST.filter((a) => {
+            if (animSubTab === 'In' && a.category !== 'In') return false;
+            if (animSubTab === 'Out' && a.category !== 'Out') return false;
+            if (animSubTab === 'Loop' && a.category !== 'Loop') return false;
+            if (animSubTab === 'Text' && a.category !== 'Text') return false;
+
+            if (animSearch.trim()) {
+              const q = animSearch.toLowerCase();
+              if (!a.name.toLowerCase().includes(q) && !a.category.toLowerCase().includes(q)) {
+                return false;
+              }
+            }
+            if (animCategory === 'Favorites') return animFavorites.includes(a.id);
+            if (animCategory !== 'All' && a.category !== animCategory && animSubTab !== 'Text') return false;
+            return true;
+          });
+
+          const activeIn = clip.animationIn || 'none';
+          const activeOut = clip.animationOut || 'none';
+          const activeLoop = clip.animationLoop || 'none';
+
+          return (
+            <div className="space-y-4 text-xs">
+              {/* Sub-Tab Selector: In, Out, Combo (Loop), Text */}
+              <div className="grid grid-cols-3 p-0.5 rounded-[6px] bg-[#F5F5F5] dark:bg-[#202020] border border-[#E5E5E5] dark:border-[#2A2A2A] text-xs">
+                {['In', 'Out', 'Loop'].map((tab) => (
+                  <button
+                    key={tab}
+                    type="button"
+                    onClick={() => setAnimSubTab(tab)}
+                    className={`py-1.5 rounded-[4px] font-normal transition-colors cursor-pointer text-center ${
+                      animSubTab === tab
+                        ? 'bg-white dark:bg-[#111111] text-[#171717] dark:text-[#EDEDED] shadow-2xs font-medium'
+                        : 'text-[#737373] dark:text-[#A1A1A1] hover:text-[#171717] dark:hover:text-[#EDEDED]'
+                    }`}
+                  >
+                    {tab === 'Loop' ? 'Combo (Loop)' : tab}
+                  </button>
+                ))}
+              </div>
+
+              {/* Active Animation Summary & Controls */}
+              <div className="p-2.5 rounded-[6px] bg-[#FAFAFA] dark:bg-[#151515] border border-[#E5E5E5] dark:border-[#2A2A2A] space-y-2">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="font-medium text-[#171717] dark:text-[#EDEDED]">
+                    Active {animSubTab}: <strong className="text-[#3B82F6]">{animSubTab === 'In' ? activeIn : animSubTab === 'Out' ? activeOut : activeLoop}</strong>
+                  </span>
                   <button
                     type="button"
                     onClick={() => {
                       useEditorStore.getState().pushHistory();
-                      updateClip(clip.id, { transitionIn: null });
-                      toastSuccess('Transition In removed', 'Removed');
+                      if (animSubTab === 'In') updateClip(clip.id, { animationIn: 'none' });
+                      else if (animSubTab === 'Out') updateClip(clip.id, { animationOut: 'none' });
+                      else updateClip(clip.id, { animationLoop: 'none' });
+                      toastSuccess(`Removed ${animSubTab} animation`, 'Removed');
                     }}
-                    className="text-[10px] text-red-600 dark:text-red-400 hover:underline cursor-pointer"
+                    className="text-red-600 dark:text-red-400 hover:underline cursor-pointer text-[10px]"
                   >
                     Remove
                   </button>
-                )}
-              </div>
+                </div>
 
-              {/* Transition Type Selector */}
-              <div>
-                <span className="text-[#737373] dark:text-[#A1A1A1] block mb-1">Transition Style</span>
-                <select
-                  value={clip.transitionIn?.type || 'none'}
-                  onChange={(e) => {
-                    useEditorStore.getState().pushHistory();
-                    const val = e.target.value;
-                    if (val === 'none') {
-                      updateClip(clip.id, { transitionIn: null });
-                    } else {
-                      updateClip(clip.id, {
-                        transitionIn: {
-                          type: val,
-                          duration: clip.transitionIn?.duration || 0.6,
-                          direction: clip.transitionIn?.direction || 'left',
-                          easing: clip.transitionIn?.easing || 'easeInOut',
-                        },
-                      });
-                    }
-                  }}
-                  className="w-full bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] px-2 py-1.5 text-xs text-[#171717] dark:text-[#EDEDED] outline-none cursor-pointer"
-                >
-                  <option value="none">None (Cut)</option>
-                  {TRANSITION_CATEGORIES.map((cat) => (
-                    <optgroup key={cat} label={cat}>
-                      {TRANSITIONS_LIST.filter((t) => t.category === cat).map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.name}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ))}
-                </select>
-              </div>
-
-              {clip.transitionIn && (
-                <div className="space-y-3 p-2.5 rounded-[6px] bg-[#FAFAFA] dark:bg-[#151515] border border-[#E5E5E5] dark:border-[#2A2A2A]">
-                  {/* Duration Slider (0.1s to 3s) */}
+                {/* Duration / Speed Slider */}
+                {(animSubTab === 'In' || animSubTab === 'Out') && (
                   <div>
                     <div className="flex justify-between items-center text-[#171717] dark:text-[#EDEDED] mb-1">
                       <span className="font-normal">Duration</span>
                       <span className="font-mono text-[#737373] dark:text-[#A1A1A1] tabular-nums text-[11px]">
-                        {(clip.transitionIn.duration || 0.6).toFixed(1)}s
+                        {(animSubTab === 'In' ? (clip.animationInDuration || 0.6) : (clip.animationOutDuration || 0.6)).toFixed(1)}s
                       </span>
                     </div>
                     <input
@@ -2353,304 +2379,182 @@ export const RightInspector = ({ mobileDrawer = false, onClose }) => {
                       min="0.1"
                       max="3.0"
                       step="0.1"
-                      value={clip.transitionIn.duration || 0.6}
+                      value={animSubTab === 'In' ? (clip.animationInDuration || 0.6) : (clip.animationOutDuration || 0.6)}
                       onPointerDown={() => useEditorStore.getState().pushHistory()}
-                      onChange={(e) =>
-                        updateClip(clip.id, {
-                          transitionIn: {
-                            ...clip.transitionIn,
-                            duration: parseFloat(e.target.value) || 0.6,
-                          },
-                        })
-                      }
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value) || 0.6;
+                        if (animSubTab === 'In') updateClip(clip.id, { animationInDuration: val });
+                        else updateClip(clip.id, { animationOutDuration: val });
+                      }}
                       className="w-full cursor-pointer accent-[#171717] dark:accent-[#EDEDED]"
                     />
-                    <div className="flex items-center gap-1 mt-1">
-                      {[0.3, 0.5, 0.8, 1.0, 1.5, 2.0].map((d) => (
-                        <button
-                          key={d}
-                          type="button"
-                          onClick={() => {
-                            useEditorStore.getState().pushHistory();
-                            updateClip(clip.id, {
-                              transitionIn: { ...clip.transitionIn, duration: d },
-                            });
-                          }}
-                          className={`flex-1 py-0.5 rounded-[4px] text-[10px] border transition-colors cursor-pointer tabular-nums ${
-                            Math.abs((clip.transitionIn.duration || 0.6) - d) < 0.05
-                              ? 'bg-[#171717] text-white dark:bg-[#EDEDED] dark:text-[#171717] border-[#171717] dark:border-[#EDEDED]'
-                              : 'bg-white dark:bg-[#1A1A1A] text-[#737373] dark:text-[#A1A1A1] border-[#E5E5E5] dark:border-[#2A2A2A]'
-                          }`}
-                        >
-                          {d}s
-                        </button>
-                      ))}
-                    </div>
                   </div>
+                )}
 
-                  {/* Direction Selector */}
+                {animSubTab === 'Loop' && (
                   <div>
-                    <span className="text-[11px] text-[#737373] dark:text-[#A1A1A1] block mb-1">Direction</span>
-                    <div className="grid grid-cols-6 gap-1">
-                      {[
-                        { id: 'left', label: 'Left' },
-                        { id: 'right', label: 'Right' },
-                        { id: 'up', label: 'Up' },
-                        { id: 'down', label: 'Down' },
-                        { id: 'in', label: 'In' },
-                        { id: 'out', label: 'Out' },
-                      ].map((dir) => (
-                        <button
-                          key={dir.id}
-                          type="button"
-                          onClick={() => {
-                            useEditorStore.getState().pushHistory();
-                            updateClip(clip.id, {
-                              transitionIn: { ...clip.transitionIn, direction: dir.id },
-                            });
-                          }}
-                          className={`py-1 rounded-[4px] text-[10px] border transition-colors cursor-pointer text-center ${
-                            (clip.transitionIn.direction || 'left') === dir.id
-                              ? 'bg-[#171717] text-white dark:bg-[#EDEDED] dark:text-[#171717] border-[#171717] dark:border-[#EDEDED]'
-                              : 'bg-white dark:bg-[#1A1A1A] text-[#737373] dark:text-[#A1A1A1] border-[#E5E5E5] dark:border-[#2A2A2A]'
-                          }`}
-                        >
-                          {dir.label}
-                        </button>
-                      ))}
+                    <div className="flex justify-between items-center text-[#171717] dark:text-[#EDEDED] mb-1">
+                      <span className="font-normal">Loop Speed</span>
+                      <span className="font-mono text-[#737373] dark:text-[#A1A1A1] tabular-nums text-[11px]">
+                        {(clip.animationLoopSpeed || 1.0).toFixed(1)}x
+                      </span>
                     </div>
+                    <input
+                      type="range"
+                      min="0.2"
+                      max="3.0"
+                      step="0.1"
+                      value={clip.animationLoopSpeed || 1.0}
+                      onPointerDown={() => useEditorStore.getState().pushHistory()}
+                      onChange={(e) => updateClip(clip.id, { animationLoopSpeed: parseFloat(e.target.value) || 1.0 })}
+                      className="w-full cursor-pointer accent-[#171717] dark:accent-[#EDEDED]"
+                    />
                   </div>
+                )}
 
-                  {/* Easing Selector */}
-                  <div>
-                    <span className="text-[11px] text-[#737373] dark:text-[#A1A1A1] block mb-1">Easing Curve</span>
-                    <select
-                      value={clip.transitionIn.easing || 'easeInOut'}
-                      onChange={(e) => {
-                        useEditorStore.getState().pushHistory();
-                        updateClip(clip.id, {
-                          transitionIn: { ...clip.transitionIn, easing: e.target.value },
-                        });
-                      }}
-                      className="w-full bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[4px] px-2 py-1 text-xs text-[#171717] dark:text-[#EDEDED] outline-none cursor-pointer"
-                    >
-                      <option value="easeInOut">Ease In-Out (Natural)</option>
-                      <option value="linear">Linear (Constant)</option>
-                      <option value="easeIn">Ease In (Accelerate)</option>
-                      <option value="easeOut">Ease Out (Decelerate)</option>
-                      <option value="bounce">Bounce (Dynamic)</option>
-                      <option value="elastic">Elastic (Spring)</option>
-                    </select>
-                  </div>
+                {/* Easing Selector */}
+                <div>
+                  <span className="text-[10px] text-[#737373] dark:text-[#A1A1A1] block mb-1">Easing Curve</span>
+                  <select
+                    value={
+                      animSubTab === 'In'
+                        ? clip.animationInEasing || 'easeInOut'
+                        : animSubTab === 'Out'
+                        ? clip.animationOutEasing || 'easeInOut'
+                        : 'easeInOut'
+                    }
+                    onChange={(e) => {
+                      useEditorStore.getState().pushHistory();
+                      const val = e.target.value;
+                      if (animSubTab === 'In') updateClip(clip.id, { animationInEasing: val });
+                      else if (animSubTab === 'Out') updateClip(clip.id, { animationOutEasing: val });
+                    }}
+                    className="w-full bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[4px] px-2 py-1 text-xs text-[#171717] dark:text-[#EDEDED] outline-none cursor-pointer"
+                  >
+                    <option value="easeInOut">Ease In-Out (Natural)</option>
+                    <option value="linear">Linear (Constant)</option>
+                    <option value="easeIn">Ease In (Accelerate)</option>
+                    <option value="easeOut">Ease Out (Decelerate)</option>
+                    <option value="bounce">Bounce (Dynamic)</option>
+                    <option value="elastic">Elastic (Spring)</option>
+                  </select>
+                </div>
 
-                  {/* Apply to All Clips Button */}
+                {/* Apply to All Clips on Track & Copy/Paste */}
+                <div className="grid grid-cols-2 gap-1 pt-1">
                   <button
                     type="button"
                     onClick={() => {
                       useEditorStore.getState().pushHistory();
-                      const transData = { ...clip.transitionIn };
                       const project = useEditorStore.getState().project;
-                      const updatedTracks = project.tracks.map((t) => {
-                        if (t.type === 'audio') return t;
-                        return {
-                          ...t,
-                          clips: t.clips.map((c) => ({
-                            ...c,
-                            transitionIn: { ...transData },
-                          })),
-                        };
-                      });
-                      useEditorStore.getState().setProject({
-                        ...project,
-                        tracks: updatedTracks,
-                        updatedAt: Date.now(),
-                      });
-                      toastSuccess(`Applied ${clip.transitionIn.type} to all clips!`, 'Applied to All');
+                      const animToApply = animSubTab === 'In' ? clip.animationIn : animSubTab === 'Out' ? clip.animationOut : clip.animationLoop;
+                      const updatedTracks = project.tracks.map((t) => ({
+                        ...t,
+                        clips: t.clips.map((c) => ({
+                          ...c,
+                          ...(animSubTab === 'In' ? { animationIn: animToApply } : animSubTab === 'Out' ? { animationOut: animToApply } : { animationLoop: animToApply }),
+                        })),
+                      }));
+                      useEditorStore.getState().setProject({ ...project, tracks: updatedTracks, updatedAt: Date.now() });
+                      toastSuccess(`Applied ${animSubTab} animation to all clips!`, 'Applied to All');
                     }}
-                    className="w-full py-1.5 px-2 rounded-[6px] bg-white dark:bg-[#1A1A1A] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] border border-[#E5E5E5] dark:border-[#2A2A2A] text-xs font-normal text-[#171717] dark:text-[#EDEDED] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                    className="py-1 px-2 rounded-[4px] border border-[#E5E5E5] dark:border-[#2A2A2A] hover:bg-white dark:hover:bg-[#262626] text-[10px] text-[#171717] dark:text-[#EDEDED] flex items-center justify-center gap-1 cursor-pointer"
                   >
-                    <Layers className="w-3.5 h-3.5 text-[#3B82F6]" strokeWidth={1.5} />
-                    <span>Apply to all clips</span>
+                    <Layers className="w-3 h-3 text-[#3B82F6]" />
+                    <span>Apply to All</span>
                   </button>
-                </div>
-              )}
-            </div>
 
-            {/* TRANSITION OUT (At clip end / fade out to black) */}
-            <div className="pt-3 border-t border-[#E5E5E5] dark:border-[#2A2A2A] space-y-2.5">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-[#171717] dark:text-[#EDEDED] flex items-center gap-1.5">
-                  <Shuffle className="w-3.5 h-3.5 text-[#3B82F6]" strokeWidth={1.5} />
-                  <span>Transition Out / End Fade</span>
-                </span>
-                {clip.transitionOut && (
                   <button
                     type="button"
                     onClick={() => {
-                      useEditorStore.getState().pushHistory();
-                      updateClip(clip.id, { transitionOut: null });
-                      toastSuccess('Transition Out removed', 'Removed');
+                      const payload = {
+                        animationIn: clip.animationIn,
+                        animationOut: clip.animationOut,
+                        animationLoop: clip.animationLoop,
+                        animationInDuration: clip.animationInDuration,
+                        animationOutDuration: clip.animationOutDuration,
+                      };
+                      localStorage.setItem('clipforge_copied_animation', JSON.stringify(payload));
+                      toastSuccess('Animation copied to clipboard', 'Copied');
                     }}
-                    className="text-[10px] text-red-600 dark:text-red-400 hover:underline cursor-pointer"
+                    className="py-1 px-2 rounded-[4px] border border-[#E5E5E5] dark:border-[#2A2A2A] hover:bg-white dark:hover:bg-[#262626] text-[10px] text-[#171717] dark:text-[#EDEDED] flex items-center justify-center gap-1 cursor-pointer"
                   >
-                    Remove
+                    <span>Copy / Paste</span>
                   </button>
-                )}
+                </div>
               </div>
 
-              <div>
-                <span className="text-[#737373] dark:text-[#A1A1A1] block mb-1">Transition Style</span>
-                <select
-                  value={clip.transitionOut?.type || 'none'}
-                  onChange={(e) => {
-                    useEditorStore.getState().pushHistory();
-                    const val = e.target.value;
-                    if (val === 'none') {
-                      updateClip(clip.id, { transitionOut: null });
-                    } else {
-                      updateClip(clip.id, {
-                        transitionOut: {
-                          type: val,
-                          duration: clip.transitionOut?.duration || 0.6,
-                          direction: clip.transitionOut?.direction || 'left',
-                          easing: clip.transitionOut?.easing || 'easeInOut',
-                        },
-                      });
-                    }
-                  }}
-                  className="w-full bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] px-2 py-1.5 text-xs text-[#171717] dark:text-[#EDEDED] outline-none cursor-pointer"
-                >
-                  <option value="none">None</option>
-                  {TRANSITION_CATEGORIES.map((cat) => (
-                    <optgroup key={cat} label={cat}>
-                      {TRANSITIONS_LIST.filter((t) => t.category === cat).map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.name}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ))}
-                </select>
-              </div>
+              {/* Search & Categories */}
+              <div className="space-y-2">
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[#737373] dark:text-[#A1A1A1]" />
+                  <input
+                    type="text"
+                    value={animSearch}
+                    onChange={(e) => setAnimSearch(e.target.value)}
+                    placeholder="Search 80+ animations..."
+                    className="w-full pl-7 pr-2 py-1 bg-[#FAFAFA] dark:bg-[#151515] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] text-xs text-[#171717] dark:text-[#EDEDED] outline-none"
+                  />
+                </div>
 
-              {clip.transitionOut && (
-                <div className="space-y-3 p-2.5 rounded-[6px] bg-[#FAFAFA] dark:bg-[#151515] border border-[#E5E5E5] dark:border-[#2A2A2A]">
-                  <div>
-                    <div className="flex justify-between items-center text-[#171717] dark:text-[#EDEDED] mb-1">
-                      <span className="font-normal">Duration</span>
-                      <span className="font-mono text-[#737373] dark:text-[#A1A1A1] tabular-nums text-[11px]">
-                        {(clip.transitionOut.duration || 0.6).toFixed(1)}s
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min="0.1"
-                      max="3.0"
-                      step="0.1"
-                      value={clip.transitionOut.duration || 0.6}
-                      onPointerDown={() => useEditorStore.getState().pushHistory()}
-                      onChange={(e) =>
-                        updateClip(clip.id, {
-                          transitionOut: {
-                            ...clip.transitionOut,
-                            duration: parseFloat(e.target.value) || 0.6,
-                          },
-                        })
-                      }
-                      className="w-full cursor-pointer accent-[#171717] dark:accent-[#EDEDED]"
-                    />
-                  </div>
-
-                  <div>
-                    <span className="text-[11px] text-[#737373] dark:text-[#A1A1A1] block mb-1">Easing Curve</span>
-                    <select
-                      value={clip.transitionOut.easing || 'easeInOut'}
-                      onChange={(e) => {
-                        useEditorStore.getState().pushHistory();
-                        updateClip(clip.id, {
-                          transitionOut: { ...clip.transitionOut, easing: e.target.value },
-                        });
-                      }}
-                      className="w-full bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[4px] px-2 py-1 text-xs text-[#171717] dark:text-[#EDEDED] outline-none cursor-pointer"
+                <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5">
+                  {['All', 'Favorites'].map((cat) => (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setAnimCategory(cat)}
+                      className={`px-2 py-0.5 rounded-[4px] text-[10px] font-normal border transition-colors cursor-pointer shrink-0 ${
+                        animCategory === cat
+                          ? 'bg-[#171717] text-white dark:bg-[#EDEDED] dark:text-[#171717] border-[#171717] dark:border-[#EDEDED]'
+                          : 'bg-white dark:bg-[#1A1A1A] text-[#737373] dark:text-[#A1A1A1] border-[#E5E5E5] dark:border-[#2A2A2A]'
+                      }`}
                     >
-                      <option value="easeInOut">Ease In-Out</option>
-                      <option value="linear">Linear</option>
-                      <option value="easeIn">Ease In</option>
-                      <option value="easeOut">Ease Out</option>
-                      <option value="bounce">Bounce</option>
-                    </select>
-                  </div>
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Animations Grid */}
+              <div className="grid grid-cols-2 gap-2 max-h-72 overflow-y-auto pr-0.5">
+                {filteredAnimations.map((anim) => {
+                  const isSelected =
+                    animSubTab === 'In'
+                      ? activeIn === anim.id
+                      : animSubTab === 'Out'
+                      ? activeOut === anim.id
+                      : activeLoop === anim.id;
+
+                  const isFav = animFavorites.includes(anim.id);
+
+                  return (
+                    <AnimationThumbnail
+                      key={anim.id}
+                      animation={anim}
+                      isSelected={isSelected}
+                      isFavorite={isFav}
+                      onToggleFavorite={toggleAnimFav}
+                      onSelect={(sel) => {
+                        useEditorStore.getState().pushHistory();
+                        if (animSubTab === 'In') updateClip(clip.id, { animationIn: sel.id });
+                        else if (animSubTab === 'Out') updateClip(clip.id, { animationOut: sel.id });
+                        else updateClip(clip.id, { animationLoop: sel.id });
+                        toastSuccess(`Applied ${sel.name}`, 'Animation Applied');
+                      }}
+                      duration={animSubTab === 'In' ? clip.animationInDuration || 0.6 : clip.animationOutDuration || 0.6}
+                    />
+                  );
+                })}
+              </div>
+
+              {filteredAnimations.length === 0 && (
+                <div className="py-8 text-center text-xs text-[#737373] dark:text-[#A1A1A1]">
+                  No animations found.
                 </div>
               )}
             </div>
-
-            {/* CLIP ANIMATIONS (In, Out, Loop) */}
-            <div className="pt-3 border-t border-[#E5E5E5] dark:border-[#2A2A2A] space-y-3">
-              <span className="text-xs font-medium text-[#171717] dark:text-[#EDEDED] flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-[#3B82F6]" strokeWidth={1.5} />
-                <span>Clip Animation</span>
-              </span>
-
-              {/* Animation In */}
-              <div>
-                <span className="text-[#737373] dark:text-[#A1A1A1] block mb-1">Entrance Animation</span>
-                <select
-                  value={clip.animationIn || 'none'}
-                  onChange={(e) => {
-                    useEditorStore.getState().pushHistory();
-                    updateClip(clip.id, { animationIn: e.target.value });
-                  }}
-                  className="w-full bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] px-2 py-1.5 text-xs text-[#171717] dark:text-[#EDEDED] outline-none cursor-pointer"
-                >
-                  <option value="none">None</option>
-                  <option value="fade">Fade In</option>
-                  <option value="slide-up">Slide Up</option>
-                  <option value="slide-left">Slide Left</option>
-                  <option value="pop">Pop In</option>
-                  <option value="bounce">Spring Bounce</option>
-                  <option value="blur-in">Soft Blur In</option>
-                </select>
-              </div>
-
-              {/* Animation Out */}
-              <div>
-                <span className="text-[#737373] dark:text-[#A1A1A1] block mb-1">Exit Animation</span>
-                <select
-                  value={clip.animationOut || 'none'}
-                  onChange={(e) => {
-                    useEditorStore.getState().pushHistory();
-                    updateClip(clip.id, { animationOut: e.target.value });
-                  }}
-                  className="w-full bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] px-2 py-1.5 text-xs text-[#171717] dark:text-[#EDEDED] outline-none cursor-pointer"
-                >
-                  <option value="none">None</option>
-                  <option value="fade">Fade Out</option>
-                  <option value="slide-down">Slide Down</option>
-                  <option value="shrink">Shrink Out</option>
-                  <option value="blur-out">Soft Blur Out</option>
-                </select>
-              </div>
-
-              {/* Loop Animation */}
-              <div>
-                <span className="text-[#737373] dark:text-[#A1A1A1] block mb-1">Looping Motion</span>
-                <select
-                  value={clip.animationLoop || 'none'}
-                  onChange={(e) => {
-                    useEditorStore.getState().pushHistory();
-                    updateClip(clip.id, { animationLoop: e.target.value });
-                  }}
-                  className="w-full bg-white dark:bg-[#1A1A1A] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[6px] px-2 py-1.5 text-xs text-[#171717] dark:text-[#EDEDED] outline-none cursor-pointer"
-                >
-                  <option value="none">None (Static)</option>
-                  <option value="pulse">Gentle Pulse</option>
-                  <option value="float">Floating Wave</option>
-                  <option value="shake">Dynamic Shake</option>
-                </select>
-              </div>
-            </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* KEYFRAMES TAB */}
         {activeTab === 'keyframes' && (

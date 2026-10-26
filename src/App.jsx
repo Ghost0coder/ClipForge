@@ -13,6 +13,13 @@ import { TemplateModal } from './components/TemplateModal';
 import { AudioMixerModal } from './components/AudioMixerModal';
 import { ToastContainer } from './components/ToastContainer';
 import { MobileBottomToolbar } from './components/MobileBottomToolbar';
+import { AppNavigation } from './components/AppNavigation';
+import { HomePage } from './components/HomePage';
+import { ProjectsPage } from './components/ProjectsPage';
+import { TemplatesPage } from './components/TemplatesPage';
+import { AssetsPage } from './components/AssetsPage';
+import { SettingsPage } from './components/SettingsPage';
+import { HelpPage } from './components/HelpPage';
 import { useEditorStore } from './store/editorStore';
 import { saveProjectToDB, getProjectFromDB, getLastActiveProjectId, restoreProjectMediaUrls } from './utils/storage';
 import { useResponsive } from './utils/useResponsive';
@@ -36,6 +43,7 @@ export default function App() {
     deselectAll,
     isOnboardingOpen,
     closeOnboarding,
+    route,
   } = useEditorStore();
 
   const { isMobile } = useResponsive();
@@ -47,24 +55,16 @@ export default function App() {
         const lastId = await getLastActiveProjectId();
         if (lastId) {
           const saved = await getProjectFromDB(lastId);
-          // Only restore if user had actual non-demo project
           if (saved) {
             const hasOldDemoClips = saved.tracks.some((t) =>
               t.clips.some((c) =>
                 c.id.startsWith('clip_demo') ||
                 c.id === 'clip_video_1' ||
                 c.id === 'clip_video_2' ||
-                c.id === 'clip_audio_1' ||
-                c.id === 'clip_text_1' ||
-                c.id === 'clip_sticker_1' ||
-                c.name.toLowerCase().includes('demo') ||
-                c.name.toLowerCase().includes('cyberpunk') ||
-                c.name.toLowerCase().includes('tokyo') ||
-                c.name.toLowerCase().includes('synthwave')
+                c.name.toLowerCase().includes('demo')
               )
             );
             if (!hasOldDemoClips && saved.tracks.some((t) => t.clips.length > 0)) {
-              console.log('[ClipForge:Storage] Restoring saved project from IndexedDB:', saved.name);
               const restored = await restoreProjectMediaUrls(saved);
               setProject(restored);
               window.dispatchEvent(new CustomEvent('clipforge:redraw'));
@@ -78,39 +78,63 @@ export default function App() {
     initStorage();
   }, [setProject]);
 
-  // Periodic autosave every 5 seconds
+  // Periodic autosave every 5 seconds when in editor
   useEffect(() => {
+    if (route !== 'editor') return;
     const timer = setInterval(() => {
       saveProjectToDB(project);
     }, 5000);
 
     return () => clearInterval(timer);
-  }, [project]);
+  }, [project, route]);
 
-  // Initialize global hotkey manager (Space play/pause, Delete clips, Ctrl+Z undo/redo, etc.)
+  // Initialize global hotkey manager
   useHotkeyManager();
 
-  // MOBILE LAYOUT (< 768px or devMobilePreview)
+  // If NOT in editor view, render Home / Projects / Templates / Assets / Settings / Help with AppNavigation shell
+  if (route !== 'editor') {
+    return (
+      <div className={`flex ${isMobile ? 'flex-col' : 'flex-row'} h-[100dvh] h-screen max-h-[100dvh] w-screen overflow-hidden bg-[#FAFAFA] dark:bg-[#111111] text-[#171717] dark:text-[#EDEDED] font-sans select-none`}>
+        {/* Navigation Sidebar / Bottom Bar */}
+        <AppNavigation />
+
+        {/* Active Page Route */}
+        <main className={`flex-1 flex flex-col overflow-hidden relative ${!isMobile ? 'pl-14' : ''}`}>
+          {route === 'home' && <HomePage />}
+          {route === 'projects' && <ProjectsPage />}
+          {route === 'templates' && <TemplatesPage />}
+          {route === 'assets' && <AssetsPage />}
+          {route === 'settings' && <SettingsPage />}
+          {route === 'help' && <HelpPage />}
+        </main>
+
+        {/* Global Modals & Toasts */}
+        <OnboardingModal isOpen={isOnboardingOpen} onClose={closeOnboarding} />
+        <KeyboardShortcutsModal />
+        <ToastContainer />
+        <Analytics />
+      </div>
+    );
+  }
+
+  // MOBILE EDITOR LAYOUT
   if (isMobile) {
     return (
       <div className="flex flex-col h-[100dvh] max-h-[100dvh] w-screen overflow-hidden bg-[#FAFAFA] dark:bg-[#111111] text-[#171717] dark:text-[#EDEDED] select-none touch-manipulation overscroll-none font-sans">
-        {/* Compact Top Bar */}
         <TopBar />
 
-        {/* Preview Player (fixed ~35-40% of screen height) */}
+        {/* Preview Player */}
         <div className="h-[38%] min-h-[190px] max-h-[42%] flex flex-col overflow-hidden shrink-0 relative bg-[#F0F0F0] dark:bg-[#0D0D0D]">
           <CenterPreview />
         </div>
 
-        {/* Multi-Track Timeline (~25% of screen height) */}
+        {/* Multi-Track Timeline */}
         <div className="flex-1 min-h-[150px] flex flex-col overflow-hidden relative">
           <Timeline />
         </div>
 
-        {/* Bottom Tool Bar (Media, Audio, Text, Stickers, Effects, Filters, Transitions, Captions, AI) */}
         <MobileBottomToolbar />
 
-        {/* Bottom Sheet Drawer for Tools (~50% height, draggable, closable) */}
         {isMobileToolDrawerOpen && (
           <div className="fixed inset-0 z-50 flex flex-col justify-end">
             <div
@@ -123,7 +147,6 @@ export default function App() {
           </div>
         )}
 
-        {/* Bottom Sheet for Inspector (opens automatically when clip is selected and closes when deselected) */}
         {isMobileInspectorOpen && selectedClipIds.length > 0 && !isMobileToolDrawerOpen && (
           <div className="fixed inset-0 z-50 flex flex-col justify-end">
             <div
@@ -145,33 +168,25 @@ export default function App() {
           </div>
         )}
 
-        {/* Modal Dialogs */}
         <ExportModal />
         <ProjectManagerModal />
         <KeyboardShortcutsModal />
         <OnboardingModal isOpen={isOnboardingOpen} onClose={closeOnboarding} />
         <TemplateModal />
-
-        {/* Global Error & Notification Toasts */}
         <ToastContainer />
-
-        {/* Vercel Web Analytics */}
         <Analytics />
       </div>
     );
   }
 
-  // DESKTOP & TABLET LAYOUT (>= 1024px desktop unchanged)
+  // DESKTOP & TABLET EDITOR LAYOUT
   return (
     <div className="flex flex-col h-[100dvh] h-screen max-h-[100dvh] w-screen overflow-hidden bg-[#FAFAFA] dark:bg-[#111111] text-[#171717] dark:text-[#EDEDED] font-sans">
-      {/* Top Bar */}
       <TopBar />
 
-      {/* Main Workspace Split: Left Tab Drawer + Center Canvas Preview + Right Inspector */}
       <div className="flex-1 flex overflow-hidden min-h-0 relative">
         {!leftPanelCollapsed && <LeftPanel />}
         
-        {/* Left panel collapse toggle tab */}
         <button
           onClick={toggleLeftPanel}
           className="absolute left-0 top-1/2 -translate-y-1/2 z-40 bg-white dark:bg-[#1A1A1A] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] text-[#737373] dark:text-[#A1A1A1] hover:text-[#171717] dark:hover:text-[#EDEDED] p-1 rounded-r-[6px] border-r border-y border-[#E5E5E5] dark:border-[#2A2A2A] text-[10px] shadow-sm transition-all cursor-pointer opacity-80 hover:opacity-100"
@@ -183,7 +198,6 @@ export default function App() {
 
         <CenterPreview />
 
-        {/* Right inspector collapse toggle tab */}
         <button
           onClick={toggleRightInspector}
           className="absolute right-0 top-1/2 -translate-y-1/2 z-40 bg-white dark:bg-[#1A1A1A] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] text-[#737373] dark:text-[#A1A1A1] hover:text-[#171717] dark:hover:text-[#EDEDED] p-1 rounded-l-[6px] border-l border-y border-[#E5E5E5] dark:border-[#2A2A2A] text-[10px] shadow-sm transition-all cursor-pointer opacity-80 hover:opacity-100"
@@ -196,21 +210,15 @@ export default function App() {
         {!rightInspectorCollapsed && <RightInspector />}
       </div>
 
-      {/* Multi-Track Timeline */}
       <Timeline />
 
-      {/* Modal Dialogs */}
       <ExportModal />
       <ProjectManagerModal />
       <KeyboardShortcutsModal />
       <OnboardingModal isOpen={isOnboardingOpen} onClose={closeOnboarding} />
       <TemplateModal />
       <AudioMixerModal />
-
-      {/* Global Error & Notification Toasts */}
       <ToastContainer />
-
-      {/* Vercel Web Analytics */}
       <Analytics />
     </div>
   );

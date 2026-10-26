@@ -177,10 +177,45 @@ export const useEditorStore = create((set, get) => {
     isShortcutsModalOpen: false,
     setShortcutsModalOpen: (isShortcutsModalOpen) => set({ isShortcutsModalOpen }),
     toggleShortcutsModal: () => set((state) => ({ isShortcutsModalOpen: !state.isShortcutsModalOpen })),
-    leftPanelCollapsed: false,
-    rightInspectorCollapsed: false,
-    toggleLeftPanel: () => set((state) => ({ leftPanelCollapsed: !state.leftPanelCollapsed })),
-    toggleRightInspector: () => set((state) => ({ rightInspectorCollapsed: !state.rightInspectorCollapsed })),
+    sidebarPinned: typeof window !== 'undefined' ? localStorage.getItem('clipforge_sidebar_pinned') === 'true' : false,
+    setSidebarPinned: (pinned) => {
+      try { localStorage.setItem('clipforge_sidebar_pinned', pinned); } catch(e){}
+      set({ sidebarPinned: pinned });
+    },
+    leftPanelCollapsed: typeof window !== 'undefined' ? localStorage.getItem('clipforge_left_collapsed') === 'true' : false,
+    rightInspectorCollapsed: typeof window !== 'undefined' ? localStorage.getItem('clipforge_right_collapsed') === 'true' : false,
+    leftPanelAutoHide: typeof window !== 'undefined' ? localStorage.getItem('clipforge_left_autohide') === 'true' : false,
+    rightInspectorAutoHide: typeof window !== 'undefined' ? localStorage.getItem('clipforge_right_autohide') === 'true' : false,
+    toggleLeftPanel: () => {
+      const next = !get().leftPanelCollapsed;
+      try { localStorage.setItem('clipforge_left_collapsed', next); } catch(e){}
+      set({ leftPanelCollapsed: next });
+    },
+    toggleRightInspector: () => {
+      const next = !get().rightInspectorCollapsed;
+      try { localStorage.setItem('clipforge_right_collapsed', next); } catch(e){}
+      set({ rightInspectorCollapsed: next });
+    },
+    toggleLeftAutoHide: () => {
+      const next = !get().leftPanelAutoHide;
+      try { localStorage.setItem('clipforge_left_autohide', next); } catch(e){}
+      set({ leftPanelAutoHide: next });
+    },
+    toggleRightAutoHide: () => {
+      const next = !get().rightInspectorAutoHide;
+      try { localStorage.setItem('clipforge_right_autohide', next); } catch(e){}
+      set({ rightInspectorAutoHide: next });
+    },
+    resetLayout: () => {
+      try {
+        localStorage.removeItem('clipforge_left_collapsed');
+        localStorage.removeItem('clipforge_right_collapsed');
+        localStorage.removeItem('clipforge_left_autohide');
+        localStorage.removeItem('clipforge_right_autohide');
+        localStorage.removeItem('clipforge_sidebar_pinned');
+      } catch(e){}
+      set({ leftPanelCollapsed: false, rightInspectorCollapsed: false, leftPanelAutoHide: false, rightInspectorAutoHide: false, sidebarPinned: false, zoom: 45 });
+    },
 
     devMobilePreview: false,
     toggleDevMobilePreview: () => set((state) => ({ devMobilePreview: !state.devMobilePreview })),
@@ -202,6 +237,14 @@ export const useEditorStore = create((set, get) => {
     isOnboardingOpen: typeof window !== 'undefined' ? (localStorage.getItem('clipforge_onboarding_completed') !== 'true') : false,
     openOnboarding: () => set({ isOnboardingOpen: true }),
     closeOnboarding: () => set({ isOnboardingOpen: false }),
+
+    route: typeof window !== 'undefined' ? (localStorage.getItem('clipforge_route') || 'home') : 'home',
+    setRoute: (route) => {
+      try {
+        localStorage.setItem('clipforge_route', route);
+      } catch (e) {}
+      set({ route });
+    },
 
     usePreviewProxy: true,
     togglePreviewProxy: () => set((state) => ({ usePreviewProxy: !state.usePreviewProxy })),
@@ -327,6 +370,7 @@ export const useEditorStore = create((set, get) => {
             : [...state.selectedClipIds, clipId]
           : [clipId],
         isMobileInspectorOpen: true,
+        rightInspectorCollapsed: false,
       }));
     },
 

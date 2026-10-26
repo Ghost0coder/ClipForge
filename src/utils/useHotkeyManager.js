@@ -116,6 +116,10 @@ export const HOTKEY_DEFINITIONS = [
         description: 'Open Export / Render dialog',
       },
       {
+        keys: ['Ctrl/⌘', 'B'],
+        description: 'Toggle Left Tool Panel on/off',
+      },
+      {
         keys: ['?'],
         description: 'Toggle Keyboard Shortcuts cheat sheet',
       },
@@ -423,6 +427,13 @@ export function useHotkeyManager() {
       if (isCtrlOrCmd && (e.key === 'e' || e.key === 'E')) {
         e.preventDefault();
         setExportModalOpen(true);
+        return;
+      }
+
+      // Toggle Left Panel ('Ctrl+B')
+      if (isCtrlOrCmd && (e.key === 'b' || e.key === 'B')) {
+        e.preventDefault();
+        useEditorStore.getState().toggleLeftPanel();
         return;
       }
 

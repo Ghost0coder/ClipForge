@@ -917,6 +917,21 @@ export const Timeline = () => {
                               <Shuffle className="w-2.5 h-2.5" />
                             </span>
                           )}
+                          {clip.animationIn && clip.animationIn !== 'none' && (
+                            <span className="text-[9px] bg-purple-600 text-white px-1 py-0.2 rounded-[3px] shrink-0" title={`Animation In: ${clip.animationIn}`}>
+                              In
+                            </span>
+                          )}
+                          {clip.animationOut && clip.animationOut !== 'none' && (
+                            <span className="text-[9px] bg-indigo-600 text-white px-1 py-0.2 rounded-[3px] shrink-0" title={`Animation Out: ${clip.animationOut}`}>
+                              Out
+                            </span>
+                          )}
+                          {clip.animationLoop && clip.animationLoop !== 'none' && (
+                            <span className="text-[9px] bg-amber-600 text-white px-1 py-0.2 rounded-[3px] shrink-0" title={`Loop: ${clip.animationLoop}`}>
+                              Loop
+                            </span>
+                          )}
                         </div>
 
                         {/* Right Trim Handle */}

@@ -24,11 +24,14 @@ import {
   Sun,
   Moon,
   HelpCircle,
+  ArrowLeft,
 } from 'lucide-react';
 import { useEditorStore } from '../store/editorStore';
 import { ASPECT_RATIOS } from '../types/editor';
 import { useResponsive } from '../utils/useResponsive';
 import { PWAInstallButton } from './PWAInstallButton';
+import { saveProjectToDB } from '../utils/storage';
+import { toastSuccess, toastWarning } from '../store/toastStore';
 
 export const TopBar = () => {
   const {
@@ -56,6 +59,7 @@ export const TopBar = () => {
     openOnboarding,
     theme,
     toggleTheme,
+    setRoute,
   } = useEditorStore();
 
   const { isMobile } = useResponsive();
@@ -63,6 +67,16 @@ export const TopBar = () => {
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempName, setTempName] = useState(project.name);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  const handleReturnHome = async () => {
+    try {
+      await saveProjectToDB(project);
+      setRoute('home');
+      toastSuccess('Project saved and returned to Home', 'Home');
+    } catch (err) {
+      toastWarning('Autosave failed. Unsaved changes safeguard activated!', 'Save Error');
+    }
+  };
 
   const handleSaveName = () => {
     if (tempName.trim()) {
@@ -93,8 +107,15 @@ export const TopBar = () => {
     return (
       <>
         <header className="h-12 border-b border-[#E5E5E5] dark:border-[#2A2A2A] bg-white dark:bg-[#1A1A1A] px-2 pt-safe flex items-center justify-between gap-1 select-none shrink-0 z-30 transition-colors">
-          {/* Left: Projects Button & Project Name */}
+          {/* Left: Home Button, Projects Button & Project Name */}
           <div className="flex items-center gap-1 min-w-0">
+            <button
+              onClick={handleReturnHome}
+              className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-[6px] text-[#737373] dark:text-[#A1A1A1] hover:text-[#171717] dark:hover:text-[#EDEDED] active:bg-[#F5F5F5] dark:active:bg-[#262626] transition-colors cursor-pointer"
+              title="Return to Home"
+            >
+              <ArrowLeft className="w-4 h-4" strokeWidth={1.5} />
+            </button>
             <button
               onClick={() => setProjectManagerOpen(true)}
               className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-[6px] text-[#737373] dark:text-[#A1A1A1] hover:text-[#171717] dark:hover:text-[#EDEDED] active:bg-[#F5F5F5] dark:active:bg-[#262626] transition-colors cursor-pointer"
@@ -365,8 +386,15 @@ export const TopBar = () => {
   // DESKTOP TOP BAR
   return (
     <header className="h-11 border-b border-[#E5E5E5] dark:border-[#2A2A2A] bg-white dark:bg-[#1A1A1A] px-3 flex items-center justify-between gap-3 select-none shrink-0 z-30 transition-colors">
-      {/* Left: Brand & Project Name */}
+      {/* Left: Home Return, Brand & Project Name */}
       <div className="flex items-center gap-3">
+        <button
+          onClick={handleReturnHome}
+          className="flex items-center justify-center w-7 h-7 rounded-[6px] bg-[#FAFAFA] dark:bg-[#262626] border border-[#E5E5E5] dark:border-[#333333] text-[#737373] dark:text-[#A1A1A1] hover:text-[#171717] dark:hover:text-[#EDEDED] transition-colors cursor-pointer mr-1"
+          title="Return to Home"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" strokeWidth={1.5} />
+        </button>
         <div className="flex items-center gap-2 pr-3 border-r border-[#E5E5E5] dark:border-[#2A2A2A]">
           <div className="w-6 h-6 rounded-[6px] bg-[#171717] text-white dark:bg-[#EDEDED] dark:text-[#171717] flex items-center justify-center">
             <Film className="w-3.5 h-3.5" strokeWidth={1.5} />

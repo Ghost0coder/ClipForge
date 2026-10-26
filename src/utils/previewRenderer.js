@@ -4,6 +4,7 @@ import { toastError } from '../store/toastStore';
 import { useEditorStore } from '../store/editorStore';
 import { getSpeedCurveSourceTime, applyAdvancedColorGrading } from './colorGradingUtils';
 import { renderTransition, TRANSITIONS_REGISTRY } from './transitions';
+import { ANIMATIONS_REGISTRY, applyEasing } from './animations';
 
 
 
@@ -374,7 +375,7 @@ function renderClip(
     }
   }
 
-  // Animations: In, Out, Loop (works on Text, Sticker, Image, Video, Drawing)
+  // Data-driven 80+ Animations Engine (In, Out, Loop)
   let animTransformX = 0;
   let animTransformY = 0;
   let animScale = 1;
@@ -382,63 +383,57 @@ function renderClip(
   let animOpacity = 1;
   let animBlur = 0;
 
-  const inAnim = clip.animationIn || (clip.textProps && clip.textProps.animation);
+  // In Animation
+  const inAnimId = clip.animationIn || (clip.textProps && clip.textProps.animation);
   const inDur = clip.animationInDuration || 0.6;
-  if (inAnim && inAnim !== 'none' && clipElapsed < inDur) {
-    const t = Math.max(0, Math.min(1, clipElapsed / inDur));
-    if (inAnim === 'fade') {
-      animOpacity *= t;
-    } else if (inAnim === 'slide-up') {
-      animTransformY += canvasH * 0.3 * (1 - t);
-      animOpacity *= t;
-    } else if (inAnim === 'slide-left') {
-      animTransformX += canvasW * 0.35 * (1 - t);
-      animOpacity *= t;
-    } else if (inAnim === 'pop') {
-      const popT = t < 0.7 ? (t / 0.7) * 1.15 : 1.15 - ((t - 0.7) / 0.3) * 0.15;
-      animScale *= Math.max(0.01, popT);
-      animOpacity *= Math.min(1, t * 1.5);
-    } else if (inAnim === 'bounce') {
-      const spring = Math.sin(t * Math.PI * 1.5) * (1 - t);
-      animTransformY -= spring * 35;
-      animScale *= 0.5 + 0.5 * t;
-      animOpacity *= t;
-    } else if (inAnim === 'blur-in') {
-      animBlur = (1 - t) * 18;
-      animOpacity *= t;
+  if (inAnimId && inAnimId !== 'none' && clipElapsed < inDur) {
+    const rawT = Math.max(0, Math.min(1, clipElapsed / inDur));
+    const easing = clip.animationInEasing || 'easeInOut';
+    const t = applyEasing(rawT, easing);
+    const animObj = ANIMATIONS_REGISTRY[inAnimId];
+    if (animObj && typeof animObj.compute === 'function') {
+      const res = animObj.compute(t, 0, 1);
+      if (res.opacity !== undefined) animOpacity *= res.opacity;
+      if (res.scale !== undefined) animScale *= res.scale;
+      if (res.x !== undefined) animTransformX += res.x;
+      if (res.y !== undefined) animTransformY += res.y;
+      if (res.rotation !== undefined) animRotation += res.rotation;
+      if (res.blur !== undefined) animBlur += res.blur;
     }
   }
 
   // Out Animation
-  const outAnim = clip.animationOut;
+  const outAnimId = clip.animationOut;
   const outDur = clip.animationOutDuration || 0.6;
-  if (outAnim && outAnim !== 'none' && clipRemaining < outDur) {
-    const t = Math.max(0, Math.min(1, clipRemaining / outDur));
-    if (outAnim === 'fade') {
-      animOpacity *= t;
-    } else if (outAnim === 'slide-down') {
-      animTransformY += canvasH * 0.3 * (1 - t);
-      animOpacity *= t;
-    } else if (outAnim === 'shrink') {
-      animScale *= Math.max(0.01, t);
-      animOpacity *= t;
-    } else if (outAnim === 'blur-out') {
-      animBlur = Math.max(animBlur, (1 - t) * 18);
-      animOpacity *= t;
+  if (outAnimId && outAnimId !== 'none' && clipRemaining < outDur) {
+    const rawT = Math.max(0, Math.min(1, clipRemaining / outDur));
+    const easing = clip.animationOutEasing || 'easeInOut';
+    const t = applyEasing(rawT, easing);
+    const animObj = ANIMATIONS_REGISTRY[outAnimId];
+    if (animObj && typeof animObj.compute === 'function') {
+      const res = animObj.compute(t, 0, 1);
+      if (res.opacity !== undefined) animOpacity *= res.opacity;
+      if (res.scale !== undefined) animScale *= res.scale;
+      if (res.x !== undefined) animTransformX += res.x;
+      if (res.y !== undefined) animTransformY += res.y;
+      if (res.rotation !== undefined) animRotation += res.rotation;
+      if (res.blur !== undefined) animBlur += res.blur;
     }
   }
 
-  // Loop Animation
-  const loopAnim = clip.animationLoop;
+  // Loop / Combo Animation
+  const loopAnimId = clip.animationLoop;
   const loopSpeed = clip.animationLoopSpeed || 1.0;
-  if (loopAnim && loopAnim !== 'none') {
-    if (loopAnim === 'pulse') {
-      animScale *= (1 + Math.sin(currentTime * 4 * loopSpeed) * 0.08);
-    } else if (loopAnim === 'float') {
-      animTransformY += Math.sin(currentTime * 3 * loopSpeed) * 12;
-    } else if (loopAnim === 'shake') {
-      animTransformX += (Math.sin(currentTime * 24 * loopSpeed) * 6);
-      animRotation += (Math.cos(currentTime * 18 * loopSpeed) * 3);
+  if (loopAnimId && loopAnimId !== 'none') {
+    const loopTime = (currentTime * loopSpeed) % 5;
+    const animObj = ANIMATIONS_REGISTRY[loopAnimId];
+    if (animObj && typeof animObj.compute === 'function') {
+      const res = animObj.compute(loopTime / 5, 0, 1);
+      if (res.scale !== undefined) animScale *= res.scale;
+      if (res.x !== undefined) animTransformX += res.x;
+      if (res.y !== undefined) animTransformY += res.y;
+      if (res.rotation !== undefined) animRotation += res.rotation;
+      if (res.opacity !== undefined) animOpacity *= res.opacity;
     }
   }
 
