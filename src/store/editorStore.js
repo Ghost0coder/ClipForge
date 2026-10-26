@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 
 import { createDefaultProject } from '../utils/sampleData';
-import { saveProjectToDB, } from '../utils/storage';
+import { saveProjectToDB, deleteMediaBlobFromDB } from '../utils/storage';
 import { audioEngine } from '../utils/audioEngine';
 import { pauseAllVideos } from '../utils/previewRenderer';
 import { toastSuccess, toastWarning, toastInfo } from './toastStore';
@@ -147,6 +147,93 @@ export const useEditorStore = create((set, get) => {
     currentTime: 0,
     isPlaying: false,
     selectedClipIds: [],
+    selectedAssetIds: [],
+    selectAsset: (id, multi = false, shift = false) => {
+      console.log('[ClipForge:Asset] selectAsset:', id, { multi, shift });
+      set((state) => {
+        const currentSelected = state.selectedAssetIds;
+        const library = state.project.mediaLibrary || [];
+        if (shift && currentSelected.length > 0) {
+          const lastId = currentSelected[currentSelected.length - 1];
+          const lastIdx = library.findIndex((a) => a.id === lastId);
+          const currIdx = library.findIndex((a) => a.id === id);
+          if (lastIdx !== -1 && currIdx !== -1) {
+            const start = Math.min(lastIdx, currIdx);
+            const end = Math.max(lastIdx, currIdx);
+            const rangeIds = library.slice(start, end + 1).map((a) => a.id);
+            return { selectedAssetIds: Array.from(new Set([...currentSelected, ...rangeIds])) };
+          }
+        }
+        if (multi) {
+          const exists = currentSelected.includes(id);
+          const next = exists ? currentSelected.filter((i) => i !== id) : [...currentSelected, id];
+          return { selectedAssetIds: next };
+        }
+        return { selectedAssetIds: [id] };
+      });
+    },
+    deselectAsset: (id) => {
+      console.log('[ClipForge:Asset] deselectAsset:', id);
+      set((state) => ({ selectedAssetIds: state.selectedAssetIds.filter((i) => i !== id) }));
+    },
+    clearAssetSelection: () => {
+      console.log('[ClipForge:Asset] clearAssetSelection');
+      set({ selectedAssetIds: [] });
+    },
+    addMediaAsset: (asset) => {
+      console.log('[ClipForge:Asset] addMediaAsset:', asset);
+      const { project } = get();
+      const library = project.mediaLibrary || [];
+      const updatedProject = {
+        ...project,
+        mediaLibrary: [asset, ...library],
+        updatedAt: Date.now(),
+      };
+      set({ project: updatedProject });
+      saveProjectToDB(updatedProject);
+    },
+    deleteAssets: async (assetIds, removeClips = true) => {
+      console.log('[ClipForge:Asset] deleteAssets:', assetIds, { removeClips });
+      pushHistory();
+      const { project } = get();
+      const library = project.mediaLibrary || [];
+      const assetsToDelete = library.filter((a) => assetIds.includes(a.id));
+      const remainingLibrary = library.filter((a) => !assetIds.includes(a.id));
+
+      let updatedTracks = project.tracks;
+      if (removeClips) {
+        const mediaKeysToDelete = new Set(assetsToDelete.map((a) => a.mediaId || a.id));
+        updatedTracks = project.tracks.map((track) => ({
+          ...track,
+          clips: track.clips.filter((c) => !mediaKeysToDelete.has(c.mediaId) && !mediaKeysToDelete.has(c.id)),
+        }));
+      }
+
+      const updatedProject = {
+        ...project,
+        mediaLibrary: remainingLibrary,
+        tracks: updatedTracks,
+        updatedAt: Date.now(),
+      };
+
+      set({ project: updatedProject, selectedAssetIds: [] });
+      saveProjectToDB(updatedProject);
+
+      for (const asset of assetsToDelete) {
+        try {
+          if (asset.mediaId) {
+            await deleteMediaBlobFromDB(asset.mediaId);
+          }
+          if (asset.url && asset.url.startsWith('blob:')) {
+            URL.revokeObjectURL(asset.url);
+          }
+        } catch (e) {
+          console.error('[ClipForge:Asset] Error deleting asset blob:', asset.id, e);
+        }
+      }
+
+      toastSuccess(`Deleted ${assetsToDelete.length} asset(s)`, 'Asset Deleted');
+    },
 
     zoom: 45,
     snapping: true,

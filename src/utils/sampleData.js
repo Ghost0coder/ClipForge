@@ -907,6 +907,7 @@ export function createDefaultProject() {
     fps: 30,
     tracks: [textTrack, effectTrack, stickerTrack, videoTrack, audioTrack],
     markers: [],
+    mediaLibrary: [],
     background: {
       type: 'color',
       color: '#0b0c10',

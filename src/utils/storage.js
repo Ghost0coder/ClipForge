@@ -70,6 +70,17 @@ export async function deleteProjectFromDB(id) {
   }
 }
 
+export async function deleteMediaBlobFromDB(id) {
+  try {
+    const db = await getDB();
+    await db.delete('media', id);
+    console.log('[ClipForge:Asset] Deleted media blob from IndexedDB:', id);
+  } catch (error) {
+    console.error('[ClipForge:Asset] Failed to delete media blob from IndexedDB:', error);
+    throw error;
+  }
+}
+
 export async function getLastActiveProjectId() {
   try {
     const db = await getDB();
