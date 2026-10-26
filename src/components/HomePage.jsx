@@ -15,7 +15,7 @@ export const HomePage = () => {
   useEffect(() => {
     async function loadProjects() {
       const list = await getAllProjectsFromDB();
-      setProjects(list);
+      setProjects(list.filter((p) => !p.deletedAt));
     }
     loadProjects();
   }, []);

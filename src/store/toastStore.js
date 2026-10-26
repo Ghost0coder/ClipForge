@@ -47,8 +47,8 @@ export function toastError(message, title = 'Action Failed') {
   return useToastStore.getState().addToast({ type: 'error', title, message });
 }
 
-export function toastSuccess(message, title) {
-  return useToastStore.getState().addToast({ type: 'success', title, message });
+export function toastSuccess(message, title, action) {
+  return useToastStore.getState().addToast({ type: 'success', title, message, action });
 }
 
 export function toastWarning(message, title) {

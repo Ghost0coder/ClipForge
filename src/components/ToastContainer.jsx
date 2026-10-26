@@ -30,13 +30,26 @@ export const ToastContainer = () => {
               {!isError && !isSuccess && !isWarning && <Info className="w-4 h-4 text-[#3B82F6]" strokeWidth={1.5} />}
             </div>
 
-            <div className="flex-1 min-w-0 pr-1">
-              {toast.title && (
-                <h4 className="text-xs font-medium mb-0.5 text-[#171717] dark:text-[#EDEDED]">
-                  {toast.title}
-                </h4>
+            <div className="flex-1 min-w-0 pr-1 flex items-center justify-between gap-2">
+              <div>
+                {toast.title && (
+                  <h4 className="text-xs font-medium mb-0.5 text-[#171717] dark:text-[#EDEDED]">
+                    {toast.title}
+                  </h4>
+                )}
+                <p className="text-xs leading-relaxed text-[#737373] dark:text-[#A1A1A1] break-words">{toast.message}</p>
+              </div>
+              {toast.action && (
+                <button
+                  onClick={() => {
+                    toast.action.onClick();
+                    removeToast(toast.id);
+                  }}
+                  className="px-2.5 py-1 text-xs font-semibold rounded bg-[#3B82F6] text-white hover:bg-blue-600 cursor-pointer transition-colors shrink-0"
+                >
+                  {toast.action.label}
+                </button>
               )}
-              <p className="text-xs leading-relaxed text-[#737373] dark:text-[#A1A1A1] break-words">{toast.message}</p>
             </div>
 
             <button

@@ -16,10 +16,12 @@ import { MobileBottomToolbar } from './components/MobileBottomToolbar';
 import { AppNavigation } from './components/AppNavigation';
 import { HomePage } from './components/HomePage';
 import { ProjectsPage } from './components/ProjectsPage';
+import { TrashPage } from './components/TrashPage';
 import { TemplatesPage } from './components/TemplatesPage';
 import { AssetsPage } from './components/AssetsPage';
 import { SettingsPage } from './components/SettingsPage';
 import { HelpPage } from './components/HelpPage';
+import { ClearUnusedMediaModal } from './components/ClearUnusedMediaModal';
 import { useEditorStore } from './store/editorStore';
 import { saveProjectToDB, getProjectFromDB, getLastActiveProjectId, restoreProjectMediaUrls } from './utils/storage';
 import { useResponsive } from './utils/useResponsive';
@@ -91,7 +93,7 @@ export default function App() {
   // Initialize global hotkey manager
   useHotkeyManager();
 
-  // If NOT in editor view, render Home / Projects / Templates / Assets / Settings / Help with AppNavigation shell
+  // If NOT in editor view, render Home / Projects / Trash / Templates / Assets / Settings / Help with AppNavigation shell
   if (route !== 'editor') {
     return (
       <div className={`flex ${isMobile ? 'flex-col' : 'flex-row'} h-[100dvh] h-screen max-h-[100dvh] w-screen overflow-hidden bg-[#FAFAFA] dark:bg-[#111111] text-[#171717] dark:text-[#EDEDED] font-sans select-none`}>
@@ -102,6 +104,7 @@ export default function App() {
         <main className={`flex-1 flex flex-col overflow-hidden relative ${!isMobile ? 'pl-14' : ''}`}>
           {route === 'home' && <HomePage />}
           {route === 'projects' && <ProjectsPage />}
+          {route === 'trash' && <TrashPage />}
           {route === 'templates' && <TemplatesPage />}
           {route === 'assets' && <AssetsPage />}
           {route === 'settings' && <SettingsPage />}
@@ -111,6 +114,7 @@ export default function App() {
         {/* Global Modals & Toasts */}
         <OnboardingModal isOpen={isOnboardingOpen} onClose={closeOnboarding} />
         <KeyboardShortcutsModal />
+        <ClearUnusedMediaModal />
         <ToastContainer />
         <Analytics />
       </div>
@@ -171,6 +175,7 @@ export default function App() {
         <ExportModal />
         <ProjectManagerModal />
         <KeyboardShortcutsModal />
+        <ClearUnusedMediaModal />
         <OnboardingModal isOpen={isOnboardingOpen} onClose={closeOnboarding} />
         <TemplateModal />
         <ToastContainer />
@@ -215,6 +220,7 @@ export default function App() {
       <ExportModal />
       <ProjectManagerModal />
       <KeyboardShortcutsModal />
+      <ClearUnusedMediaModal />
       <OnboardingModal isOpen={isOnboardingOpen} onClose={closeOnboarding} />
       <TemplateModal />
       <AudioMixerModal />
