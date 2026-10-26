@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 
 import { createDefaultProject } from '../utils/sampleData';
-import { saveProjectToDB, deleteMediaBlobFromDB } from '../utils/storage';
+import { saveProjectToDB, deleteMediaBlobFromDB, clearUnusedMediaFromDB } from '../utils/storage';
 import { audioEngine } from '../utils/audioEngine';
 import { pauseAllVideos } from '../utils/previewRenderer';
 import { toastSuccess, toastWarning, toastInfo } from './toastStore';
@@ -233,6 +233,74 @@ export const useEditorStore = create((set, get) => {
       }
 
       toastSuccess(`Deleted ${assetsToDelete.length} asset(s)`, 'Asset Deleted');
+    },
+
+    clearUnusedMedia: async () => {
+      console.log('[ClipForge:Asset] clearUnusedMedia initiated');
+      pushHistory();
+      const { project } = get();
+      const library = project.mediaLibrary || [];
+
+      // Collect keys used by clips on timeline
+      const timelineKeys = new Set();
+      (project.tracks || []).forEach((track) => {
+        (track.clips || []).forEach((clip) => {
+          if (clip.mediaId) timelineKeys.add(clip.mediaId);
+          if (clip.id) timelineKeys.add(clip.id);
+          if (clip.mediaUrl) timelineKeys.add(clip.mediaUrl);
+        });
+      });
+
+      const unusedAssets = library.filter((asset) => {
+        const isUsed =
+          timelineKeys.has(asset.id) ||
+          (asset.mediaId && timelineKeys.has(asset.mediaId)) ||
+          (asset.url && timelineKeys.has(asset.url));
+        return !isUsed;
+      });
+
+      const usedAssets = library.filter((asset) => {
+        const isUsed =
+          timelineKeys.has(asset.id) ||
+          (asset.mediaId && timelineKeys.has(asset.mediaId)) ||
+          (asset.url && timelineKeys.has(asset.url));
+        return isUsed;
+      });
+
+      // Update project state
+      const updatedProject = {
+        ...project,
+        mediaLibrary: usedAssets,
+        updatedAt: Date.now(),
+      };
+
+      set({ project: updatedProject, selectedAssetIds: [] });
+      saveProjectToDB(updatedProject);
+
+      // Clean blobs
+      for (const asset of unusedAssets) {
+        try {
+          if (asset.mediaId) {
+            await deleteMediaBlobFromDB(asset.mediaId);
+          }
+          if (asset.url && asset.url.startsWith('blob:')) {
+            URL.revokeObjectURL(asset.url);
+          }
+        } catch (e) {
+          console.error('[ClipForge:Asset] Error revoking unused asset:', asset.id, e);
+        }
+      }
+
+      // Purge orphaned IndexedDB media blobs
+      const { purgedBlobsCount } = await clearUnusedMediaFromDB(updatedProject);
+
+      const totalCleared = Math.max(unusedAssets.length, purgedBlobsCount);
+
+      if (totalCleared > 0) {
+        toastSuccess(`Cleared ${totalCleared} unused media file(s) from project and storage`, 'Cleanup Complete');
+      } else {
+        toastInfo('No unused media found. All project assets are currently in use on the timeline.', 'No Unused Media');
+      }
     },
 
     zoom: 45,

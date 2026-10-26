@@ -64,6 +64,18 @@ export const SettingsPage = () => {
           <h2 className="text-sm font-semibold text-[#171717] dark:text-[#EDEDED]">Storage & Cache</h2>
           <div className="flex items-center justify-between">
             <div>
+              <p className="text-xs font-medium text-[#171717] dark:text-[#EDEDED]">Unused Media Assets</p>
+              <p className="text-[10px] text-[#737373]">Purge uploaded media assets not currently placed on any timeline clip.</p>
+            </div>
+            <button
+              onClick={() => useEditorStore.getState().clearUnusedMedia()}
+              className="px-3 py-1.5 rounded-[6px] bg-[#171717] text-white dark:bg-[#EDEDED] dark:text-[#171717] hover:bg-[#262626] dark:hover:bg-white text-xs font-medium cursor-pointer"
+            >
+              Clear Unused Media
+            </button>
+          </div>
+          <div className="flex items-center justify-between pt-3 border-t border-[#E5E5E5] dark:border-[#2A2A2A]">
+            <div>
               <p className="text-xs font-medium text-[#171717] dark:text-[#EDEDED]">IndexedDB Local Cache</p>
               <p className="text-[10px] text-[#737373]">Auto-saves project states and media records locally.</p>
             </div>

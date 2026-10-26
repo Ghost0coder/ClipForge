@@ -148,6 +148,16 @@ export const ProjectsPage = () => {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Clean Unused Media */}
+          <button
+            onClick={() => useEditorStore.getState().clearUnusedMedia()}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-[8px] border border-[#E5E5E5] dark:border-[#2A2A2A] bg-white dark:bg-[#1A1A1A] hover:bg-rose-50 dark:hover:bg-rose-950/30 text-xs font-medium text-[#737373] hover:text-rose-600 dark:text-[#A1A1A1] dark:hover:text-rose-400 cursor-pointer transition-colors"
+            title="Clean media blobs unreferenced across projects"
+          >
+            <Trash2 className="w-4 h-4" />
+            <span>Clean Unused Media</span>
+          </button>
+
           {/* Import JSON */}
           <label className="flex items-center gap-1.5 px-3 py-2 rounded-[8px] border border-[#E5E5E5] dark:border-[#2A2A2A] bg-white dark:bg-[#1A1A1A] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] text-xs font-medium cursor-pointer transition-colors">
             <Upload className="w-4 h-4 text-[#737373]" strokeWidth={1.5} />

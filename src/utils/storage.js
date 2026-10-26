@@ -204,3 +204,62 @@ export function parseProjectJson(file) {
     reader.readAsText(file);
   });
 }
+
+export async function clearUnusedMediaFromDB(activeProject = null) {
+  try {
+    const db = await getDB();
+    const allProjects = await getAllProjectsFromDB();
+    
+    // Collect all mediaId / id / url references across all projects in DB
+    const usedKeys = new Set();
+    
+    allProjects.forEach((project) => {
+      (project.tracks || []).forEach((track) => {
+        (track.clips || []).forEach((clip) => {
+          if (clip.mediaId) usedKeys.add(clip.mediaId);
+          if (clip.id) usedKeys.add(clip.id);
+          if (clip.mediaUrl) usedKeys.add(clip.mediaUrl);
+        });
+      });
+      (project.mediaLibrary || []).forEach((asset) => {
+        const isPlacedOnClip = (project.tracks || []).some((t) =>
+          (t.clips || []).some(
+            (c) => c.mediaId === asset.mediaId || c.mediaId === asset.id || c.id === asset.id || c.mediaUrl === asset.url
+          )
+        );
+        if (isPlacedOnClip) {
+          if (asset.mediaId) usedKeys.add(asset.mediaId);
+          if (asset.id) usedKeys.add(asset.id);
+          if (asset.url) usedKeys.add(asset.url);
+        }
+      });
+    });
+
+    if (activeProject) {
+      (activeProject.tracks || []).forEach((track) => {
+        (track.clips || []).forEach((clip) => {
+          if (clip.mediaId) usedKeys.add(clip.mediaId);
+          if (clip.id) usedKeys.add(clip.id);
+          if (clip.mediaUrl) usedKeys.add(clip.mediaUrl);
+        });
+      });
+    }
+
+    // Purge unreferenced blobs from IndexedDB 'media' store
+    const allMediaRecords = await db.getAll('media');
+    let purgedBlobsCount = 0;
+    
+    for (const record of allMediaRecords) {
+      if (!usedKeys.has(record.id)) {
+        await db.delete('media', record.id);
+        purgedBlobsCount++;
+        console.log('[ClipForge:Asset] Purged unreferenced orphan media blob from IndexedDB:', record.id);
+      }
+    }
+
+    return { purgedBlobsCount };
+  } catch (error) {
+    console.error('[ClipForge:Asset] Failed to clear unused media from IndexedDB:', error);
+    return { purgedBlobsCount: 0 };
+  }
+}

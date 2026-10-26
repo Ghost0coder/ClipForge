@@ -43,6 +43,10 @@ import {
   BookmarkPlus,
   Scissors,
   Languages,
+  Trash2,
+  CheckSquare,
+  Square,
+  AlertTriangle,
 } from 'lucide-react';
 import { useEditorStore } from '../store/editorStore';
 import {
@@ -135,6 +139,13 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
     openTemplateModal,
     performAutoCutSilence,
     trimClip,
+    selectedAssetIds,
+    selectAsset,
+    deselectAsset,
+    clearAssetSelection,
+    addMediaAsset,
+    deleteAssets,
+    clearUnusedMedia,
   } = useEditorStore();
 
   const fileInputRef = useRef(null);
@@ -143,6 +154,131 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
   const [isRecording, setIsRecording] = useState(false);
   const [recordSeconds, setRecordSeconds] = useState(0);
   const recordTimerRef = useRef(null);
+
+  // Asset management states
+  const [selectMode, setSelectMode] = useState(false);
+  const [assetSearch, setAssetSearch] = useState('');
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [assetsPendingDelete, setAssetsPendingDelete] = useState([]);
+  const [removeClipsFromTimeline, setRemoveClipsFromTimeline] = useState(true);
+
+  // Calculate timeline clips affected by deleting assets
+  const getAffectedClipsCount = (assetIds) => {
+    const library = project.mediaLibrary || [];
+    const assetsToDelete = library.filter((a) => assetIds.includes(a.id));
+    const mediaKeys = new Set();
+    assetsToDelete.forEach((a) => {
+      if (a.mediaId) mediaKeys.add(a.mediaId);
+      if (a.id) mediaKeys.add(a.id);
+      if (a.url) mediaKeys.add(a.url);
+    });
+    let count = 0;
+    (project.tracks || []).forEach((t) => {
+      (t.clips || []).forEach((c) => {
+        if (mediaKeys.has(c.mediaId) || mediaKeys.has(c.id) || mediaKeys.has(c.mediaUrl)) {
+          count++;
+        }
+      });
+    });
+    return count;
+  };
+
+  const handleOpenDeleteModal = (assetIds) => {
+    console.log('[ClipForge:Asset] handleOpenDeleteModal:', assetIds);
+    setAssetsPendingDelete(assetIds);
+    setDeleteConfirmOpen(true);
+  };
+
+  const handleConfirmDeleteAssets = async () => {
+    console.log('[ClipForge:Asset] handleConfirmDeleteAssets:', assetsPendingDelete, { removeClipsFromTimeline });
+    if (assetsPendingDelete.length === 0) return;
+    await deleteAssets(assetsPendingDelete, removeClipsFromTimeline);
+    setDeleteConfirmOpen(false);
+    setAssetsPendingDelete([]);
+  };
+
+  const handleAddSelectedAssetsToTimeline = () => {
+    console.log('[ClipForge:Asset] handleAddSelectedAssetsToTimeline:', selectedAssetIds);
+    const library = project.mediaLibrary || [];
+    const assetsToAdd = library.filter((a) => selectedAssetIds.includes(a.id));
+    if (assetsToAdd.length === 0) return;
+
+    let timeOffset = 0;
+    assetsToAdd.forEach((asset) => {
+      let targetTrack = project.tracks.find((t) =>
+        asset.type === 'video' || asset.type === 'image'
+          ? t.type === 'video'
+          : asset.type === 'audio'
+          ? t.type === 'audio'
+          : t.type === 'video'
+      );
+      if (!targetTrack) targetTrack = project.tracks[0];
+
+      const dur = asset.duration || (asset.type === 'image' ? 4 : 8);
+      const clipStart = currentTime + timeOffset;
+
+      const newClip = {
+        id: 'clip_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+        trackId: targetTrack.id,
+        type: asset.type === 'audio' ? 'audio' : asset.type === 'image' ? 'image' : 'video',
+        name: asset.name,
+        start: clipStart,
+        duration: dur,
+        sourceStart: 0,
+        sourceDuration: dur,
+        mediaUrl: asset.url,
+        mediaId: asset.mediaId,
+        x: 0,
+        y: 0,
+        scale: 1,
+        rotation: 0,
+        opacity: 1,
+        flipH: false,
+        flipV: false,
+        blendMode: 'normal',
+        speed: 1,
+        filterIntensity: 0,
+        adjustments: {
+          brightness: 0, contrast: 0, saturation: 0, exposure: 0,
+          highlights: 0, shadows: 0, temperature: 0, tint: 0,
+          vignette: 0, sharpen: 0, grain: 0,
+        },
+        keyframes: [],
+      };
+
+      addClipToTrack(targetTrack.id, newClip);
+      timeOffset += dur;
+    });
+
+    toastSuccess(`Added ${assetsToAdd.length} asset(s) to timeline`);
+    clearAssetSelection();
+    window.dispatchEvent(new CustomEvent('clipforge:redraw'));
+  };
+
+  // Keyboard shortcut listener for Delete/Backspace & Ctrl+A on Asset panel
+  React.useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (activeLeftTab !== 'media') return;
+      const isInput = ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName) || e.target.isContentEditable;
+      if (isInput) return;
+
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedAssetIds.length > 0) {
+        e.preventDefault();
+        console.log('[ClipForge:Asset] Delete hotkey pressed with selected assets:', selectedAssetIds);
+        handleOpenDeleteModal(selectedAssetIds);
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
+        e.preventDefault();
+        console.log('[ClipForge:Asset] Select all hotkey pressed');
+        const library = project.mediaLibrary || [];
+        library.forEach((a) => selectAsset(a.id, true, false));
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeLeftTab, selectedAssetIds, project.mediaLibrary, selectAsset]);
 
   const [panelFontSearch, setPanelFontSearch] = useState('');
   const [panelFontCat, setPanelFontCat] = useState('All');
@@ -311,6 +447,20 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
 
         addClipToTrack(targetTrack.id, newClip);
         selectClip(newClip.id);
+
+        // Register in media asset library
+        addMediaAsset({
+          id: 'asset_' + Date.now() + '_' + i,
+          name: file.name,
+          type: isVideo ? 'video' : isAudio ? 'audio' : 'image',
+          url: url,
+          mediaId: mediaId,
+          size: file.size,
+          duration: actualDuration,
+          createdAt: Date.now(),
+          category: 'uploads',
+        });
+
         if (clipStart === 0) {
           seek(0);
         }
@@ -382,6 +532,19 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
 
       addClipToTrack(targetTrack.id, sampleClip);
       selectClip(sampleClip.id);
+
+      // Register sample video in media library
+      addMediaAsset({
+        id: 'asset_sample_' + Date.now(),
+        name: 'Sample Test Clip (1080p).webm',
+        type: 'video',
+        url: sample.url,
+        mediaId: mediaId,
+        size: sample.blob.size,
+        duration: sample.duration,
+        createdAt: Date.now(),
+        category: 'uploads',
+      });
       if (clipStart === 0) {
         seek(0);
       }
@@ -450,6 +613,19 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
           keyframes: [],
         };
         addClipToTrack(audioTrack.id, clip);
+
+        // Register voiceover in media asset library
+        addMediaAsset({
+          id: 'asset_mic_' + Date.now(),
+          name: `Voiceover (${recordSeconds}s)`,
+          type: 'audio',
+          url: result.url,
+          mediaId: null,
+          size: 0,
+          duration: Math.max(result.duration, 1),
+          createdAt: Date.now(),
+          category: 'uploads',
+        });
       } catch (err) {
         console.error('Failed to save recording:', err);
       }
@@ -1668,6 +1844,250 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
                     </button>
                   ))}
                 </div>
+              </div>
+
+              {/* Media Library Assets Section */}
+              <div className="space-y-3 pt-3 border-t border-[#E5E5E5] dark:border-[#2A2A2A]">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-semibold text-[#171717] dark:text-[#EDEDED]">
+                      My Media Assets
+                    </span>
+                    <span className="text-[10px] text-[#737373] dark:text-[#A1A1A1] bg-[#F5F5F5] dark:bg-[#222222] px-1.5 py-0.5 rounded-full border border-[#E5E5E5] dark:border-[#2A2A2A]">
+                      {(project.mediaLibrary || []).length}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={clearUnusedMedia}
+                      className="p-1.5 rounded-[4px] text-xs transition-colors cursor-pointer flex items-center gap-1 text-[#737373] hover:text-rose-600 dark:text-[#A1A1A1] dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                      title="Clear Unused Media from project & cache"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span className="text-[10px]">Clean Unused</span>
+                    </button>
+                    <button
+                      onClick={() => setSelectMode(!selectMode)}
+                      className={`p-1.5 rounded-[4px] text-xs transition-colors cursor-pointer flex items-center gap-1 ${
+                        selectMode
+                          ? 'bg-[#171717] text-white dark:bg-[#EDEDED] dark:text-[#171717]'
+                          : 'text-[#737373] dark:text-[#A1A1A1] hover:bg-[#F5F5F5] dark:hover:bg-[#262626]'
+                      }`}
+                      title="Toggle Selection Mode"
+                    >
+                      <CheckSquare className="w-3.5 h-3.5" />
+                      <span className="text-[10px]">{selectMode ? 'Select On' : 'Select'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Search Bar */}
+                {(project.mediaLibrary || []).length > 0 && (
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[#737373] dark:text-[#A1A1A1]" />
+                    <input
+                      type="text"
+                      value={assetSearch}
+                      onChange={(e) => setAssetSearch(e.target.value)}
+                      placeholder="Search assets..."
+                      className="w-full text-xs pl-8 pr-7 py-1.5 rounded-[6px] bg-[#FAFAFA] dark:bg-[#151515] border border-[#E5E5E5] dark:border-[#2A2A2A] text-[#171717] dark:text-[#EDEDED] focus:outline-none focus:border-[#3B82F6]"
+                    />
+                    {assetSearch && (
+                      <button
+                        onClick={() => setAssetSearch('')}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-[#737373] hover:text-[#171717] dark:hover:text-[#EDEDED]"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Bulk Selection Bar */}
+                {selectedAssetIds.length > 0 && (
+                  <div className="p-2 rounded-[6px] bg-[#EFF6FF] dark:bg-[#1E293B] border border-[#BFDBFE] dark:border-[#334155] flex items-center justify-between text-xs gap-2">
+                    <span className="font-medium text-[#1E40AF] dark:text-[#93C5FD]">
+                      {selectedAssetIds.length} selected
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={handleAddSelectedAssetsToTimeline}
+                        className="px-2 py-1 rounded-[4px] bg-[#2563EB] hover:bg-blue-700 text-white text-[11px] font-medium flex items-center gap-1 transition-colors cursor-pointer"
+                        title="Add selected assets to timeline"
+                      >
+                        <Plus className="w-3 h-3" /> Add
+                      </button>
+                      <button
+                        onClick={() => handleOpenDeleteModal(selectedAssetIds)}
+                        className="px-2 py-1 rounded-[4px] bg-red-600 hover:bg-red-700 text-white text-[11px] font-medium flex items-center gap-1 transition-colors cursor-pointer"
+                        title="Delete selected assets"
+                      >
+                        <Trash2 className="w-3 h-3" /> Delete
+                      </button>
+                      <button
+                        onClick={clearAssetSelection}
+                        className="p-1 rounded-[4px] text-[#64748B] dark:text-[#94A3B8] hover:bg-blue-100 dark:hover:bg-slate-700 cursor-pointer"
+                        title="Clear Selection"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Asset Grid */}
+                {(() => {
+                  const mediaList = (project.mediaLibrary || []).filter((a) =>
+                    a.name.toLowerCase().includes(assetSearch.toLowerCase())
+                  );
+
+                  if (mediaList.length === 0) {
+                    return (
+                      <div className="text-center py-6 px-3 bg-[#FAFAFA] dark:bg-[#151515] border border-dashed border-[#E5E5E5] dark:border-[#2A2A2A] rounded-[8px]">
+                        <Film className="w-6 h-6 mx-auto mb-2 text-[#A3A3A3] stroke-1" />
+                        <p className="text-xs text-[#737373] dark:text-[#A1A1A1]">
+                          {assetSearch ? 'No matching assets found' : 'No uploaded media assets'}
+                        </p>
+                        <p className="text-[10px] text-[#A3A3A3] mt-0.5">
+                          Upload files or record voiceovers to save assets here
+                        </p>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="grid grid-cols-2 gap-2">
+                      {mediaList.map((asset) => {
+                        const isSelected = selectedAssetIds.includes(asset.id);
+                        return (
+                          <div
+                            key={asset.id}
+                            draggable
+                            onDragStart={(e) => {
+                              e.dataTransfer.setData(
+                                'application/json',
+                                JSON.stringify({
+                                  type: asset.type === 'audio' ? 'audio' : asset.type === 'image' ? 'image' : 'video',
+                                  mediaUrl: asset.url,
+                                  mediaId: asset.mediaId,
+                                  name: asset.name,
+                                  duration: asset.duration || 5,
+                                })
+                              );
+                            }}
+                            onClick={(e) => {
+                              const multi = e.ctrlKey || e.metaKey || selectMode;
+                              const shift = e.shiftKey;
+                              selectAsset(asset.id, multi, shift);
+                            }}
+                            className={`group relative rounded-[6px] border p-1.5 transition-all cursor-pointer select-none bg-white dark:bg-[#1A1A1A] ${
+                              isSelected
+                                ? 'border-[#3B82F6] ring-2 ring-[#3B82F6]/30 dark:ring-[#3B82F6]/50 bg-blue-50/20 dark:bg-blue-950/20'
+                                : 'border-[#E5E5E5] dark:border-[#2A2A2A] hover:border-[#A3A3A3] dark:hover:border-[#525252]'
+                            }`}
+                          >
+                            {/* Thumbnail Container */}
+                            <div className="h-20 rounded-[4px] bg-[#000000] overflow-hidden relative flex items-center justify-center">
+                              {asset.type === 'video' ? (
+                                <video
+                                  src={asset.url}
+                                  className="w-full h-full object-cover pointer-events-none"
+                                  muted
+                                  preload="metadata"
+                                />
+                              ) : asset.type === 'image' || asset.type === 'sticker' ? (
+                                <img
+                                  src={asset.url}
+                                  alt={asset.name}
+                                  className="w-full h-full object-cover pointer-events-none"
+                                />
+                              ) : (
+                                <div className="flex flex-col items-center justify-center text-[#3B82F6]">
+                                  <Music className="w-6 h-6 mb-1" />
+                                  <span className="text-[9px] text-[#A3A3A3]">Audio</span>
+                                </div>
+                              )}
+
+                              {/* Selection Checkbox Badge */}
+                              {(selectMode || isSelected) && (
+                                <div className="absolute top-1 left-1 z-10">
+                                  <div
+                                    className={`w-4 h-4 rounded flex items-center justify-center text-white transition-colors ${
+                                      isSelected ? 'bg-[#3B82F6]' : 'bg-black/50 border border-white/50'
+                                    }`}
+                                  >
+                                    {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Hover Quick Actions */}
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 p-1">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const targetTrack = project.tracks.find((t) =>
+                                      asset.type === 'video' || asset.type === 'image'
+                                        ? t.type === 'video'
+                                        : asset.type === 'audio'
+                                        ? t.type === 'audio'
+                                        : t.type === 'video'
+                                    ) || project.tracks[0];
+                                    const dur = asset.duration || (asset.type === 'image' ? 4 : 8);
+                                    addClipToTrack(targetTrack.id, {
+                                      id: 'clip_' + Date.now(),
+                                      trackId: targetTrack.id,
+                                      type: asset.type === 'audio' ? 'audio' : asset.type === 'image' ? 'image' : 'video',
+                                      name: asset.name,
+                                      start: currentTime,
+                                      duration: dur,
+                                      sourceStart: 0,
+                                      sourceDuration: dur,
+                                      mediaUrl: asset.url,
+                                      mediaId: asset.mediaId,
+                                      x: 0, y: 0, scale: 1, rotation: 0, opacity: 1,
+                                      keyframes: [],
+                                    });
+                                    toastSuccess(`Added "${asset.name}" to timeline`);
+                                  }}
+                                  className="p-1.5 rounded-full bg-white text-black hover:bg-blue-500 hover:text-white transition-colors cursor-pointer"
+                                  title="Add to timeline"
+                                >
+                                  <Plus className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenDeleteModal([asset.id]);
+                                  }}
+                                  className="p-1.5 rounded-full bg-white text-black hover:bg-red-600 hover:text-white transition-colors cursor-pointer"
+                                  title="Delete asset"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+
+                              {/* Duration Badge */}
+                              {asset.duration > 0 && (
+                                <span className="absolute bottom-1 right-1 text-[9px] font-mono bg-black/70 text-white px-1 rounded">
+                                  {asset.duration}s
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Title & Info */}
+                            <div className="mt-1.5 flex items-center justify-between gap-1 text-[11px]">
+                              <span className="font-medium text-[#171717] dark:text-[#EDEDED] truncate flex-1" title={asset.name}>
+                                {asset.name}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           )}
@@ -3395,6 +3815,70 @@ export const LeftPanel = ({ mobileDrawer = false, onClose }) => {
 
         {/* Content Viewport */}
         {tabContent}
+
+        {/* Delete Confirmation Modal */}
+        {deleteConfirmOpen && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-[#1E1E1E] border border-[#E5E5E5] dark:border-[#2A2A2A] rounded-xl p-5 max-w-sm w-full shadow-2xl space-y-4">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400">
+                  <AlertTriangle className="w-5 h-5" />
+                  <h3 className="text-sm font-semibold text-[#171717] dark:text-[#EDEDED]">
+                    Delete {assetsPendingDelete.length} Asset(s)?
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setDeleteConfirmOpen(false)}
+                  className="text-[#737373] hover:text-[#171717] dark:hover:text-[#EDEDED] cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <p className="text-xs text-[#737373] dark:text-[#A1A1A1] leading-relaxed">
+                Are you sure you want to delete {assetsPendingDelete.length} asset(s) from your project library? This removes the asset blobs permanently.
+              </p>
+
+              {/* Timeline Warning if clips are affected */}
+              {(() => {
+                const count = getAffectedClipsCount(assetsPendingDelete);
+                if (count === 0) return null;
+                return (
+                  <div className="p-2.5 rounded-[6px] bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 text-amber-800 dark:text-amber-200 text-xs space-y-2">
+                    <p className="font-medium flex items-center gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                      {count} clip(s) on your timeline rely on these assets.
+                    </p>
+                    <label className="flex items-center gap-2 cursor-pointer text-[11px]">
+                      <input
+                        type="checkbox"
+                        checked={removeClipsFromTimeline}
+                        onChange={(e) => setRemoveClipsFromTimeline(e.target.checked)}
+                        className="rounded border-amber-300 dark:border-amber-700 text-rose-600 focus:ring-rose-500"
+                      />
+                      <span>Also remove associated clips from timeline tracks</span>
+                    </label>
+                  </div>
+                );
+              })()}
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#E5E5E5] dark:border-[#2A2A2A]">
+                <button
+                  onClick={() => setDeleteConfirmOpen(false)}
+                  className="px-3 py-1.5 rounded-[6px] text-xs font-medium border border-[#E5E5E5] dark:border-[#2A2A2A] hover:bg-[#F5F5F5] dark:hover:bg-[#262626] text-[#171717] dark:text-[#EDEDED] transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmDeleteAssets}
+                  className="px-3 py-1.5 rounded-[6px] text-xs font-medium bg-red-600 hover:bg-red-700 text-white shadow-xs transition-colors cursor-pointer"
+                >
+                  Delete Permanently
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </aside>
   );
