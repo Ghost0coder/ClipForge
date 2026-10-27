@@ -50,6 +50,8 @@ export const CenterPreview = () => {
     setEyedropperActive,
     addClipToTrack,
     selectClip,
+    mobilePreviewCollapsed,
+    toggleMobilePreviewCollapsed,
   } = useEditorStore();
 
   const { isMobile } = useResponsive();
@@ -570,12 +572,50 @@ export const CenterPreview = () => {
 
   const isVisualClipSelected = selectedClip && selectedClip.type !== 'audio';
 
+  // Compact mini-player bar on mobile when user chooses to collapse preview to focus on multi-track timeline
+  if (isMobile && mobilePreviewCollapsed) {
+    return (
+      <div className="h-14 w-full px-3 flex items-center justify-between gap-2 bg-white dark:bg-[#1A1A1A] shrink-0 select-none">
+        <div className="flex items-center gap-2 min-w-0">
+          <button
+            onClick={togglePlay}
+            className="flex items-center justify-center min-w-[44px] min-h-[44px] rounded-full bg-[#171717] text-white dark:bg-[#EDEDED] dark:text-[#171717] active:scale-95 cursor-pointer shrink-0 transition-transform"
+            title={isPlaying ? 'Pause' : 'Play'}
+            aria-label={isPlaying ? 'Pause' : 'Play'}
+          >
+            {isPlaying ? <Pause className="w-4 h-4" strokeWidth={1.5} /> : <Play className="w-4 h-4 ml-0.5" strokeWidth={1.5} />}
+          </button>
+          <div className="flex flex-col min-w-0">
+            <span className="text-xs font-medium tabular-nums text-[#171717] dark:text-[#EDEDED] truncate">
+              {formatTimecode(currentTime)} / {formatTimecode(project.duration)}
+            </span>
+            <span className="text-[10px] text-[#737373] dark:text-[#A1A1A1] truncate">
+              {project.aspectRatio} • {project.name}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            onClick={toggleMobilePreviewCollapsed}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] bg-[#3B82F6] hover:bg-[#2563EB] text-white font-medium text-xs min-h-[44px] shadow-sm active:scale-95 transition-all cursor-pointer"
+            title="Expand Video Preview"
+            aria-label="Expand Video Preview"
+          >
+            <Maximize2 className="w-3.5 h-3.5" strokeWidth={2} />
+            <span>Show Preview</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <main
       ref={containerRef}
       className={`flex flex-col bg-[#F0F0F0] dark:bg-[#0D0D0D] select-none relative z-10 transition-colors ${
         isMobile
-          ? 'h-[36vh] max-h-[38vh] min-h-[220px] w-full shrink-0 border-b border-[#E5E5E5] dark:border-[#2A2A2A]'
+          ? 'h-full w-full flex-1 min-h-0'
           : 'flex-1 h-full min-h-0'
       }`}
     >
@@ -642,6 +682,23 @@ export const CenterPreview = () => {
           isMobile ? 'p-1.5' : 'p-3'
         }`}
       >
+        {/* Mobile Quick Collapse Button to focus on timeline */}
+        {isMobile && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleMobilePreviewCollapsed();
+            }}
+            className="absolute top-2 right-2 z-35 flex items-center gap-1 px-2.5 py-1 rounded-[6px] bg-black/60 hover:bg-black/80 text-white backdrop-blur-md text-[10px] border border-white/20 shadow-md cursor-pointer active:scale-95 transition-all"
+            title="Focus Timeline (gives timeline maximum space)"
+            aria-label="Focus Timeline"
+          >
+            <Minimize2 className="w-3 h-3 text-[#3B82F6]" strokeWidth={2} />
+            <span className="font-medium">Focus Timeline</span>
+          </button>
+        )}
+
         <div
           ref={previewWrapperRef}
           className="relative rounded-[6px] overflow-hidden border border-[#E5E5E5] dark:border-[#2A2A2A] flex items-center justify-center transition-all bg-black shadow-sm"

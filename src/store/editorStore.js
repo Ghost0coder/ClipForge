@@ -320,6 +320,9 @@ export const useEditorStore = create((set, get) => {
 
     devMobilePreview: false,
     toggleDevMobilePreview: () => set((state) => ({ devMobilePreview: !state.devMobilePreview })),
+    mobilePreviewCollapsed: false,
+    toggleMobilePreviewCollapsed: () => set((state) => ({ mobilePreviewCollapsed: !state.mobilePreviewCollapsed })),
+    setMobilePreviewCollapsed: (collapsed) => set({ mobilePreviewCollapsed: collapsed }),
     isMobileToolDrawerOpen: false,
     setMobileToolDrawerOpen: (open) => set({ isMobileToolDrawerOpen: open }),
     isMobileInspectorOpen: false,

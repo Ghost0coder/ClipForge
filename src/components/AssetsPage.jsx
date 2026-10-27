@@ -148,7 +148,7 @@ export const AssetsPage = () => {
   }, [selectedAssetIds, filteredAssets, selectAsset]);
 
   return (
-    <div className="flex-1 flex flex-col overflow-y-auto bg-[#FAFAFA] dark:bg-[#111111] text-[#171717] dark:text-[#EDEDED] select-none p-6 lg:p-8 space-y-6">
+    <div className="flex-1 flex flex-col overflow-y-auto bg-[#FAFAFA] dark:bg-[#111111] text-[#171717] dark:text-[#EDEDED] select-none p-4 sm:p-6 lg:p-8 space-y-6 pb-24 sm:pb-8">
       {/* Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>

@@ -17,7 +17,7 @@ export const TemplatesPage = () => {
   ];
 
   return (
-    <div className="flex-1 flex flex-col overflow-y-auto bg-[#FAFAFA] dark:bg-[#111111] text-[#171717] dark:text-[#EDEDED] select-none p-6 lg:p-8 space-y-6">
+    <div className="flex-1 flex flex-col overflow-y-auto bg-[#FAFAFA] dark:bg-[#111111] text-[#171717] dark:text-[#EDEDED] select-none p-4 sm:p-6 lg:p-8 space-y-6 pb-24 sm:pb-8">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-[#171717] dark:text-[#EDEDED]">
           Templates Gallery

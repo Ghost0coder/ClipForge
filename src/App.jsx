@@ -46,6 +46,7 @@ export default function App() {
     isOnboardingOpen,
     closeOnboarding,
     route,
+    mobilePreviewCollapsed,
   } = useEditorStore();
 
   const { isMobile } = useResponsive();
@@ -101,7 +102,7 @@ export default function App() {
         <AppNavigation />
 
         {/* Active Page Route */}
-        <main className={`flex-1 flex flex-col overflow-hidden relative ${!isMobile ? 'pl-14' : ''}`}>
+        <main className={`flex-1 flex flex-col overflow-hidden relative ${!isMobile ? 'pl-14' : 'pb-16'}`}>
           {route === 'home' && <HomePage />}
           {route === 'projects' && <ProjectsPage />}
           {route === 'trash' && <TrashPage />}
@@ -127,13 +128,13 @@ export default function App() {
       <div className="flex flex-col h-[100dvh] max-h-[100dvh] w-screen overflow-hidden bg-[#FAFAFA] dark:bg-[#111111] text-[#171717] dark:text-[#EDEDED] select-none touch-manipulation overscroll-none font-sans">
         <TopBar />
 
-        {/* Preview Player */}
-        <div className="h-[38%] min-h-[190px] max-h-[42%] flex flex-col overflow-hidden shrink-0 relative bg-[#F0F0F0] dark:bg-[#0D0D0D]">
+        {/* Preview Player (collapsible to give maximum space to multi-track timeline) */}
+        <div className={`${mobilePreviewCollapsed ? 'h-14 shrink-0' : 'h-[36%] min-h-[180px] max-h-[42%] shrink-0'} flex flex-col overflow-hidden relative bg-[#F0F0F0] dark:bg-[#0D0D0D] transition-all duration-200 border-b border-[#E5E5E5] dark:border-[#2A2A2A]`}>
           <CenterPreview />
         </div>
 
-        {/* Multi-Track Timeline */}
-        <div className="flex-1 min-h-[150px] flex flex-col overflow-hidden relative">
+        {/* Multi-Track Timeline (expands to fill all remaining height with zero dead space) */}
+        <div className="flex-1 min-h-0 flex flex-col overflow-hidden relative">
           <Timeline />
         </div>
 

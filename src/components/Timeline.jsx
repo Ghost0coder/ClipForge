@@ -120,6 +120,14 @@ export const Timeline = () => {
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
+  const formatTimecode = (sec) => {
+    if (isNaN(sec) || sec < 0) sec = 0;
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    const f = Math.floor((sec % 1) * 30);
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}:${f.toString().padStart(2, '0')}`;
+  };
+
   // Detect beats: generates rhythmic beat markers along the project timeline (128 BPM = ~0.46875s)
   const handleDetectBeats = () => {
     useEditorStore.getState().pushHistory();
@@ -356,8 +364,8 @@ export const Timeline = () => {
 
   return (
     <footer
-      className={`border-t border-[#E5E5E5] dark:border-[#2A2A2A] bg-[#FAFAFA] dark:bg-[#111111] flex flex-col select-none shrink-0 overflow-visible relative z-20 transition-colors ${
-        isMobile ? 'flex-1 min-h-[160px] max-h-[30vh]' : 'h-64 md:h-72'
+      className={`border-t border-[#E5E5E5] dark:border-[#2A2A2A] bg-[#FAFAFA] dark:bg-[#111111] flex flex-col select-none overflow-visible relative z-20 transition-colors ${
+        isMobile ? 'flex-1 min-h-0 h-full w-full' : 'h-64 md:h-72 shrink-0'
       }`}
     >
       {/* Floating Action Bar above timeline on mobile when clip selected */}
@@ -517,12 +525,19 @@ export const Timeline = () => {
           <div className="flex items-center gap-1">
             <button
               onClick={() => setZoom(Math.max(10, zoom - 15))}
-              className="p-1 text-[#737373] dark:text-[#A1A1A1] hover:text-[#171717] dark:hover:text-[#EDEDED] cursor-pointer"
+              className={`text-[#737373] dark:text-[#A1A1A1] hover:text-[#171717] dark:hover:text-[#EDEDED] cursor-pointer flex items-center justify-center ${
+                isMobile ? 'min-w-[34px] min-h-[34px] p-1 active:bg-[#F5F5F5] dark:active:bg-[#262626] rounded-[6px]' : 'p-1'
+              }`}
               title="Zoom Out"
+              aria-label="Zoom Out"
             >
               <ZoomOut className="w-3.5 h-3.5" strokeWidth={1.5} />
             </button>
-            {!isMobile && (
+            {isMobile ? (
+              <span className="text-[10px] tabular-nums font-mono text-[#737373] dark:text-[#A1A1A1] px-1 select-none">
+                {Math.round((zoom / 45) * 100)}%
+              </span>
+            ) : (
               <input
                 type="range"
                 min="10"
@@ -535,8 +550,11 @@ export const Timeline = () => {
             )}
             <button
               onClick={() => setZoom(Math.min(200, zoom + 15))}
-              className="p-1 text-[#737373] dark:text-[#A1A1A1] hover:text-[#171717] dark:hover:text-[#EDEDED] cursor-pointer"
+              className={`text-[#737373] dark:text-[#A1A1A1] hover:text-[#171717] dark:hover:text-[#EDEDED] cursor-pointer flex items-center justify-center ${
+                isMobile ? 'min-w-[34px] min-h-[34px] p-1 active:bg-[#F5F5F5] dark:active:bg-[#262626] rounded-[6px]' : 'p-1'
+              }`}
               title="Zoom In"
+              aria-label="Zoom In"
             >
               <ZoomIn className="w-3.5 h-3.5" strokeWidth={1.5} />
             </button>
@@ -694,17 +712,20 @@ export const Timeline = () => {
               ))])}
             </div>
 
-            {/* Playhead Scrubber Line Spanning All Tracks - Single soft accent #3B82F6 without glow */}
+            {/* Playhead Scrubber Line Spanning All Tracks - Single soft accent #3B82F6 */}
             <div
               style={{ left: `${currentTime * zoom}px` }}
-              className="absolute top-0 bottom-0 w-[1.5px] bg-[#3B82F6] z-30 pointer-events-none"
+              className={`absolute top-0 bottom-0 ${isMobile ? 'w-[2px]' : 'w-[1.5px]'} bg-[#3B82F6] z-30 pointer-events-none`}
             >
-              {/* Playhead Needle Head */}
+              {/* Playhead Needle Head with touch target */}
               <div
                 onMouseDown={handleRulerMouseDown}
                 onTouchStart={handleRulerTouchStart}
-                style={{ marginLeft: currentTime * zoom < 6 ? '0px' : '-5px' }}
-                className="w-3 h-3 bg-[#3B82F6] rotate-45 -mt-1 shadow-sm pointer-events-auto cursor-ew-resize touch-none"
+                style={{ marginLeft: currentTime * zoom < 6 ? '0px' : isMobile ? '-8px' : '-5px' }}
+                className={`${
+                  isMobile ? 'w-4 h-4 -mt-1.5 rounded-full' : 'w-3 h-3 rotate-45 -mt-1'
+                } bg-[#3B82F6] shadow-md pointer-events-auto cursor-ew-resize touch-none flex items-center justify-center active:scale-125 transition-transform`}
+                title={`Playhead: ${formatTimecode(currentTime)}`}
               />
             </div>
 
@@ -876,11 +897,11 @@ export const Timeline = () => {
                             }
                           }}
                           className={`absolute left-0 top-0 bottom-0 ${
-                            isMobile ? 'w-7' : 'w-2.5 hover:w-3.5'
+                            isMobile ? 'w-9' : 'w-2.5 hover:w-3.5'
                           } flex items-center justify-center bg-black/10 dark:bg-white/10 hover:bg-[#3B82F6]/30 cursor-ew-resize transition-all z-20 touch-none`}
                           title="Drag to trim start"
                         >
-                          <div className="w-1 h-5 bg-[#737373] dark:bg-[#D4D4D4] rounded-full" />
+                          <div className={`${isMobile ? 'w-1.5 h-6' : 'w-1 h-5'} bg-[#737373] dark:bg-[#D4D4D4] rounded-full`} />
                         </div>
 
                         {/* Audio Waveform visualization */}
@@ -962,11 +983,11 @@ export const Timeline = () => {
                             }
                           }}
                           className={`absolute right-0 top-0 bottom-0 ${
-                            isMobile ? 'w-7' : 'w-2.5 hover:w-3.5'
+                            isMobile ? 'w-9' : 'w-2.5 hover:w-3.5'
                           } flex items-center justify-center bg-black/10 dark:bg-white/10 hover:bg-[#3B82F6]/30 cursor-ew-resize transition-all z-20 touch-none`}
                           title="Drag to trim end"
                         >
-                          <div className="w-1 h-5 bg-[#737373] dark:bg-[#D4D4D4] rounded-full" />
+                          <div className={`${isMobile ? 'w-1.5 h-6' : 'w-1 h-5'} bg-[#737373] dark:bg-[#D4D4D4] rounded-full`} />
                         </div>
 
                         {/* Keyframe Markers on Selected Clip */}
